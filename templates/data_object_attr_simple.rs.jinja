@@ -1,0 +1,13 @@
+{%- match as -%}
+{%- when SimpleType::Bool -%} bool
+{%- when SimpleType::Float -%} f32
+{%- when SimpleType::Double -%} f64
+{%- when SimpleType::Binary -%} Vec<u8>
+{%- when SimpleType::IntFixed with (x) -%} i{%- let bs = as.get_int_bits_no_error() -%} {{ bs }}
+{%- when SimpleType::UIntFixed with (x) -%} u{%- let bs = as.get_int_bits_no_error() -%} {{ bs }}
+{%- when SimpleType::IntDyn with (x) -%} i{%- let bs = as.get_int_bits_no_error() -%} {{ bs }}
+{%- when SimpleType::UIntDyn with (x) -%} u{%- let bs = as.get_int_bits_no_error() -%} {{ bs }}
+{%- when SimpleType::UFixedPoint with (_) -%} u{%- let bs = as.get_int_bits_no_error() -%} {{ bs }}
+{%- when SimpleType::FixedPoint with (_) -%} u{%- let bs = as.get_int_bits_no_error() -%} {{ bs }}
+{%- else ~%} ERROR_TYPE_NOT_DEFINED
+{%- endmatch -%}

@@ -1,0 +1,6 @@
+msg Lala {
+    repeated_fixed_10 bool data_bool;
+    uint_4 data1_uint;
+    uint_12 data2_uint;
+}
+

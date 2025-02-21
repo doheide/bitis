@@ -1,0 +1,24 @@
+[package]
+name = "bitis"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "bitis_lib"
+path = "src/lib.rs"
+
+[[bin]]
+name = "bitis"
+path = "src/main.rs"
+
+
+[dependencies]
+logos = "0.15.0"
+regex = "1.11.1"
+askama = "0.12"
+stringcase = "0.3.0"
+clap = { version = "4.5.30", features = ["derive"] }
+
+[dev-dependencies]
+rstest = "0.24.0"
+

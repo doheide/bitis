@@ -1,0 +1,50 @@
+* OneOf
+* Arrays: Fixed, dynamic
+* optional: may not be set
+* nested mesages
+* inheritance/hierarchical
+* enums (variable, extendable size)
+* types:
+  bool = uint_1
+  uint_var
+  uint_X
+  int_var
+  int_X
+  float
+  double
+  fixed_point
+  string, binary
+
+--> serialized as bitstream with known format
+  --> no deserialization hints beside sizes
+  --> only foreward compability
+    - no default values (all values have to explicitly send)
+    - Minimal sze of all messages is known a priori
+
+- dynamic sizes: varint with variable size (x+1, x>2)
+  - used with: dynamic arrays, nested messages,
+  - used for: enum value, uint_var
+
+- enums are a varints or fixed
+
+- ints are always an uint plus a bool negative
+
+- fixed points have a bit length and a min and max value
+
+- oneof: enum (dynamic or fixed) followed by nested message
+
+- nested messages: varint or fixed for size followed by message bits
+
+- everything can be repeated -> repeated number before the thing (varuint or fixeduint)
+
+- Format description:
+  * per data entry
+    * modifier repeated: dynamic, fixed, not_repeated
+      * if dynamic: number of bits in varchar (+1 for overflow flag)
+      * if fixed: number of repeated elements
+    * flag for optional
+    * type flag: attribute / message
+    * for attribute: number of bits
+
+
+

@@ -1,0 +1,59 @@
+// compiler language missing:
+// * one_of
+// * Msgs / Enums as attributes
+// * tests
+// * check:
+//   * MessageNames
+//   * EnumNames
+//   * references
+
+
+// lala
+enum Numbers(fixed, 4) {
+  // There is no number here, as this is done automatically
+  One,
+  Two,
+  Three
+}
+
+enum NumbersAndAHalf(dyn, 4) {
+  OneAndAHalf,
+  TwoAndAHalf,
+  ThreeAndAHalf
+}
+
+msg Papa {
+  oneof oo_lala {
+    uint_8 test;
+    float test2;
+  }
+}
+//| Pipi is the message containing the num
+msg Pipi {
+  //| num means ...
+  Numbers num;
+}
+
+msg Lala {
+  //| comment for lili
+  repeated_dyn_4 bool lili;
+  //| comment for lala
+  repeated_fixed_4 uint_32d4 lala;
+  optional uint_12 lolo;
+  double qwert;
+  // the string has variable size
+  binary lele;
+
+  Pipi pipi;
+
+  oneof oo_lala {
+    uint_8 test;
+    float test2;
+  }
+}
+
+msg Lali : Lala {
+  bool lulu;
+  ufp_32[-100,180] loli;
+}
+

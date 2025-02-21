@@ -1,0 +1,42 @@
+// Enums
+{%- for (_, ce) in enums ~%}
+pub Enum {{ ce.name }} {
+{%- for cv in ce.values +%}
+  {{ cv }},
+{%- endfor %}
+}git status
+
+{%- endfor %}
+
+// Enums for oneof
+{%- for (_, cm) in msgs ~%}
+{%- for ca in cm.attributes +%}
+{%- match ca.specific_details -%}
+{%- when AttributeDetails::AttributeOneOf with (s) ~%}
+enum OO{{ cm.name|pascal_case }}{{ ca.name|pascal_case }} {
+{%- for soo in s +%}
+  {{soo.name|pascal_case}}(
+{%- match soo.specific_details -%}
+{%- when AttributeDetails::AttributeSimple with (as) -%} {% include "data_object_attr_simple.rs.jinja" %}
+{%- when AttributeDetails::AttributeEnumOrMsg with (s) ~%} {{s}}
+{%- else -%} UNEXPECTED
+{%- endmatch -%}),
+{%- endfor %}
+}
+{%- else -%}
+{%- endmatch -%}
+{%~ endfor %}
+{%- endfor %}
+
+// Messages
+{%- for (_, cm) in msgs ~%}
+{%- if let Some(comment_impl) = cm.comment -%}
+//{{comment_impl}}
+{%- endif -%}
+pub struct {{ cm.name }} {
+{%- if let Some(p) = cm.parent -%}// parent: {{ p }}{%- endif -%}
+{%- for ca in cm.attributes +%}
+  {% include "data_object_attr.rs.jinja" %}
+{%- endfor %}
+}
+{% endfor %}

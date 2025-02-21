@@ -1,0 +1,19 @@
+{%- if let Some(comment_impl) = eom.comment -%}
+//{{comment_impl}}  {{as.name}}:
+{%- else -%}
+{{as.name}}:
+{%- endif -%}
+ {%~ if eom.is_optional -%}Option<{%- endif -%}
+{%- if let Some(repeated_type) = eom.is_repeated_and_size -%}
+{%- match repeated_type -%}
+{%- when DynOrFixedType::Dyn(_) -%}Vec<
+{%- when DynOrFixedType::Fixed with (s) -%}[
+{%- endmatch -%}
+{%- endif -%}
+{%- if let Some(repeated_type) = as.is_repeated_and_size -%}
+{%- match repeated_type -%}
+{%- when DynOrFixedType::Dyn(_) -%}>
+{%- when DynOrFixedType::Fixed with (s) -%};{{s}}]
+{%- endmatch -%}
+{%- endif -%}
+{%- if as.is_optional -%}>{%- endif -%},
