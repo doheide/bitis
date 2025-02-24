@@ -29,7 +29,7 @@ enum OO{{ cm.name|pascal_case }}{{ ca.name|pascal_case }} {
 {%- endfor %}
 
 // Messages
-{%- for (_, cm) in msgs ~%}
+{% for (_, cm) in msgs ~%}
 {%- if let Some(comment_impl) = cm.comment -%}
 //{{comment_impl}}
 {%- endif -%}

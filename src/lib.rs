@@ -1,3 +1,5 @@
+mod lib_berde;
+
 use std::collections::HashMap;
 use std::process::abort;
 use askama::Template;
@@ -175,7 +177,7 @@ pub enum Token{
     #[token("double", priority=30)] Double,
     #[regex(r"fp_[0-9]+\[ *-?[0-9]+ *, *-?[0-9]+ *]", get_fp_properties_number, priority=30)] FixedPoint(FixedPointProperties),
     #[regex(r"ufp_[0-9]+\[ *-?[0-9]+ *, *-?[0-9]+ *]", get_fp_properties_number, priority=30)] UFixedPoint(FixedPointProperties),
-    #[token("str", priority=30)] String,
+    //#[token("str", priority=30)] String,
     #[token("binary", priority=30)] Binary,
     #[regex(r"repeated_dyn_[0-9]+", get_suffix_number, priority=30)] RepeatedDyn(u8),
     #[regex(r"repeated_fixed_[0-9]+", get_suffix_number, priority=30)] RepeatedFixed(u8),
@@ -551,6 +553,7 @@ mod bitis_semantic {
 
 #[cfg(test)]
 mod bitis_serialization {
+    use std::fs;
     use rstest::rstest;
     use super::*;
 
@@ -564,20 +567,28 @@ mod bitis_serialization {
         let parsed_bitis = parse_root(&mut lexer);
         assert_eq!(parsed_bitis.is_ok(), true);
 
-        // let rdo = RustDataObjects {
-        //     enums: parsed_bitis.iter().filter_map(|x|
-        //         match x {
-        //             Value::Enum(ev) => Some((ev.name.clone(), ev.clone())),
-        //             _ => None
-        //         })
-        //         .collect::<HashMap<_, _>>(),
-        //     msgs: parsed_bitis.iter().filter_map(|x|
-        //         match x {
-        //             Value::Message(mv) => Some((mv.name.clone(), mv.clone())),
-        //             _ => None
-        //         })
-        //         .collect::<HashMap<_, _>>(),
-        // };
+        let parsed_bitis = parsed_bitis.unwrap();
+
+        let rdo = RustDataObjects {
+            enums: parsed_bitis.iter().filter_map(|x|
+                match x {
+                    Value::Enum(ev) => Some((ev.name.clone(), ev.clone())),
+                    _ => None
+                })
+                .collect::<HashMap<_, _>>(),
+            msgs: parsed_bitis.iter().filter_map(|x|
+                match x {
+                    Value::Message(mv) => Some((mv.name.clone(), mv.clone())),
+                    _ => None
+                })
+                .collect::<HashMap<_, _>>(),
+        };
+
+        let rendered = rdo.render().unwrap();
+
+        let current_test_simple_code = String::from(std::str::from_utf8(&fs::read("test_data/test_simple_msg.rs")
+            .expect("Unable to read test_simple_msg.rs file")).unwrap());
+        assert_eq!(current_test_simple_code, rendered);
     }
 }
 
