@@ -1,0 +1,155 @@
+extern crate proc_macro2;
+
+use proc_macro::TokenStream;
+use quote::{quote};
+use syn::Data;
+use proc_macro2::{Span, Ident};
+use proc_macro2::TokenTree::Literal;
+
+#[proc_macro_derive(BiserdiMsg, attributes(biserdi_enum))]
+pub fn biserdi_msg(item: TokenStream) -> TokenStream {
+    let input = syn::parse_macro_input!(item as syn::DeriveInput);
+
+    let struct_or_enum_identifier = &input.ident;
+    match &input.data {
+        Data::Struct(syn::DataStruct { fields, .. }) => {
+            let mut bit_serialize_impl = quote!{};
+            let mut bit_deserialize_impl = quote!{};
+            let mut bit_deserialize_impl_init = quote!{};
+            let mut bit_deserialize_impl_size = quote!{0};
+
+            let size_identifier = Ident::new("s".into(), Span::call_site());
+            // let size_identifier = quote::format_ident!("s");
+            let bit_serialize_self_identifier = quote::format_ident!("self");
+
+            for field in fields {
+                let identifier = field.ident.as_ref().unwrap();
+                let ty = field.ty.clone();
+                let temp_identifier = quote::format_ident!("t_{}", identifier);
+
+                bit_serialize_impl.extend(quote!{
+                    #size_identifier += #bit_serialize_self_identifier.#identifier.bit_serialize(biseri)?;
+                });
+                bit_deserialize_impl.extend(quote!{
+                    let #temp_identifier = call_deserialize::<#ty>(bides)?;
+                });
+                bit_deserialize_impl_init.extend(quote!{
+                    #identifier: #temp_identifier.0,
+                });
+                bit_deserialize_impl_size.extend(quote!{
+                    +#temp_identifier.1
+                });
+            }
+
+            let code = quote! {
+                #[automatically_derived]
+                impl BiserdiTrait for #struct_or_enum_identifier {
+                    fn bit_serialize(self: &Self, biseri: &mut Biseri) -> Option<u64> {
+                        let mut #size_identifier = 0_u64;
+                        #bit_serialize_impl
+                        Some(#size_identifier)
+                    }
+                    fn bit_deserialize(bides: &mut Bides) -> Option<(Self, u64)> {
+                        fn call_deserialize<T:BiserdiTrait>(bides: &mut Bides) -> Option<(T, u64)> {
+                            T::bit_deserialize(bides) }
+                        #bit_deserialize_impl
+                        Some((Self{#bit_deserialize_impl_init}, #bit_deserialize_impl_size))
+                    }
+                }
+            };
+            // println!("{}", code);
+            code
+        },
+        _ => panic!("BiserdiMsg only allowed for Structs")
+    }.into()
+}
+
+#[proc_macro_derive(BiserdiOneOf, attributes(biserdi_enum_id_bits))]
+pub fn biserdi_one_of(item: TokenStream) -> TokenStream {
+    let input = syn::parse_macro_input!(item as syn::DeriveInput);
+
+    let struct_or_enum_identifier = &input.ident;
+    // println!("input: {:?}", input);
+
+    if input.attrs.len() != 1 {
+        panic!("One instance of biserdi_enum_id_bits is required with one unsigned integer as attribute (8-bit), e.g. #[biserdi_enum_id_bits(4)].")
+    }
+    // println!("meta: {:?}", input.attrs[0].meta);
+    let v: Vec<_> = input.attrs[0].meta.require_list().clone().unwrap().tokens.clone()
+        .into_iter().filter_map(|x| {
+        match x {
+            Literal(v)  => { Some(v.to_string().parse::<u8>().ok()) },
+            _ => None
+        }
+    }).collect();
+    if v.len() != 1 {
+        panic!("One instance of biserdi_enum_id_bits is required with one unsigned integer as attribute (8-bit), e.g. #[biserdi_enum_id_bits(4)].")
+    }
+    let dyn_bits = v[0].unwrap();
+
+    match &input.data {
+        Data::Enum(syn::DataEnum { variants, .. }) => {
+            let mut bit_serialize_impl = quote!{};
+            let mut bit_deserialize_impl = quote!{};
+
+            for (id, variant) in variants.iter().enumerate() {
+                let ident = variant.ident.clone();
+                let ty = match variant.fields.clone() {
+                    syn::Fields::Named(_) => panic!("Biserdi for enum only allowed with named fields"),
+                    syn::Fields::Unnamed(ty) => ty.unnamed.clone(),
+                    syn::Fields::Unit => panic!("Biserdi for enum only allowed for field with a type"),
+                };
+                // println!("ty: {:?}", ty);
+                let id_u32 = id as u32;
+                let id_token = quote! { #id_u32 };
+
+                bit_serialize_impl.extend(quote! {
+                    #struct_or_enum_identifier::#ident(v) => {
+                        let s = DynInteger::<u32, #dyn_bits>::new(#id_token).bit_serialize(biseri)?;
+                        s + v.bit_serialize(biseri)?
+                    },
+                });
+                bit_deserialize_impl.extend(quote! {
+                    #id_token => {
+                        let v = call_deserialize::<#ty>(bides)?;
+                        (#struct_or_enum_identifier::#ident(v.0), v.1 + oo_val.1)
+                    },
+                });
+            }
+            let code = quote! {
+                #[automatically_derived]
+                impl BiserdiTrait for OOLili {
+                    fn bit_serialize(self: &Self, biseri: &mut Biseri) -> Option<u64> {
+                        Some(match self {
+                            #bit_serialize_impl
+                        })
+                    }
+                    fn bit_deserialize(bides: &mut Bides) -> Option<(Self, u64)> {
+                        fn call_deserialize<T:BiserdiTrait>(bides: &mut Bides) -> Option<(T, u64)> {
+                            T::bit_deserialize(bides) }
+                        let oo_val = DynInteger::<u32, #dyn_bits>::bit_deserialize(bides)?;
+                        Some(match oo_val.0.val {
+                            #bit_deserialize_impl
+                            _ => { return None }
+                        })
+                    }
+                }
+            };
+            // println!("{}", code);
+            code
+        },
+        _ => panic!("BiserdiOneOf only allowed for Enums")
+    }.into()
+}
+
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn it_works() {
+
+    }
+}
