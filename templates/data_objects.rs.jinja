@@ -33,7 +33,9 @@ enum OO{{ cm.name|pascal_case }}{{ ca.name|pascal_case }} {
 {%- if let Some(comment_impl) = cm.comment -%}
 //{{comment_impl}}
 {%- endif -%}
-pub struct {{ cm.name }} {
+#[derive(BiserdiMsg, Debug, Clone, PartialEq)]
+#[allow(nonstandard_style)]
+pub struct {{ cm.name }}{%- if let MsgVersion::VersionedMsg(v) = cm.version -%}_V{{ v }}{%- endif +%} {
 {%- if let Some(p) = cm.parent -%}// parent: {{ p }}{%- endif -%}
 {%- for ca in cm.attributes +%}
   {% include "data_object_attr.rs.jinja" %}

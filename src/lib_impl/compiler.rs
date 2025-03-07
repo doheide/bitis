@@ -4,8 +4,9 @@ use askama::Template;
 use logos::{Lexer, Logos, Span};
 use regex::Regex;
 
+
 // ************************************************************************
-#[derive(Template)]
+#[derive(Template, Clone, Debug)]
 #[template(path = "data_objects.rs.jinja")]
 pub struct RustDataObjects {
     pub enums: HashMap<String, Enum>,
@@ -97,6 +98,7 @@ pub struct Attribute {
 #[derive(Debug, Clone)]
 pub struct Message {
     pub name: String,
+    pub version: MsgVersion,
     pub comment: Option<String>,
     pub parent: Option<String>,
     pub attributes: Vec<Attribute>,
@@ -105,6 +107,7 @@ pub struct Message {
 #[derive(Debug, Clone)]
 pub struct Enum {
     pub name: String,
+    pub version: MsgVersion,
     pub comment: Option<String>,
     pub bit_size: DynOrFixedType,
     pub values: Vec<String>,
@@ -143,9 +146,26 @@ pub fn get_dyn_or_fixed_from_args(lex: &mut Lexer<Token>) -> Option<DynOrFixedTy
         Some(DynOrFixedType::Fixed(bits))
     }
 }
+pub fn get_version(lex: &mut Lexer<Token>) -> Option<MsgVersion> {
+    let slice = lex.slice();
+    let re = Regex::new(r"\[(versioned|fixed)]").unwrap();
+    let ver = re.captures(slice)?.get(1)?.as_str();
 
+    if ver == "versioned" { Some(MsgVersion::VersionedMsg(lex.extras)) }
+    else if ver == "fixed" { Some(MsgVersion::FixedMsg) }
+    else { None }
+    //else { Some(MsgVersion::Version(ver.parse::<u32>().ok()?)) }
+}
+#[derive(Debug, Clone)]
+pub enum MsgVersion {
+    FixedMsg,
+    VersionedMsg(u16),
+    // Base,
+    // Version
+}
 #[derive(Debug, Logos)]
 #[logos(skip r"[ \t\r\n\f]+")]
+#[logos(extras = u16)]
 #[allow(dead_code)]
 pub enum Token{
     #[regex(r"//[^\n]*\n?", priority=40)] Comment,
@@ -162,6 +182,7 @@ pub enum Token{
     #[token(",")] Comma,
     // #[token("fixed", priority=20)] FixedFlag,
     // #[token("dyn", priority=20)] DynFlag,
+    #[regex(r"\[(versioned|fixed)]", get_version, priority=35)] MsgVersionToken(MsgVersion),
     #[regex("[0-9]+", |lex| lex.slice().parse::<isize>().unwrap(), priority=1)] IntegerVal(isize),
     #[regex(r"-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?",
         |lex| lex.slice().parse::<f64>().unwrap(), priority=2)] Number(f64),
@@ -232,7 +253,8 @@ macro_rules! parse_one_token_with_arg {
                     Ok(Token::Comment) => (),
                     _ => {
                         if let Some(err_str) = $error_msg_or_empty {
-                            break Err((format!("{err_str}\nToken: {token:?}").to_owned(), $lexer.span()));
+                            break Err((format!("{}\nFound token: {:?}.",
+                                err_str, token).to_owned(), $lexer.span()));
                         }
                         else {
                             break Ok(Err($lexer.span()));
@@ -275,11 +297,16 @@ pub fn parse_root(lexer: &mut Lexer<'_, Token>) -> Result<Vec<Value>> {
 pub fn parse_msg(lexer: &mut Lexer<'_, Token>, comment_for_msg: Option<String>) -> Result<Value> {
     let mut attributes = Vec::new();
 
-    let name = match parse_one_token_with_arg!(Token::StringVal, lexer, Some("Expected msg name but received."))? {
+    let name = match parse_one_token_with_arg!(Token::StringVal, lexer, Some("Expected msg name but received:"))? {
         Ok(s) => s,
         Err(s) => { return Err(("Code should not be reached".into(), s)); }
     };
 
+    let version = match parse_one_token_with_arg!(Token::MsgVersionToken, lexer,
+        Some(format!("Expected msg version in form of '[...]' for '{}' but received: ", name)))? {
+        Ok(v) => v,
+        Err(s) => { return Err(("Code should not be reached".into(), s)); }
+    };
     let parent = {
         let has_parent; let p;
         if let Some(token) = lexer.next() {
@@ -318,7 +345,7 @@ pub fn parse_msg(lexer: &mut Lexer<'_, Token>, comment_for_msg: Option<String>) 
         else { return Err(("Unexpected end of file".into(), lexer.span())); }
     }
 
-    Ok(Value::Message(Message{name, comment: comment_for_msg, parent, attributes}))
+    Ok(Value::Message(Message{name, version, comment: comment_for_msg, parent, attributes}))
 }
 
 pub fn parse_attribute(last_token: Token, lexer: &mut Lexer<'_, Token>,
@@ -449,6 +476,12 @@ pub fn parse_enum(lexer: &mut Lexer<'_, Token>, comment: Option<String>) -> Resu
 
     parse_one_token!(Token::CBraceOpen, lexer, Some(format!("Expected open curly bracket for enum '{name}'")))?.unwrap();
 
+    let version = match parse_one_token_with_arg!(Token::MsgVersionToken, lexer,
+        Some(format!("Expected msg version in form of '[...]' for '{}' but received: ", name)))? {
+        Ok(v) => v,
+        Err(s) => { return Err(("Code should not be reached".into(), s)); }
+    };
+
     let mut values = Vec::new();
     loop {
         if let Some(token) = lexer.next() {
@@ -461,7 +494,7 @@ pub fn parse_enum(lexer: &mut Lexer<'_, Token>, comment: Option<String>) -> Resu
         } else { return Err(("Unexpected end of file".into(), lexer.span())); }
     }
 
-    Ok(Value::Enum(Enum{name, comment, bit_size: prop, values}))
+    Ok(Value::Enum(Enum{name, version, comment, bit_size: prop, values}))
 }
 
 
@@ -471,6 +504,7 @@ pub fn validate_bitis(parsed_bitis: &Vec<Value>) -> Option<String> {
     let msg_types = parsed_bitis.iter().filter_map(|x|
         match x { Value::Message(msg) => Some(msg.name.clone()), _ => None }).collect::<Vec<String>>();
 
+    // ***
     if let Some (err_str) = parsed_bitis.iter().find_map(|s| match s {
         Value::Message(msg) => {
             msg.attributes.iter().find_map(|a| match a.specific_details.clone() {
@@ -486,6 +520,58 @@ pub fn validate_bitis(parsed_bitis: &Vec<Value>) -> Option<String> {
         _ => None,
     }) { return Some(err_str); };
 
+    // *** check msg versions
+    let msgs_with_version: Vec<_> = parsed_bitis.iter().filter_map(|s| match s {
+        Value::Message(msg) => {
+            Some(match msg.version {
+                MsgVersion::FixedMsg => format!("{}_fixed", msg.name),
+                // MsgVersion::VersionedMsg => format!("{}_versioned", msg.name),
+                // MsgVersion::Base => format!("{}_base", msg.name),
+                MsgVersion::VersionedMsg(v) => format!("{}_v{}", msg.name, v)
+            })
+        },
+        _ => None,
+    }).collect();
+    match (1..msgs_with_version.len()).into_iter().find_map(|i| {
+        let s = &msgs_with_version[i - 1];
+        if msgs_with_version[i..].contains(s) { Some(s.clone()) } else { None }
+    })
+    {
+        Some(msg) => return Some(format!("Multiple conflicting versions of {}.", msg)),
+        None => ()
+    };
+
+    let fixed_msgs: Vec<_> = parsed_bitis.iter().filter_map(|s| match s {
+        Value::Message(msg) => {
+            match msg.version.clone() {
+                MsgVersion::FixedMsg => Some(msg.name.clone()), _ => None }
+        }, _ => None,
+    }).collect();
+    if let Some (err_str) = parsed_bitis.iter().find_map(|s| match s {
+        Value::Message(msg) => {
+            match msg.version.clone() {
+                MsgVersion::FixedMsg => None,
+                _ => {
+                    if fixed_msgs.contains(&msg.name) {
+                        Some(format!("Multiple conflicting versions of {} (fixed and version).", msg.name))
+                    }
+                    else { None }
+                }
+            }
+        }, _ => None,
+    }) { return Some(err_str); };
+
+    // ***
+    // Check that only attributes were added
+    // parsed_bitis.iter().for_each(|s| match s {
+    //     Value::Message(msg) => {
+    //
+    //     },
+    //     Value::Enum(eon) => {
+    //
+    //     }
+    // })
+
     None
 }
 
@@ -498,11 +584,15 @@ mod bitis_semantic {
 
     #[rstest]
     fn msg_empty_msg() {
-        let test_empty_msg = "msg Lala { }";
+        let test_empty_msg = "msg Lala [fixed] { }";
 
         let mut lexer = Token::lexer(test_empty_msg);
+        lexer.extras = (0);
 
         let parsed_bitis = parse_root(&mut lexer);
+        if let Err(s) = parsed_bitis.clone() {
+            panic!("Error: {} ('{}' ,span: {:?})", s.0, &test_empty_msg[s.1.clone()], s.1);
+        }
         assert_eq!(parsed_bitis.is_ok(), true);
 
         let parsed_bitis = parsed_bitis.unwrap();
@@ -513,6 +603,10 @@ mod bitis_semantic {
         if let Value::Message(msg) = parsed_bitis[0].clone() {
             assert_eq!(msg.name, "Lala".to_string());
         }
+
+        let validate_result = validate_bitis(&parsed_bitis);
+        println!("validate_result: {:?}", validate_result);
+        assert!(validate_result.is_none());
     }
 
     #[rstest]
@@ -521,9 +615,10 @@ mod bitis_semantic {
     #[case::uint_32d4("uint_32d4", SimpleType::UIntDyn((32,4)))]
     #[case::bool("bool", SimpleType::Bool)]
     fn msg_various_attribute_types(#[case] attr_type_str: String, #[case] attr_type: SimpleType) {
-        let test_msg = format!("msg Lala {{ {attr_type_str} attr; }}");
+        let test_msg = format!("msg Lala [fixed] {{ {attr_type_str} attr; }}");
 
         let mut lexer = Token::lexer(test_msg.as_str());
+        lexer.extras = (0);
 
         let parsed_bitis = parse_root(&mut lexer);
         assert_eq!(parsed_bitis.is_ok(), true);
@@ -545,6 +640,10 @@ mod bitis_semantic {
                 assert_eq!(at, attr_type);
             }
         }
+
+        let validate_result = validate_bitis(&parsed_bitis);
+        println!("validate_result: {:?}", validate_result);
+        assert!(validate_result.is_none());
     }
 }
 
@@ -557,9 +656,10 @@ mod bitis_serialization {
     //noinspection DuplicatedCode
     #[rstest]
     fn msg_simple_msg_compile() {
-        let test_empty_msg = "msg Lala { repeated_fixed_10 bool data_bool; uint_4 data1_uint; uint_12 data2_uint; }";
+        let test_empty_msg = "msg Lala [fixed] { repeated_fixed_10 bool data_bool; uint_4 data1_uint; uint_12 data2_uint; }";
 
         let mut lexer = Token::lexer(test_empty_msg);
+        lexer.extras = (0);
 
         let parsed_bitis = parse_root(&mut lexer);
         assert_eq!(parsed_bitis.is_ok(), true);
@@ -586,6 +686,10 @@ mod bitis_serialization {
         let current_test_simple_code = String::from(std::str::from_utf8(&fs::read("test_data/test_simple_msg.rs")
             .expect("Unable to read test_simple_msg.rs file")).unwrap());
         assert_eq!(current_test_simple_code, rendered);
+
+        let validate_result = validate_bitis(&parsed_bitis);
+        println!("validate_result: {:?}", validate_result);
+        assert!(validate_result.is_none());
     }
 }
 

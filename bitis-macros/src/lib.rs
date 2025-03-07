@@ -5,6 +5,7 @@ use quote::{quote};
 use syn::Data;
 use proc_macro2::{Span, Ident};
 use proc_macro2::TokenTree::Literal;
+use regex::Regex;
 
 #[proc_macro_derive(BiserdiMsg, attributes(biserdi_enum))]
 pub fn biserdi_msg(item: TokenStream) -> TokenStream {
@@ -31,7 +32,7 @@ pub fn biserdi_msg(item: TokenStream) -> TokenStream {
                     #size_identifier += #bit_serialize_self_identifier.#identifier.bit_serialize(biseri)?;
                 });
                 bit_deserialize_impl.extend(quote!{
-                    let #temp_identifier = call_deserialize::<#ty>(bides)?;
+                    let #temp_identifier = call_deserialize::<#ty>(version_id, bides)?;
                 });
                 bit_deserialize_impl_init.extend(quote!{
                     #identifier: #temp_identifier.0,
@@ -49,9 +50,9 @@ pub fn biserdi_msg(item: TokenStream) -> TokenStream {
                         #bit_serialize_impl
                         Some(#size_identifier)
                     }
-                    fn bit_deserialize(bides: &mut Bides) -> Option<(Self, u64)> {
-                        fn call_deserialize<T:BiserdiTrait>(bides: &mut Bides) -> Option<(T, u64)> {
-                            T::bit_deserialize(bides) }
+                    fn bit_deserialize(version_id: u16, bides: &mut Bides) -> Option<(Self, u64)> {
+                        fn call_deserialize<T:BiserdiTrait>(version_id: u16, bides: &mut Bides) -> Option<(T, u64)> {
+                            T::bit_deserialize(version_id, bides) }
                         #bit_deserialize_impl
                         Some((Self{#bit_deserialize_impl_init}, #bit_deserialize_impl_size))
                     }
@@ -111,23 +112,24 @@ pub fn biserdi_one_of(item: TokenStream) -> TokenStream {
                 });
                 bit_deserialize_impl.extend(quote! {
                     #id_token => {
-                        let v = call_deserialize::<#ty>(bides)?;
+                        let v = call_deserialize::<#ty>(version_id, bides)?;
                         (#struct_or_enum_identifier::#ident(v.0), v.1 + oo_val.1)
                     },
                 });
             }
             let code = quote! {
                 #[automatically_derived]
-                impl BiserdiTrait for OOLili {
+                // BiserdiOneOf
+                impl BiserdiTrait for #struct_or_enum_identifier {
                     fn bit_serialize(self: &Self, biseri: &mut Biseri) -> Option<u64> {
                         Some(match self {
                             #bit_serialize_impl
                         })
                     }
-                    fn bit_deserialize(bides: &mut Bides) -> Option<(Self, u64)> {
-                        fn call_deserialize<T:BiserdiTrait>(bides: &mut Bides) -> Option<(T, u64)> {
-                            T::bit_deserialize(bides) }
-                        let oo_val = DynInteger::<u32, #dyn_bits>::bit_deserialize(bides)?;
+                    fn bit_deserialize(version_id: u16, bides: &mut Bides) -> Option<(Self, u64)> {
+                        fn call_deserialize<T:BiserdiTrait>(version_id: u16, bides: &mut Bides) -> Option<(T, u64)> {
+                            T::bit_deserialize(version_id, bides) }
+                        let oo_val = DynInteger::<u32, #dyn_bits>::bit_deserialize(version_id, bides)?;
                         Some(match oo_val.0.val {
                             #bit_deserialize_impl
                             _ => { return None }
@@ -139,6 +141,125 @@ pub fn biserdi_one_of(item: TokenStream) -> TokenStream {
             code
         },
         _ => panic!("BiserdiOneOf only allowed for Enums")
+    }.into()
+}
+
+#[proc_macro_derive(BiserdiMsgVersioned)]
+pub fn biserdi_msg_versioned(item: TokenStream) -> TokenStream {
+    let re = Regex::new(r"V([0-9]+)").unwrap();
+
+    let input = syn::parse_macro_input!(item as syn::DeriveInput);
+
+    let struct_or_enum_identifier = &input.ident;
+    match &input.data {
+        Data::Struct(syn::DataStruct { fields, .. }) => {
+            let mut base_ty = None;
+            let mut ext_ty = None;
+            for field in fields {
+                if field.ident.as_ref().unwrap().to_string() == String::from("base") {
+                    base_ty = Some(field.ty.clone());
+                }
+                else if field.ident.as_ref().unwrap().to_string() == String::from("ext") {
+                    ext_ty = Some(field.ty.clone());
+                }
+                else {
+                    panic!("BiserdiMsgVersioned has to have a field 'base' and a field 'ext' and no other.")
+                }
+            }
+            if base_ty.is_none() || ext_ty.is_none() {
+                panic!("BiserdiMsgVersioned has to have a field 'base' and a field 'ext'.")
+            }
+            let code = quote! {
+                #[automatically_derived]
+                impl BiserdiTrait for #struct_or_enum_identifier {
+                    fn bit_serialize(self: &Self, biseri: &mut Biseri) -> Option<u64> {
+                        // send base in any case
+                        let mut total_size = self.base.bit_serialize(biseri)?;
+
+                        // send ext with size
+                        let mut biseri_temp = Biseri::new();
+                        let dyn_msg_size = self.ext.bit_serialize(&mut biseri_temp)?;
+                        biseri_temp.finish_add_data();
+
+                        total_size += DynInteger::<u64, 4>::new(dyn_msg_size).bit_serialize(biseri)?;
+                        total_size += biseri.add_biseri_data(&biseri_temp)?;
+
+                        Some(total_size)
+                    }
+                    fn bit_deserialize(version_id: u16, bides: &mut Bides) -> Option<(Self, u64)> {
+                        fn call_deserialize<T: BiserdiTrait>(version_id: u16, bides: &mut Bides) -> Option<(T, u64)> {
+                            T::bit_deserialize(version_id, bides)
+                        }
+                        let mut total_size = 0;
+
+                        let (base, cur_size) = call_deserialize::<#base_ty>(version_id, bides)?;
+                        total_size += cur_size;
+
+                        let (ext_size, cur_size) = call_deserialize::<DynInteger<u64, 4>>(version_id, bides)?;
+                        total_size += ext_size.val + cur_size;
+                        let (ext, cur_ext_size) = call_deserialize::<#ext_ty>(version_id, bides)?;
+                        if cur_ext_size > ext_size.val { return None; }
+
+                        let skip_bits = ext_size.val - cur_ext_size;
+                        bides.skip_bits(skip_bits);
+
+                        Some((Self{base, ext}, total_size))
+                    }
+                }
+            };
+            // println!("{}", code);
+            code
+        },
+        Data::Enum(syn::DataEnum { variants, .. }) => {
+            let mut bit_serialize_impl = quote! {};
+            let mut bit_deserialize_impl = quote! {};
+
+            for variant in variants.iter() {
+                let ident = variant.ident.clone();
+                if !re.is_match(&ident.to_string()) { panic!("VersionEnums for BiserdiMsgVersioned need to have variants in the form of V[0-9]+") }
+
+                let ty = match variant.fields.clone() {
+                    syn::Fields::Named(_) => panic!("Biserdi for enum only allowed with named fields"),
+                    syn::Fields::Unnamed(ty) => ty.unnamed.clone(),
+                    syn::Fields::Unit => panic!("Biserdi for enum only allowed for field with a type"),
+                };
+
+                bit_serialize_impl.extend(quote! {
+                    #struct_or_enum_identifier::#ident(v) => v.bit_serialize(biseri)?, });
+                fn get_capture_num(re: &Regex, str: &String) -> Option<u16>{
+                    re.captures(str)?.get(1)?.as_str().parse::<u16>().ok()
+                }
+                let ver_num = get_capture_num(&re, &ident.to_string()).unwrap();
+                bit_deserialize_impl.extend(quote! {
+                    #ver_num => {
+                        let v = call_deserialize::<#ty>(version_id, bides)?;
+                        (#struct_or_enum_identifier::#ident(v.0), v.1)
+                    },
+                });
+            }
+            let code = quote! {
+                #[automatically_derived]
+                // BiserdiMsgVersioned
+                impl BiserdiTrait for #struct_or_enum_identifier {
+                    fn bit_serialize(self: &Self, biseri: &mut Biseri) -> Option<u64> {
+                        Some(match self {
+                            #bit_serialize_impl
+                        })
+                    }
+                    fn bit_deserialize(version_id: u16, bides: &mut Bides) -> Option<(Self, u64)> {
+                        fn call_deserialize<T:BiserdiTrait>(version_id: u16, bides: &mut Bides) -> Option<(T, u64)> {
+                            T::bit_deserialize(version_id, bides) }
+                        Some(match version_id.clone() {
+                            #bit_deserialize_impl
+                            _ => { return None }
+                        })
+                    }
+                }
+            };
+            println!("{}", code);
+            code
+        },
+        _ => panic!("BiserdiMsgVersioned only allowed for Structs")
     }.into()
 }
 
