@@ -1,5 +1,5 @@
 // Enums
-{%- for (_, ce) in enums ~%}
+{%- for ce in enums ~%}
 pub Enum {{ ce.name }} {
 {%- for cv in ce.values +%}
   {{ cv }},
@@ -9,7 +9,7 @@ pub Enum {{ ce.name }} {
 {%- endfor %}
 
 // Enums for oneof
-{%- for (_, cm) in msgs ~%}
+{%- for cm in msgs ~%}
 {%- for ca in cm.attributes +%}
 {%- match ca.specific_details -%}
 {%- when AttributeDetails::AttributeOneOf with (s) ~%}
@@ -29,13 +29,13 @@ enum OO{{ cm.name|pascal_case }}{{ ca.name|pascal_case }} {
 {%- endfor %}
 
 // Messages
-{% for (_, cm) in msgs ~%}
+{% for cm in msgs ~%}
 {%- if let Some(comment_impl) = cm.comment -%}
 //{{comment_impl}}
-{%- endif -%}
+{%- endif +%}
 #[derive(BiserdiMsg, Debug, Clone, PartialEq)]
 #[allow(nonstandard_style)]
-pub struct {{ cm.name }}{%- if let MsgVersion::VersionedMsg(v) = cm.version -%}_V{{ v }}{%- endif +%} {
+pub struct {{ cm.name }} {
 {%- if let Some(p) = cm.parent -%}// parent: {{ p }}{%- endif -%}
 {%- for ca in cm.attributes +%}
   {% include "data_object_attr.rs.jinja" %}

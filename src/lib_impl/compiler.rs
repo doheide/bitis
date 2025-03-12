@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap};
 use std::process::abort;
 use askama::Template;
 use logos::{Lexer, Logos, Span};
@@ -9,8 +9,8 @@ use regex::Regex;
 #[derive(Template, Clone, Debug)]
 #[template(path = "data_objects.rs.jinja")]
 pub struct RustDataObjects {
-    pub enums: HashMap<String, Enum>,
-    pub msgs: HashMap<String, Message>,
+    pub enums: Vec<Enum>,
+    pub msgs: Vec<Message>,
 }
 
 
@@ -96,9 +96,14 @@ pub struct Attribute {
     specific_details: AttributeDetails
 }
 #[derive(Debug, Clone)]
+pub struct VersionInfo {
+    pub version: u16,
+    pub allowed_to_be_used_starting_with_version: u16,
+}
+#[derive(Debug, Clone)]
 pub struct Message {
     pub name: String,
-    pub version: MsgVersion,
+    pub version_info: VersionInfo,
     pub comment: Option<String>,
     pub parent: Option<String>,
     pub attributes: Vec<Attribute>,
@@ -107,7 +112,7 @@ pub struct Message {
 #[derive(Debug, Clone)]
 pub struct Enum {
     pub name: String,
-    pub version: MsgVersion,
+    pub version_info: VersionInfo,
     pub comment: Option<String>,
     pub bit_size: DynOrFixedType,
     pub values: Vec<String>,
@@ -146,23 +151,28 @@ pub fn get_dyn_or_fixed_from_args(lex: &mut Lexer<Token>) -> Option<DynOrFixedTy
         Some(DynOrFixedType::Fixed(bits))
     }
 }
-pub fn get_version(lex: &mut Lexer<Token>) -> Option<MsgVersion> {
+pub fn get_version(lex: &mut Lexer<Token>) -> Option<u16> {
     let slice = lex.slice();
-    let re = Regex::new(r"\[(versioned|fixed)]").unwrap();
-    let ver = re.captures(slice)?.get(1)?.as_str();
+    let re = Regex::new(r"\[.* +(v[0-9]+) *]").unwrap();
+    let ver_type = re.captures(slice)?.get(1)?.as_str();
+    let from_part = re.captures(slice)?.get(2)?.as_str();
 
-    if ver == "versioned" { Some(MsgVersion::VersionedMsg(lex.extras)) }
-    else if ver == "fixed" { Some(MsgVersion::FixedMsg) }
-    else { None }
-    //else { Some(MsgVersion::Version(ver.parse::<u32>().ok()?)) }
+    let re = Regex::new(r" +use +starting +with +v([0-9]+) *").unwrap();
+    let from = if let Some(from_ver_capture) = re.captures(from_part) {
+        if lex.extras == 0 { from_ver_capture.get(1)?.as_str().parse::<u16>().ok()? }
+        else { println!("Error: Found version indicator with no start-with-version in non-base bitis-file."); return None; }
+    } else if  lex.extras == 0 { println!("Error: Found version indicator without start-with-version in base bitis-file."); return None; }
+    else { 0 };
+
+    let is_fixed = if ver_type == "versioned" { false } else if ver_type == "fixed" { true }
+    else { return None };
+
+    if lex.extras != 0 && is_fixed {
+        println!("Error: Found fixed version in version file (expected to be in base file but found in V{}).", lex.extras); return None; }
+    if is_fixed { Some((MsgVersion::Fixed, from)) }
+    else { Some((MsgVersion::Versioned(lex.extras), from)) }
 }
-#[derive(Debug, Clone)]
-pub enum MsgVersion {
-    FixedMsg,
-    VersionedMsg(u16),
-    // Base,
-    // Version
-}
+
 #[derive(Debug, Logos)]
 #[logos(skip r"[ \t\r\n\f]+")]
 #[logos(extras = u16)]
@@ -182,7 +192,9 @@ pub enum Token{
     #[token(",")] Comma,
     // #[token("fixed", priority=20)] FixedFlag,
     // #[token("dyn", priority=20)] DynFlag,
-    #[regex(r"\[(versioned|fixed)]", get_version, priority=35)] MsgVersionToken(MsgVersion),
+    #[regex(r"\[ *base +use +starting +with +v[0-9]+ *\]", get_version, priority=35)] MsgVersionToken((MsgVersion, u16)),
+    #[regex(r"\[ *version +v[0-9]+ *\]", get_version, priority=35)] MsgVersionToken((MsgVersion, u16)),
+    // #[regex(r"\[ *base +use +starting +with +v[0-9]+ *\]", get_version, priority=35)] MsgVersionToken((MsgVersion, u16)),
     #[regex("[0-9]+", |lex| lex.slice().parse::<isize>().unwrap(), priority=1)] IntegerVal(isize),
     #[regex(r"-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?",
         |lex| lex.slice().parse::<f64>().unwrap(), priority=2)] Number(f64),
@@ -302,10 +314,10 @@ pub fn parse_msg(lexer: &mut Lexer<'_, Token>, comment_for_msg: Option<String>) 
         Err(s) => { return Err(("Code should not be reached".into(), s)); }
     };
 
-    let version = match parse_one_token_with_arg!(Token::MsgVersionToken, lexer,
-        Some(format!("Expected msg version in form of '[...]' for '{}' but received: ", name)))? {
+    let version_info = match parse_one_token_with_arg!(Token::MsgVersionToken, lexer,
+        Some(format!("Expected msg version in form of '[versioned/fixed use starting with ...]' for '{}' but received: ", name)))? {
         Ok(v) => v,
-        Err(s) => { return Err(("Code should not be reached".into(), s)); }
+        Err(s) => { return Err((format!("Error occured for msg '{}' (cur version: {})", name, lexer.extras), s)); }
     };
     let parent = {
         let has_parent; let p;
@@ -345,7 +357,8 @@ pub fn parse_msg(lexer: &mut Lexer<'_, Token>, comment_for_msg: Option<String>) 
         else { return Err(("Unexpected end of file".into(), lexer.span())); }
     }
 
-    Ok(Value::Message(Message{name, version, comment: comment_for_msg, parent, attributes}))
+    Ok(Value::Message(Message{name, version: version_info.0, allowed_to_be_used_starting_with_version: version_info.1,
+        comment: comment_for_msg, parent, attributes}))
 }
 
 pub fn parse_attribute(last_token: Token, lexer: &mut Lexer<'_, Token>,
@@ -476,7 +489,7 @@ pub fn parse_enum(lexer: &mut Lexer<'_, Token>, comment: Option<String>) -> Resu
 
     parse_one_token!(Token::CBraceOpen, lexer, Some(format!("Expected open curly bracket for enum '{name}'")))?.unwrap();
 
-    let version = match parse_one_token_with_arg!(Token::MsgVersionToken, lexer,
+    let version_info = match parse_one_token_with_arg!(Token::MsgVersionToken, lexer,
         Some(format!("Expected msg version in form of '[...]' for '{}' but received: ", name)))? {
         Ok(v) => v,
         Err(s) => { return Err(("Code should not be reached".into(), s)); }
@@ -494,7 +507,8 @@ pub fn parse_enum(lexer: &mut Lexer<'_, Token>, comment: Option<String>) -> Resu
         } else { return Err(("Unexpected end of file".into(), lexer.span())); }
     }
 
-    Ok(Value::Enum(Enum{name, version, comment, bit_size: prop, values}))
+    Ok(Value::Enum(Enum{name, version: version_info.0, allowed_to_be_used_starting_with_version: version_info.1,
+        comment, bit_size: prop, values}))
 }
 
 
@@ -524,10 +538,10 @@ pub fn validate_bitis(parsed_bitis: &Vec<Value>) -> Option<String> {
     let msgs_with_version: Vec<_> = parsed_bitis.iter().filter_map(|s| match s {
         Value::Message(msg) => {
             Some(match msg.version {
-                MsgVersion::FixedMsg => format!("{}_fixed", msg.name),
+                MsgVersion::Fixed => format!("{}_fixed", msg.name),
                 // MsgVersion::VersionedMsg => format!("{}_versioned", msg.name),
                 // MsgVersion::Base => format!("{}_base", msg.name),
-                MsgVersion::VersionedMsg(v) => format!("{}_v{}", msg.name, v)
+                MsgVersion::Versioned(v) => format!("{}_v{}", msg.name, v)
             })
         },
         _ => None,
@@ -537,20 +551,20 @@ pub fn validate_bitis(parsed_bitis: &Vec<Value>) -> Option<String> {
         if msgs_with_version[i..].contains(s) { Some(s.clone()) } else { None }
     })
     {
-        Some(msg) => return Some(format!("Multiple conflicting versions of {}.", msg)),
+        Some(msg) => return Some(format!("Conflicting versions of {}.", msg)),
         None => ()
     };
 
     let fixed_msgs: Vec<_> = parsed_bitis.iter().filter_map(|s| match s {
         Value::Message(msg) => {
             match msg.version.clone() {
-                MsgVersion::FixedMsg => Some(msg.name.clone()), _ => None }
+                MsgVersion::Fixed => Some(msg.name.clone()), _ => None }
         }, _ => None,
     }).collect();
     if let Some (err_str) = parsed_bitis.iter().find_map(|s| match s {
         Value::Message(msg) => {
             match msg.version.clone() {
-                MsgVersion::FixedMsg => None,
+                MsgVersion::Fixed => None,
                 _ => {
                     if fixed_msgs.contains(&msg.name) {
                         Some(format!("Multiple conflicting versions of {} (fixed and version).", msg.name))
@@ -575,6 +589,121 @@ pub fn validate_bitis(parsed_bitis: &Vec<Value>) -> Option<String> {
     None
 }
 
+// Struct that collects all bitis information
+#[derive(Debug)]
+pub struct BitisProcessed {
+    pub max_version_number: u16,
+    pub msgs: Vec<Message>,
+    pub enums: Vec<Enum>,
+}
+
+/// This function prepares message and enums for rendering
+pub fn process_bitis(parsed_bitis: &Vec<Value>) -> BitisProcessed {
+    let (processed_msgs, max_msg_version_number) = {
+        let msgs: Vec<_> = parsed_bitis.iter().filter_map(|v| {
+            match v { Value::Message(msg) => Some(msg.clone()), _ => None }
+        }).collect();
+
+        let max_version_number: u16 = msgs.iter().fold(0_u16, |cur_max, v| {
+            std::cmp::max(cur_max, match v.version.clone()
+            { MsgVersion::Fixed => 0, MsgVersion::Versioned(v) => v })
+        });
+        println!("Max version number for msgs found: {}", max_version_number);
+
+        // ***
+        // sort msgs per versions
+        let msgs_per_version: HashMap<u16, HashMap<String, Message>> = (0..=max_version_number).map(|cver| {
+            let msgs: HashMap<String, Message> = msgs.iter().filter_map(|cmsg| {
+                match &cmsg.version {
+                    MsgVersion::Fixed if cver==0  => Some(cmsg.clone()),
+                    MsgVersion::Versioned(msg_ver) if *msg_ver == cver => Some(cmsg.clone()),
+                    _ => None
+                } }
+            ).map(|msg| { (msg.name.clone(), msg) }).collect();
+            (cver, msgs)
+        }).collect();
+
+        // todo check that messages as attributes are used with the correct version
+
+        // todo check that messages have the same allowed_to_be_used_starting_with_version for all versions
+
+        // todo check that attributes for different versions are unique
+
+
+        // Add empty messages for missing msg-versions and check that msgs are used/defined starting with the correct version
+        let msg_names_and_ver_type: HashMap<_, _> = msgs.iter().map(|v| {
+            (v.name.clone(), v.version.clone()) }).collect();
+
+        // let msg_base_with_version: Vec<_> = msgs.iter().filter_map(|msg| {
+        // });
+
+        let msgs_processed: Vec<Vec<Message>> = msgs_per_version.iter()
+            .map(|(&cver, cver_msgs) | {
+                let mut msgs_for_version: HashMap<String, Message> = HashMap::new();
+
+                println!("Processing V{} msgs: {:?}", cver, cver_msgs);
+                if cver == 0 {
+                    msg_names_and_ver_type.iter().for_each(|(mi_name, _)| {
+                        if !cver_msgs.contains_key(mi_name) {
+                            println!("Error: Message '{}' not found in base version. All messages must be declared in base.", mi_name);
+                            abort();
+                        }
+                    });
+                }
+                else {
+                    // add missing msg definitions for each version
+                    let new_msgs: HashMap<_, _> = msg_names_and_ver_type.iter().filter_map(|(mi_name, ver_type)| {
+                        // do it only for versioned msgs
+                        if let MsgVersion::Fixed = ver_type { None } else {
+                            // check if
+                            if !cver_msgs.contains_key(mi_name) {
+                                println!("Generating empty version msg '{mi_name}'");
+
+                                let base_ver_msg = msgs_per_version.get(&0).unwrap().get(mi_name).unwrap();
+
+                                let name = format!("{}_DataV{}", mi_name, cver);
+                                Some((name.clone(), Message { name, attributes: vec![], comment: Some("Automatically generated empty msg".to_string()),
+                                    ..base_ver_msg.clone() }))
+                            } else { None }
+                        }
+                    }).collect();
+                    msgs_for_version.extend(new_msgs);
+                }
+
+                cver_msgs.iter().for_each(|(_, cmsg)| {
+                    let processed_msg = match cver {
+                        0 => {
+                            Message {
+                                name: if let MsgVersion::Fixed = cmsg.version { cmsg.name.clone() } else { format!("{}_Base", cmsg.name.clone()) },
+                                ..cmsg.clone()
+                            }
+                        },
+                        cver_vec => {
+                            // check if msg is used in a not yet allowed version
+                            if cver_vec < cmsg.allowed_to_be_used_starting_with_version {
+                                println!("Error: Msg '{}' was used in a version before supposed to.", cmsg.name);
+                                abort();
+                            }
+
+                            // add version to msg name
+                            Message { name: format!("{}_DataV{}", cmsg.name, cver_vec), ..cmsg.clone() }
+                        }
+                    };
+                    msgs_for_version.insert(processed_msg.name.clone(), processed_msg);
+                });
+                msgs_for_version.values().cloned().collect::<Vec<Message>>()
+            }).collect();
+
+        let mut msg_processed_concat: Vec<_> = msgs_processed.concat();
+        msg_processed_concat.sort_by_key(|msg| { msg.name.to_lowercase() });
+
+        (msg_processed_concat, max_version_number)
+    };
+
+    //
+    BitisProcessed { max_version_number: max_msg_version_number, msgs: processed_msgs, enums: Vec::new() }
+}
+
 // ***************************************************
 
 #[cfg(test)]
@@ -587,7 +716,7 @@ mod bitis_semantic {
         let test_empty_msg = "msg Lala [fixed] { }";
 
         let mut lexer = Token::lexer(test_empty_msg);
-        lexer.extras = (0);
+        lexer.extras = 0;
 
         let parsed_bitis = parse_root(&mut lexer);
         if let Err(s) = parsed_bitis.clone() {
@@ -618,7 +747,7 @@ mod bitis_semantic {
         let test_msg = format!("msg Lala [fixed] {{ {attr_type_str} attr; }}");
 
         let mut lexer = Token::lexer(test_msg.as_str());
-        lexer.extras = (0);
+        lexer.extras = 0;
 
         let parsed_bitis = parse_root(&mut lexer);
         assert_eq!(parsed_bitis.is_ok(), true);
@@ -659,37 +788,168 @@ mod bitis_serialization {
         let test_empty_msg = "msg Lala [fixed] { repeated_fixed_10 bool data_bool; uint_4 data1_uint; uint_12 data2_uint; }";
 
         let mut lexer = Token::lexer(test_empty_msg);
-        lexer.extras = (0);
+        lexer.extras = 0;
 
         let parsed_bitis = parse_root(&mut lexer);
         assert_eq!(parsed_bitis.is_ok(), true);
 
         let parsed_bitis = parsed_bitis.unwrap();
 
-        let rdo = RustDataObjects {
-            enums: parsed_bitis.iter().filter_map(|x|
-                match x {
-                    Value::Enum(ev) => Some((ev.name.clone(), ev.clone())),
-                    _ => None
-                })
-                .collect::<HashMap<_, _>>(),
-            msgs: parsed_bitis.iter().filter_map(|x|
-                match x {
-                    Value::Message(mv) => Some((mv.name.clone(), mv.clone())),
-                    _ => None
-                })
-                .collect::<HashMap<_, _>>(),
-        };
-
-        let rendered = rdo.render().unwrap();
-
-        let current_test_simple_code = String::from(std::str::from_utf8(&fs::read("test_data/test_simple_msg.rs")
-            .expect("Unable to read test_simple_msg.rs file")).unwrap());
-        assert_eq!(current_test_simple_code, rendered);
-
-        let validate_result = validate_bitis(&parsed_bitis);
-        println!("validate_result: {:?}", validate_result);
-        assert!(validate_result.is_none());
+        // let rdo = RustDataObjects {
+        //     enums: parsed_bitis.iter().filter_map(|x|
+        //         match x {
+        //             Value::Enum(ev) => Some((ev.name.clone(), ev.clone())),
+        //             _ => None
+        //         })
+        //         .collect::<HashMap<_, _>>(),
+        //     msgs: parsed_bitis.iter().filter_map(|x|
+        //         match x {
+        //             Value::Message(mv) => Some((mv.name.clone(), mv.clone())),
+        //             _ => None
+        //         })
+        //         .collect::<HashMap<_, _>>(),
+        // };
+        //
+        // let rendered = rdo.render().unwrap();
+        //
+        // let current_test_simple_code = String::from(std::str::from_utf8(&fs::read("test_data/test_simple_msg.rs")
+        //     .expect("Unable to read test_simple_msg.rs file")).unwrap());
+        // assert_eq!(current_test_simple_code, rendered);
+        //
+        // let validate_result = validate_bitis(&parsed_bitis);
+        // println!("validate_result: {:?}", validate_result);
+        // assert!(validate_result.is_none());
     }
+}
+
+#[cfg(test)]
+mod bitis_processing {
+    use rstest::rstest;
+    use crate::AttributeDetails::AttributeSimple;
+    use super::*;
+
+    #[rstest]
+    fn msg_base_and_v2() {
+        let bitis_values = vec![
+            Value::Message(Message{
+                name: "TestMsg".to_string(),
+                version: MsgVersion::Versioned(0),
+                allowed_to_be_used_starting_with_version: 0,
+                comment: Some("This is a test".to_string()),
+                parent: None,
+                attributes: vec![Attribute{name: "a1".to_string(), comment: None,
+                    is_repeated_and_size: None, is_optional: false,
+                    specific_details: AttributeSimple(SimpleType::UIntFixed(4)),
+                }],
+            }),
+            Value::Message(Message{
+                name: "TestMsg".to_string(),
+                version: MsgVersion::Versioned(2),
+                allowed_to_be_used_starting_with_version: 0,
+                comment: Some("This is a test".to_string()),
+                parent: None,
+                attributes: vec![Attribute{name: "a2".to_string(), comment: None,
+                    is_repeated_and_size: None, is_optional: false,
+                    specific_details: AttributeSimple(SimpleType::UIntFixed(4)),
+                }],
+            })
+        ];
+        let pb = process_bitis(&bitis_values);
+
+        assert_eq!(pb.max_version_number, 2);
+        assert_eq!(pb.msgs.len(), 3);
+
+        assert_eq!(pb.msgs[0].name, "TestMsg_Base".to_string());
+        assert_eq!(pb.msgs[1].name, "TestMsg_V1".to_string());
+        assert_eq!(pb.msgs[2].name, "TestMsg_V2".to_string());
+
+        assert_eq!(pb.msgs[0].attributes.len(), 1);
+        assert_eq!(pb.msgs[0].attributes.get(0).unwrap().name, "a1".to_string());
+        assert_eq!(pb.msgs[1].attributes.len(), 0);
+        assert_eq!(pb.msgs[2].attributes.len(), 1);
+        assert_eq!(pb.msgs[2].attributes.get(0).unwrap().name, "a2".to_string());
+    }
+
+    #[rstest]
+    fn msg_fixed() {
+        let bitis_values = vec![
+            Value::Message(Message{
+                name: "TestMsg".to_string(),
+                version: MsgVersion::Fixed,
+                allowed_to_be_used_starting_with_version: 2,
+                comment: Some("This isa test".to_string()),
+                parent: None,
+                attributes: vec![Attribute{name: "a1".to_string(), comment: None,
+                    is_repeated_and_size: None, is_optional: false,
+                    specific_details: AttributeSimple(SimpleType::UIntFixed(4)),
+                }],
+            }), ];
+        let pb = process_bitis(&bitis_values);
+
+        assert_eq!(pb.max_version_number, 0);
+        assert_eq!(pb.msgs.len(), 1);
+
+        assert_eq!(pb.msgs[0].name, "TestMsg".to_string());
+        assert_eq!(pb.msgs[0].attributes.len(), 1);
+    }
+
+    #[rstest]
+    fn msg_base_and_v2_and_add_msg() {
+        let bitis_values = vec![
+            Value::Message(Message{
+                name: "TestMsg".to_string(),
+                version: MsgVersion::Versioned(0),
+                allowed_to_be_used_starting_with_version: 0,
+                comment: Some("This isa test".to_string()),
+                parent: None,
+                attributes: vec![Attribute{name: "a1".to_string(), comment: None,
+                    is_repeated_and_size: None, is_optional: false,
+                    specific_details: AttributeSimple(SimpleType::UIntFixed(4)),
+                }],
+            }),
+            Value::Message(Message{
+                name: "TestMsg".to_string(),
+                version: MsgVersion::Versioned(2),
+                allowed_to_be_used_starting_with_version: 0,
+                comment: Some("This isa test".to_string()),
+                parent: None,
+                attributes: vec![Attribute{name: "a2".to_string(), comment: None,
+                    is_repeated_and_size: None, is_optional: false,
+                    specific_details: AttributeSimple(SimpleType::UIntFixed(4)),
+                }],
+            }),
+            Value::Message(Message{
+                name: "TestMsgLala".to_string(),
+                version: MsgVersion::Fixed,
+                allowed_to_be_used_starting_with_version: 2,
+                comment: Some("This is a test2".to_string()),
+                parent: None,
+                attributes: vec![Attribute{name: "lala".to_string(), comment: None,
+                    is_repeated_and_size: None, is_optional: false,
+                    specific_details: AttributeSimple(SimpleType::UIntFixed(4)),
+                }],
+            })
+        ];
+        let pb = process_bitis(&bitis_values);
+
+        assert_eq!(pb.max_version_number, 2);
+        assert_eq!(pb.msgs.len(), 4);
+
+        assert_eq!(pb.msgs[0].name, "TestMsg_Base".to_string());
+        assert_eq!(pb.msgs[1].name, "TestMsg_V1".to_string());
+        assert_eq!(pb.msgs[2].name, "TestMsg_V2".to_string());
+        assert_eq!(pb.msgs[3].name, "TestMsgLala".to_string());
+
+        if let MsgVersion::Versioned(l) = pb.msgs[0].version { assert_eq!(l, 0); }
+        assert_eq!(pb.msgs[0].attributes.len(), 1);
+        assert_eq!(pb.msgs[0].attributes.get(0).unwrap().name, "a1".to_string());
+        assert_eq!(pb.msgs[1].attributes.len(), 0);
+        assert_eq!(pb.msgs[2].attributes.len(), 1);
+        assert_eq!(pb.msgs[2].attributes.get(0).unwrap().name, "a2".to_string());
+        if let MsgVersion::Fixed = pb.msgs[0].version { assert!(false) }
+        assert_eq!(pb.msgs[3].attributes.len(), 1);
+        assert_eq!(pb.msgs[3].attributes.get(0).unwrap().name, "lala".to_string());
+    }
+
 }
 

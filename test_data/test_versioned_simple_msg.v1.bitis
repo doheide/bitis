@@ -1,6 +1,5 @@
 
-
 msg Lala [versioned] {
-    Lili inner_msg;
+    uint_4 added;
 }
 
