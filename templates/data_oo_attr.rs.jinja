@@ -1,7 +1,7 @@
 {%- if let Some(comment_impl) = ca.comment -%}
 //{{comment_impl}}  {{ca.name}}:
 {%- else -%}
-pub {{ca.name}}: {#+ #}
+{{ca.name}}(
 {%- endif -%}
  {%~ if ca.is_optional -%}Option<{%- endif -%}
 {%- if let Some(repeated_type) = ca.is_repeated_and_size -%}
@@ -12,8 +12,8 @@ pub {{ca.name}}: {#+ #}
 {%- endif -%}
 {%- match ca.specific_details -%}
 {%- when AttributeDetails::AttributeSimple with (as) -%} {% include "data_object_attr_simple.rs.jinja" %}
-{%- when AttributeDetails::AttributeEnumOrMsg with (s) ~%}{{s}}
-{%- when AttributeDetails::AttributeOneOf with (s) ~%}{{s.name}}
+{%- when AttributeDetails::AttributeEnumOrMsg with (s) -%}{{s}}
+{%- when AttributeDetails::AttributeOneOf with (s) -%}{{s.name}}
 {%- else -%} BB!
 {%- endmatch -%}
 {%- if let Some(repeated_type) = ca.is_repeated_and_size -%}
@@ -22,4 +22,4 @@ pub {{ca.name}}: {#+ #}
 {%- when DynOrFixedType::Fixed with (s) -%};{{s}}]
 {%- endmatch -%}
 {%- endif -%}
-{%- if ca.is_optional -%}>{%- endif -%},
+{%- if ca.is_optional -%}>{%- endif -%}),

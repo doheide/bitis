@@ -8,7 +8,7 @@ pub mod lib_impl;
 
 pub use lib_impl::berde::*;
 pub use lib_impl::compiler::*;
-pub use bitis_macros::{BiserdiMsg, BiserdiOneOf, BiserdiMsgVersioned};
+pub use bitis_macros::{BiserdiMsg, BiserdiOneOf, BiserdiEnum};
 
 #[cfg(test)]
 mod msg_deserialization {
@@ -28,10 +28,9 @@ mod msg_deserialization {
     struct MsgLili {
         inner_msg: MsgLalaBase,
         b1: bool,
-        b2: bool,
+        b2: VarWithGivenBitSize<u8, 7>,
         signed: VarWithGivenBitSize<i8, 4>,
     }
-
 
     #[rstest]
     fn msg_simple_msg_serde() {
@@ -62,7 +61,7 @@ mod msg_deserialization {
         let m = MsgLili {
             inner_msg: MsgLalaBase { a1: 7345.into(), b1: true, b2: false, f: 12345.6789 },
             b1: true,
-            b2: false,
+            b2: 11.into(),
             signed: (-3).into()
         };
         println!("m: {:?}", m);
@@ -131,6 +130,61 @@ mod msg_deserialization {
     fn oneof_var_with_given_bit_size_serde() {
         let m = OOLili::Signed((-3).into());
         oneof_test_serde(m);
+    }
+
+    #[derive(BiserdiEnum, Debug, Clone, PartialEq)]
+    #[biserdi_enum_id_dynbits(4)]
+    #[allow(nonstandard_style)]
+    enum EnumLele {
+        One,
+        Two,
+        Three
+    }
+    #[derive(BiserdiMsg, Debug, Clone, PartialEq)]
+    struct MsgLalaEnum {
+        e1: EnumLele,
+        b1: bool,
+        b2: bool,
+    }
+    #[rstest]
+    fn enum_msg_serde() {
+        let mut ser = Biseri::new();
+
+        let msg = MsgLalaEnum{
+            e1: EnumLele::Two,
+            b1: true,
+            b2: false,
+        };
+        msg.bit_serialize(&mut ser);
+        let (bits, bytes) = ser.finish_add_data().unwrap();
+        println!("bits: {}, bytes: {}", bits, bytes);
+
+        // ***
+        let mut der = Bides::from_biseri(&ser);
+
+        let mm = MsgLalaEnum::bit_deserialize(1, &mut der);
+        assert!(mm.is_some());
+        let mm = mm.unwrap();
+        println!("mm: {:?}", mm);
+
+        assert_eq!(bits, mm.1);
+        assert_eq!(msg, mm.0);
+    }
+
+}
+
+#[cfg(test)]
+mod msg_deserialization_ver {
+    use rstest::rstest;
+    use super::*;
+    pub use bitis_macros::{BiserdiMsgVersioned};
+
+    #[derive(BiserdiMsg, Debug, Clone, PartialEq)]
+    struct MsgLalaBase {
+        a1: VarWithGivenBitSize<u16, 13>,
+        b1: bool,
+        b2: bool,
+        f: f32,
     }
 
     // ***

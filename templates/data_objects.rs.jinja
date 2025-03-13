@@ -1,40 +1,40 @@
-use bitis_lib::BiserdiMsg;
+use bitis_lib::*;
 
 // Enums
-{%- for ce in enums ~%}
-pub Enum {{ ce.name }} {
+
+{%+ for ce in enums ~%}
+{%- if let Some(comment_impl) = ce.comment -%}
+///{{comment_impl}}
+{%- endif -%}
+#[derive(BiserdiEnum, Debug, Clone, PartialEq)]
+#[biserdi_enum_id_dynbits({{ce.bit_size}})]
+#[allow(nonstandard_style)]
+pub enum {{ ce.name }} {
 {%- for cv in ce.values +%}
   {{ cv }},
 {%- endfor %}
-}git status
-
-{%- endfor %}
+}
+{%- endfor +%}
 
 // Enums for oneof
-{%- for cm in msgs ~%}
-{%- for ca in cm.attributes +%}
-{%- match ca.specific_details -%}
-{%- when AttributeDetails::AttributeOneOf with (s) ~%}
-enum OO{{ cm.name|pascal_case }}{{ ca.name|pascal_case }} {
-{%- for soo in s +%}
-  {{soo.name|pascal_case}}(
-{%- match soo.specific_details -%}
-{%- when AttributeDetails::AttributeSimple with (as) -%} {% include "data_object_attr_simple.rs.jinja" %}
-{%- when AttributeDetails::AttributeEnumOrMsg with (s) ~%} {{s}}
-{%- else -%} UNEXPECTED
-{%- endmatch -%}),
+
+{%+ for coo in oos -%}
+#[derive(BiserdiOneOf, Debug, Clone, PartialEq)]
+#[biserdi_enum_id_dynbits({{coo.dyn_bits}})]
+#[allow(nonstandard_style)]
+pub enum {{ coo.name }} {
+{%- for ca in coo.attrs +%}
+  {% include "data_oo_attr.rs.jinja" %}
 {%- endfor %}
 }
-{%- else -%}
-{%- endmatch -%}
-{%~ endfor %}
-{%- endfor %}
+{%- endfor +%}
 
 // Messages
+
 {% for cm in msgs ~%}
 {%- if let Some(comment_impl) = cm.comment -%}
-//{{comment_impl}}
-{%- endif +%}
+///{{comment_impl}}
+{%- endif -%}
 #[derive(BiserdiMsg, Debug, Clone, PartialEq)]
 #[allow(nonstandard_style)]
 pub struct {{ cm.name }} {

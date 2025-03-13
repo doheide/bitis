@@ -7,7 +7,8 @@ use proc_macro2::{Span, Ident};
 use proc_macro2::TokenTree::Literal;
 use regex::Regex;
 
-#[proc_macro_derive(BiserdiMsg, attributes(biserdi_enum))]
+//#[proc_macro_derive(BiserdiMsg, attributes(biserdi_enum))]
+#[proc_macro_derive(BiserdiMsg)]
 pub fn biserdi_msg(item: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(item as syn::DeriveInput);
 
@@ -65,28 +66,107 @@ pub fn biserdi_msg(item: TokenStream) -> TokenStream {
     }.into()
 }
 
-#[proc_macro_derive(BiserdiOneOf, attributes(biserdi_enum_id_bits))]
+#[proc_macro_derive(BiserdiEnum, attributes(biserdi_enum_id_dynbits))]
+pub fn biserdi_enum(item: TokenStream) -> TokenStream {
+    let input = syn::parse_macro_input!(item as syn::DeriveInput);
+
+    let struct_or_enum_identifier = &input.ident;
+    // println!("input: {:?}", input);
+
+    if input.attrs.len() == 0 {
+        panic!("One instance of biserdi_enum_id_dynbits is required with one unsigned integer as attribute (8-bit), e.g. #[biserdi_enum_id_dynbits(4)].")
+    }
+    println!("meta: {:?}", input.attrs[0].meta);
+
+
+    let v: Vec<_> = input.attrs.iter().filter_map(|attr| {
+        if attr.path().is_ident("biserdi_enum_id_dynbits") {
+            let v = attr.meta.require_list().clone().unwrap().tokens.clone().into_iter()
+                .filter_map(|x| {
+                match x { Literal(v) => Some(v.to_string().parse::<u8>().ok()), _ => None }
+            }).collect::<Vec<_>>();
+            Some(v)
+        } else { None }
+    }).collect::<Vec<_>>().concat();
+    if v.len() != 1 {
+        panic!("One instance of biserdi_enum_id_dynbits is required with one unsigned integer as attribute (8-bit), e.g. #[biserdi_enum_id_dynbits(4)].")
+    }
+    let dyn_bits = v[0];
+
+    match &input.data {
+        Data::Enum(syn::DataEnum { variants, .. }) => {
+            let mut bit_serialize_impl = quote!{};
+            let mut bit_deserialize_impl = quote!{};
+
+            for (id, variant) in variants.iter().enumerate() {
+                let ident = variant.ident.clone();
+                match variant.fields.clone() {
+                    syn::Fields::Named(_) => panic!("Biserdi for enum only allowed witout nested types"),
+                    syn::Fields::Unnamed(_) => panic!("Biserdi for enum only allowed witout nested types"),
+                    syn::Fields::Unit => (),
+                };
+                // println!("ty: {:?}", ty);
+                let id_u32 = id as u32;
+                let id_token = quote! { #id_u32 };
+
+                bit_serialize_impl.extend(quote! {
+                    #struct_or_enum_identifier::#ident => {
+                        DynInteger::<u32, #dyn_bits>::new(#id_token).bit_serialize(biseri)?
+                    },
+                });
+                bit_deserialize_impl.extend(quote! {
+                    #id_token => {
+                        #struct_or_enum_identifier::#ident
+                    },
+                });
+            }
+            let code = quote! {
+                #[automatically_derived]
+                // BiserdiOneOf
+                impl BiserdiTrait for #struct_or_enum_identifier {
+                    fn bit_serialize(self: &Self, biseri: &mut Biseri) -> Option<u64> {
+                        Some(match self {
+                            #bit_serialize_impl
+                        })
+                    }
+                    fn bit_deserialize(version_id: u16, bides: &mut Bides) -> Option<(Self, u64)> {
+                        fn call_deserialize<T:BiserdiTrait>(version_id: u16, bides: &mut Bides) -> Option<(T, u64)> {
+                            T::bit_deserialize(version_id, bides) }
+                        let oo_val = DynInteger::<u32, #dyn_bits>::bit_deserialize(version_id, bides)?;
+                        Some((match oo_val.0.val {
+                            #bit_deserialize_impl
+                            _ => { return None }
+                        }, oo_val.1))
+                    }
+                }
+            };
+            println!("{}", code);
+            code
+        },
+        _ => panic!("BiserdiEnum only allowed for Enums")
+    }.into()
+}
+
+#[proc_macro_derive(BiserdiOneOf, attributes(biserdi_enum_id_dynbits))]
 pub fn biserdi_one_of(item: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(item as syn::DeriveInput);
 
     let struct_or_enum_identifier = &input.ident;
     // println!("input: {:?}", input);
 
-    if input.attrs.len() != 1 {
-        panic!("One instance of biserdi_enum_id_bits is required with one unsigned integer as attribute (8-bit), e.g. #[biserdi_enum_id_bits(4)].")
-    }
-    // println!("meta: {:?}", input.attrs[0].meta);
-    let v: Vec<_> = input.attrs[0].meta.require_list().clone().unwrap().tokens.clone()
-        .into_iter().filter_map(|x| {
-        match x {
-            Literal(v)  => { Some(v.to_string().parse::<u8>().ok()) },
-            _ => None
-        }
-    }).collect();
+    let v: Vec<_> = input.attrs.iter().filter_map(|attr| {
+        if attr.path().is_ident("biserdi_enum_id_dynbits") {
+            let v = attr.meta.require_list().clone().unwrap().tokens.clone().into_iter()
+                .filter_map(|x| {
+                    match x { Literal(v) => Some(v.to_string().parse::<u8>().ok()), _ => None }
+                }).collect::<Vec<_>>();
+            Some(v)
+        } else { None }
+    }).collect::<Vec<_>>().concat();
     if v.len() != 1 {
-        panic!("One instance of biserdi_enum_id_bits is required with one unsigned integer as attribute (8-bit), e.g. #[biserdi_enum_id_bits(4)].")
+        panic!("One instance of biserdi_enum_id_dynbits is required with one unsigned integer as attribute (8-bit), e.g. #[biserdi_enum_id_dynbits(4)].")
     }
-    let dyn_bits = v[0].unwrap();
+    let dyn_bits = v[0];
 
     match &input.data {
         Data::Enum(syn::DataEnum { variants, .. }) => {
@@ -96,9 +176,9 @@ pub fn biserdi_one_of(item: TokenStream) -> TokenStream {
             for (id, variant) in variants.iter().enumerate() {
                 let ident = variant.ident.clone();
                 let ty = match variant.fields.clone() {
-                    syn::Fields::Named(_) => panic!("Biserdi for enum only allowed with named fields"),
+                    syn::Fields::Named(_) => panic!("Biserdi for enum only allowed with unnamed fields"),
                     syn::Fields::Unnamed(ty) => ty.unnamed.clone(),
-                    syn::Fields::Unit => panic!("Biserdi for enum only allowed for field with a type"),
+                    syn::Fields::Unit => panic!("Biserdi for enum only allowed with unnamed fields"),
                 };
                 // println!("ty: {:?}", ty);
                 let id_u32 = id as u32;
@@ -143,6 +223,7 @@ pub fn biserdi_one_of(item: TokenStream) -> TokenStream {
         _ => panic!("BiserdiOneOf only allowed for Enums")
     }.into()
 }
+
 
 #[proc_macro_derive(BiserdiMsgVersioned)]
 pub fn biserdi_msg_versioned(item: TokenStream) -> TokenStream {
@@ -216,7 +297,7 @@ pub fn biserdi_msg_versioned(item: TokenStream) -> TokenStream {
 
             for variant in variants.iter() {
                 let ident = variant.ident.clone();
-                if !re.is_match(&ident.to_string()) { panic!("VersionEnums for BiserdiMsgVersioned need to have variants in the form of V[0-9]+") }
+                if !re.is_match(&ident.to_string()) { panic!("VersionEnums for Biserdi need to have variants in the form of V[0-9]+") }
 
                 let ty = match variant.fields.clone() {
                     syn::Fields::Named(_) => panic!("Biserdi for enum only allowed with named fields"),

@@ -297,7 +297,7 @@ impl<T, const N: usize> BiserdiTraitVarBitSize for [T; N] where T: BiserdiTraitV
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, Copy)]
 pub struct VarWithGivenBitSize<T: Sized + Copy + BiserdiTraitVarBitSize, const NUM_BITS: u64> {
     val: T
 }

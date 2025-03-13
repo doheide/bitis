@@ -1,12 +1,29 @@
 
-msg InnerMsg {
-    bool fix_attr;
+enum ErrorFlag(3) {
+    DeviceId_Unknown,
+    Version_Unknown,
+}
+msg BSSayHiWithId {
+    uint_3 reserved_must_be_two;
+    uint_32 device_id;
+    uint_5 version;
+}
+msg BSResponseAfterHi {
+    oneof content(2) {
+      uint_16 challenge;
+      ErrorFlag error_reason;
+    }
 }
 
-msg Lala {
-    repeated_fixed_10 bool data_bool;
-    uint_4 data1_uint;
-    uint_12 data2_uint;
-    InnerMsg inner;
+msg BSChallengeResponse {
+    repeated_fixed_4 uint_8 proof;
 }
 
+msg Error_WrongChallengeResponse { }
+
+msg BSFinalSession {
+    oneof content(2) {
+      uint_32 session_id;
+      Error_WrongChallengeResponse error;
+    }
+}

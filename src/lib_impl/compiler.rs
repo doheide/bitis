@@ -2,6 +2,7 @@ use std::process::abort;
 use askama::Template;
 use logos::{Lexer, Logos, Span};
 use regex::Regex;
+use stringcase::Caser;
 
 // ************************************************************************
 #[derive(Template, Clone, Debug)]
@@ -9,8 +10,8 @@ use regex::Regex;
 pub struct RustDataObjects {
     pub enums: Vec<Enum>,
     pub msgs: Vec<Message>,
+    pub oos: Vec<OneOfInfo>,
 }
-
 
 mod filters {
     #[allow(dead_code)]
@@ -80,10 +81,16 @@ impl SimpleType {
 }
 
 #[derive(Debug, Clone )]
+pub struct OneOfInfo {
+    name: String,
+    dyn_bits: u8,
+    attrs: Vec<Attribute>,
+}
+#[derive(Debug, Clone )]
 pub enum AttributeDetails {
     AttributeSimple(SimpleType),
     AttributeEnumOrMsg(String),
-    AttributeOneOf(Vec<Attribute>),
+    AttributeOneOf(OneOfInfo),
 }
 #[derive(Debug, Clone )]
 pub struct Attribute {
@@ -107,12 +114,13 @@ pub struct Message {
     pub attributes: Vec<Attribute>,
 }
 
+/// Enum information for bitis. The ids are always DynInteger with a given bit size.
 #[derive(Debug, Clone)]
 pub struct Enum {
     pub name: String,
     // pub version_info: VersionInfo,
     pub comment: Option<String>,
-    pub bit_size: DynOrFixedType,
+    pub bit_size: u8,
     pub values: Vec<String>,
 }
 
@@ -137,7 +145,7 @@ pub fn get_fp_properties_number(lex: &mut Lexer<Token>) -> Option<FixedPointProp
     let max_val = re.captures(slice)?.get(3)?.as_str().parse::<i64>().ok()?;
     Some(FixedPointProperties{bits, min_val, max_val})
 }
-pub fn get_dyn_or_fixed_from_args(lex: &mut Lexer<Token>) -> Option<DynOrFixedType> {
+/*pub fn get_dyn_or_fixed_from_args(lex: &mut Lexer<Token>) -> Option<DynOrFixedType> {
     let slice = lex.slice();
     let re = Regex::new(r" *(dyn|fixed) *, *([0-9]+)").unwrap();
     let type_str = re.captures(slice)?.get(1)?.as_str();
@@ -148,6 +156,12 @@ pub fn get_dyn_or_fixed_from_args(lex: &mut Lexer<Token>) -> Option<DynOrFixedTy
     else {
         Some(DynOrFixedType::Fixed(bits))
     }
+}*/
+pub fn get_enum_bit_size(lex: &mut Lexer<Token>) -> Option<u8> {
+    let slice = lex.slice();
+    let re = Regex::new(r"\( *([0-9]+) *\)").unwrap();
+    let bits = re.captures(slice)?.get(1)?.as_str().parse::<u8>().ok()?;
+    Some(bits)
 }
 pub fn get_version(lex: &mut Lexer<Token>) -> Option<u16> {
     let slice = lex.slice();
@@ -199,7 +213,7 @@ pub enum Token{
     #[token("false", |_| false, priority=20)]
     #[token("true", |_| true, priority=20)]
     BoolVal(bool),
-    #[regex(r" *(dyn|fixed) *, *([0-9]+)", get_dyn_or_fixed_from_args, priority=30)] DynOrFixedVal(DynOrFixedType),
+    #[regex(r"\( *([0-9]+) *\)", get_enum_bit_size, priority=40)] EnumDynSize(u8),
 }
 
 #[derive(Debug, Clone)]
@@ -445,6 +459,10 @@ pub fn parse_oneof(lexer: &mut Lexer<'_, Token>, parent_name: String, comment: O
     let oo_name = parse_one_token_with_arg!(
             Token::StringVal, lexer, Some(format!("Error: Expected name for oneof in parent '{parent_name}'")))?.unwrap();
 
+    let bit_size = match parse_one_token_with_arg!(Token::EnumDynSize, lexer, Some("Expected oneof properties for dyn size, e.g. (4)."))? {
+        Ok(s) => s, Err(s) => { return Err(("Code should not be reached".into(), s)); }
+    };
+
     parse_one_token!(Token::CBraceOpen, lexer, Some("Error: Expected open curly bracket to enclose oneof elements"))?.unwrap();
 
     let mut oo_attribs = Vec::new();
@@ -462,8 +480,10 @@ pub fn parse_oneof(lexer: &mut Lexer<'_, Token>, parent_name: String, comment: O
             }
         }
     }
-    Ok(Attribute{name: "lala_oneof".into(), comment, is_repeated_and_size, is_optional,
-        specific_details: AttributeDetails::AttributeOneOf(oo_attribs)})
+    Ok(Attribute{name: oo_name.clone(), comment, is_repeated_and_size, is_optional,
+        specific_details: AttributeDetails::AttributeOneOf(OneOfInfo{
+            name: format!("OO_{}_{}", parent_name.to_pascal_case(), oo_name.to_pascal_case()),
+            dyn_bits: bit_size, attrs: oo_attribs})})
 }
 
 pub fn parse_enum(lexer: &mut Lexer<'_, Token>, comment: Option<String>) -> Result<Value> {
@@ -471,11 +491,9 @@ pub fn parse_enum(lexer: &mut Lexer<'_, Token>, comment: Option<String>) -> Resu
         Ok(s) => s, Err(s) => { return Err(("Code should not be reached".into(), s)); }
     };
 
-    parse_one_token!(Token::BraceOpen, lexer, Some(format!("Expected open bracket after enum name for '{name}'")))?.unwrap();
-    let prop = match parse_one_token_with_arg!(Token::DynOrFixedVal, lexer, Some("Expected enum properties"))? {
+    let bit_size = match parse_one_token_with_arg!(Token::EnumDynSize, lexer, Some("Expected enum properties for dyn size, e.g. (4)."))? {
         Ok(s) => s, Err(s) => { return Err(("Code should not be reached".into(), s)); }
     };
-    parse_one_token!(Token::BraceClose, lexer, Some(format!("Expected close bracket after enum properties for '{name}'")))?.unwrap();
 
     // let version_info = if(lexer.extras == 0) {
     //     if let Some(token) = lexer.next() {
@@ -504,7 +522,7 @@ pub fn parse_enum(lexer: &mut Lexer<'_, Token>, comment: Option<String>) -> Resu
         } else { return Err(("Unexpected end of file".into(), lexer.span())); }
     }
 
-    Ok(Value::Enum(Enum{name, /*version_info,*/ comment, bit_size: prop, values}))
+    Ok(Value::Enum(Enum{name, /*version_info,*/ comment, bit_size, values}))
 }
 
 
@@ -591,6 +609,7 @@ pub struct BitisProcessed {
     pub max_version_number: u16,
     pub msgs: Vec<Message>,
     pub enums: Vec<Enum>,
+    pub oo_enums: Vec<OneOfInfo>,
 }
 
 /// This function prepares message and enums for rendering
@@ -726,6 +745,28 @@ pub fn process_and_validate_bitis(parsed_bitis: &Vec<Value>) -> BitisProcessed {
         match v { Value::Enum(enm) => Some(enm.clone()), _ => None }
     }).collect();
 
+    fn get_oneofs(attrs: &Vec<Attribute>) -> Option<Vec<OneOfInfo>> {
+        let direct_oos = attrs.iter().filter_map(|attr| {
+            match &attr.specific_details {
+                AttributeDetails::AttributeOneOf(oo) => Some(vec![oo.clone()]),
+                _ => None
+            }
+        }).collect::<Vec<Vec<OneOfInfo>>>().concat();
+
+        let inner_oos = direct_oos.iter().filter_map(|doo| {
+            get_oneofs(&doo.attrs)
+        }).collect::<Vec<Vec<_>>>().concat();
+
+        let all_oos = vec![direct_oos, inner_oos].concat();
+        if all_oos.len() == 0 { None }
+        else { Some(all_oos) }
+    }
+    let oo_enums: Vec<_> = msgs.iter().filter_map(|msg| {
+        get_oneofs(&msg.attributes)
+    }).collect::<Vec<_>>().concat();
+
+    println!("\noo_enums:\n{:?}\n", oo_enums);
+
     { // Test msgs and enum
         let msg_names = msgs.iter().map(|msg| &msg.name).collect::<Vec<_>>();
         msg_names.iter().for_each(|name| {
@@ -744,7 +785,7 @@ pub fn process_and_validate_bitis(parsed_bitis: &Vec<Value>) -> BitisProcessed {
         //...
     }
 
-    BitisProcessed { max_version_number: 0, msgs, enums }
+    BitisProcessed { max_version_number: 0, msgs, enums, oo_enums}
 }
 
 
@@ -787,42 +828,222 @@ mod bitis_semantic {
         assert_eq!(process_result.enums.len(), 0);
     }
 
-    /*#[rstest]
-    #[case::float("float", SimpleType::Float)]
-    #[case::uint_12("uint_12", SimpleType::UIntFixed(12))]
-    #[case::uint_32d4("uint_32d4", SimpleType::UIntDyn((32,4)))]
-    #[case::bool("bool", SimpleType::Bool)]
-    fn msg_various_attribute_types(#[case] attr_type_str: String, #[case] attr_type: SimpleType) {
-        let test_msg = format!("msg Lala [fixed] {{ {attr_type_str} attr; }}");
+    #[rstest]
+    fn msg_simple_msg() {
+        let test_empty_msg = "msg Lala { uint_7 a1; }";
 
-        let mut lexer = Token::lexer(test_msg.as_str());
+        let mut lexer = Token::lexer(test_empty_msg);
         lexer.extras = 0;
 
         let parsed_bitis = parse_root(&mut lexer);
+        if let Err(s) = parsed_bitis.clone() {
+            panic!("Error: {} ('{}' ,span: {:?})", s.0, &test_empty_msg[s.1.clone()], s.1);
+        }
         assert_eq!(parsed_bitis.is_ok(), true);
 
         let parsed_bitis = parsed_bitis.unwrap();
         assert_eq!(parsed_bitis.len(), 1);
 
-        assert!(if let Value::Message(_) = parsed_bitis[0].clone() { true } else { false });
-
         if let Value::Message(msg) = parsed_bitis[0].clone() {
-            assert_eq!(msg.name, "Lala".to_string());
-
             assert_eq!(msg.attributes.len(), 1);
-            assert_eq!(msg.attributes[0].name, "attr".to_string());
-
-            assert!(if let AttributeDetails::AttributeSimple(_) = msg.attributes[0].specific_details.clone() { true } else { false });
-
-            if let AttributeDetails::AttributeSimple(at) = msg.attributes[0].specific_details.clone() {
-                assert_eq!(at, attr_type);
+            assert_eq!(msg.attributes[0].name, "a1".to_string());
+            if let AttributeDetails::AttributeSimple(s) = msg.attributes[0].specific_details.clone() {
+                assert_eq!(s, SimpleType::UIntFixed(7));
             }
+            else { assert!(false, "Attribute type must be AttributeSimple."); }
         }
+        else { assert!(false, "Value must be a message."); }
+    }
 
-        let validate_result = validate_bitis(&parsed_bitis);
-        println!("validate_result: {:?}", validate_result);
-        assert!(validate_result.is_none());
-    }*/
+    #[rstest]
+    fn msg_simple_enum() {
+        let test_empty_msg = "enum Lala(4) { one, two }";
+
+        let mut lexer = Token::lexer(test_empty_msg);
+        lexer.extras = 0;
+
+        let parsed_bitis = parse_root(&mut lexer);
+        if let Err(s) = parsed_bitis.clone() {
+            panic!("Error: {} ('{}' ,span: {:?})", s.0, &test_empty_msg[s.1.clone()], s.1);
+        }
+        assert_eq!(parsed_bitis.is_ok(), true);
+
+        let parsed_bitis = parsed_bitis.unwrap();
+        assert_eq!(parsed_bitis.len(), 1);
+
+        if let Value::Enum(enm) = parsed_bitis[0].clone() {
+            assert_eq!(enm.values.len(), 2);
+            assert_eq!(enm.values[0], "one".to_string());
+            assert_eq!(enm.values[1], "two".to_string());
+        }
+        else { assert!(false, "Value must be a message."); }
+    }
+
+
+    /*#[rstest]
+        #[case::float("float", SimpleType::Float)]
+        #[case::uint_12("uint_12", SimpleType::UIntFixed(12))]
+        #[case::uint_32d4("uint_32d4", SimpleType::UIntDyn((32,4)))]
+        #[case::bool("bool", SimpleType::Bool)]
+        fn msg_various_attribute_types(#[case] attr_type_str: String, #[case] attr_type: SimpleType) {
+            let test_msg = format!("msg Lala [fixed] {{ {attr_type_str} attr; }}");
+
+            let mut lexer = Token::lexer(test_msg.as_str());
+            lexer.extras = 0;
+
+            let parsed_bitis = parse_root(&mut lexer);
+            assert_eq!(parsed_bitis.is_ok(), true);
+
+            let parsed_bitis = parsed_bitis.unwrap();
+            assert_eq!(parsed_bitis.len(), 1);
+
+            assert!(if let Value::Message(_) = parsed_bitis[0].clone() { true } else { false });
+
+            if let Value::Message(msg) = parsed_bitis[0].clone() {
+                assert_eq!(msg.name, "Lala".to_string());
+
+                assert_eq!(msg.attributes.len(), 1);
+                assert_eq!(msg.attributes[0].name, "attr".to_string());
+
+                assert!(if let AttributeDetails::AttributeSimple(_) = msg.attributes[0].specific_details.clone() { true } else { false });
+
+                if let AttributeDetails::AttributeSimple(at) = msg.attributes[0].specific_details.clone() {
+                    assert_eq!(at, attr_type);
+                }
+            }
+
+            let validate_result = validate_bitis(&parsed_bitis);
+            println!("validate_result: {:?}", validate_result);
+            assert!(validate_result.is_none());
+        }*/
+}
+
+#[cfg(test)]
+mod bitis_generate_rust {
+    use rstest::rstest;
+    use super::*;
+
+    const HEADER: &str = "use bitis_lib::*;\n\n";
+    const ENUMS_HEADER: &str = "// Enums\n\n";
+    const OO_HEADER: &str = "// Enums for oneof\n\n";
+    const MSG_HEADER: &str = "// Messages\n\n";
+    const PER_ENUM_HEADER: &str = "#[derive(BiserdiEnum, Debug, Clone, PartialEq)]\n#[biserdi_enum_id_dynbits(3)]\n#[allow(nonstandard_style)]\n";
+    const PER_OO_HEADER: &str = "#[derive(BiserdiOneOf, Debug, Clone, PartialEq)]\n#[biserdi_enum_id_dynbits(3)]\n#[allow(nonstandard_style)]\n";
+    const PER_MSG_HEADER: &str = "#[derive(BiserdiMsg, Debug, Clone, PartialEq)]\n#[allow(nonstandard_style)]\n";
+
+    #[rstest]
+    fn msg_empty_msg() {
+        let test_empty_msg = "msg Lala { }";
+
+        let mut lexer = Token::lexer(test_empty_msg);
+        lexer.extras = 0;
+
+        let parsed_bitis = parse_root(&mut lexer);
+        if let Err(s) = parsed_bitis.clone() {
+            panic!("Error: {} ('{}' ,span: {:?})", s.0, &test_empty_msg[s.1.clone()], s.1);
+        }
+        assert_eq!(parsed_bitis.is_ok(), true);
+
+        let parsed_bitis = parsed_bitis.unwrap();
+        assert_eq!(parsed_bitis.len(), 1);
+
+        let processed_bitis = process_and_validate_bitis(&parsed_bitis);
+        let rdo = RustDataObjects{ enums: processed_bitis.enums, msgs: processed_bitis.msgs,
+            oos: processed_bitis.oo_enums };
+
+        let rendered = rdo.render().unwrap();
+        let lala_empty = "pub struct Lala {\n}\n";
+        assert_eq!(rendered, (HEADER.to_owned() + ENUMS_HEADER + "\n\n" + OO_HEADER + "\n\n"  +
+            MSG_HEADER + PER_MSG_HEADER +lala_empty).to_string());
+    }
+
+    #[rstest]
+    fn msg_simple_msg() {
+        let test_empty_msg = "//| comment for Lala\nmsg Lala { uint_5 a1; repeated_fixed_4 bool bool_array; }";
+        println!("Input code:\n{}", test_empty_msg);
+
+        let mut lexer = Token::lexer(test_empty_msg);
+        lexer.extras = 0;
+
+        let parsed_bitis = parse_root(&mut lexer);
+        if let Err(s) = parsed_bitis.clone() {
+            panic!("Error: {} ('{}' ,span: {:?})", s.0, &test_empty_msg[s.1.clone()], s.1);
+        }
+        assert_eq!(parsed_bitis.is_ok(), true);
+
+        let parsed_bitis = parsed_bitis.unwrap();
+        assert_eq!(parsed_bitis.len(), 1);
+
+        let processed_bitis = process_and_validate_bitis(&parsed_bitis);
+        let rdo = RustDataObjects{ enums: processed_bitis.enums, msgs: processed_bitis.msgs,
+            oos: processed_bitis.oo_enums };
+
+        let rendered = rdo.render().unwrap();
+        let lala_commment = "/// comment for Lala\n";
+        let lala_empty = "pub struct Lala {\n  pub a1: VarWithGivenBitSize<u8, 5>,\n  pub bool_array: [bool;4],\n}\n";
+        println!("rendered:\n{}",rendered);
+        assert_eq!(rendered, (HEADER.to_owned() + ENUMS_HEADER + "\n\n" + OO_HEADER + "\n\n" +
+            MSG_HEADER + lala_commment + PER_MSG_HEADER +lala_empty).to_string());
+    }
+
+    #[rstest]
+    fn msg_simple_enum() {
+        let test_enum_msg = "//| comment for Numbers\nenum Numbers(3) {\n  // Comment for One\n  One,\n  Two,\n  Three\n}";
+        println!("Input code:\n{}", test_enum_msg);
+
+        let mut lexer = Token::lexer(test_enum_msg);
+        lexer.extras = 0;
+
+        let parsed_bitis = parse_root(&mut lexer);
+        if let Err(s) = parsed_bitis.clone() {
+            panic!("Error: {} ('{}' ,span: {:?})", s.0, &test_enum_msg[s.1.clone()], s.1);
+        }
+        assert_eq!(parsed_bitis.is_ok(), true);
+
+        let parsed_bitis = parsed_bitis.unwrap();
+        assert_eq!(parsed_bitis.len(), 1);
+
+        let processed_bitis = process_and_validate_bitis(&parsed_bitis);
+        let rdo = RustDataObjects{ enums: processed_bitis.enums, msgs: processed_bitis.msgs,
+            oos: processed_bitis.oo_enums };
+
+        let rendered = rdo.render().unwrap();
+        let lala_commment = "/// comment for Numbers\n";
+        let lala_enum = "pub enum Numbers {\n  One,\n  Two,\n  Three,\n}\n\n";
+        println!("*rendered:\n{}",rendered);
+        assert_eq!(rendered, (HEADER.to_owned() + ENUMS_HEADER + lala_commment + PER_ENUM_HEADER + lala_enum + OO_HEADER +
+            "\n\n" + MSG_HEADER ).to_string());
+    }
+
+    #[rstest]
+    fn msg_simple_oneof() {
+        let test_enum_msg = "//| comment for Oneof\nmsg TestOO {\n  oneof oo_li(3) { uint_3 test1; float test2; }\n  bool b1;\n}";
+        println!("Input code:\n{}", test_enum_msg);
+
+        let mut lexer = Token::lexer(test_enum_msg);
+        lexer.extras = 0;
+
+        let parsed_bitis = parse_root(&mut lexer);
+        if let Err(s) = parsed_bitis.clone() {
+            panic!("Error: {} ('{}' ,span: {:?})", s.0, &test_enum_msg[s.1.clone()], s.1);
+        }
+        assert_eq!(parsed_bitis.is_ok(), true);
+
+        let parsed_bitis = parsed_bitis.unwrap();
+        assert_eq!(parsed_bitis.len(), 1);
+
+        let processed_bitis = process_and_validate_bitis(&parsed_bitis);
+        let rdo = RustDataObjects{ enums: processed_bitis.enums, msgs: processed_bitis.msgs,
+            oos: processed_bitis.oo_enums };
+
+        let rendered = rdo.render().unwrap();
+        let testoo_commment = "/// comment for Oneof\n";
+        let testoo_enum = "pub enum OO_TestOo_OoLi {\n  test1(VarWithGivenBitSize<u8, 3>),\n  test2(f32),\n}\n\n";
+        let testoo_msg = "pub struct TestOO {\n  pub oo_li: OO_TestOo_OoLi,\n  pub b1: bool,\n}\n";
+        println!("*rendered:\n{}",rendered);
+        assert_eq!(rendered, (HEADER.to_owned() + ENUMS_HEADER + "\n\n" + OO_HEADER + PER_OO_HEADER
+            + testoo_enum + MSG_HEADER + testoo_commment + PER_MSG_HEADER + testoo_msg).to_string());
+    }
 }
 
 #[cfg(test)]

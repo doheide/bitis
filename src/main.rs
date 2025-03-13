@@ -130,7 +130,8 @@ fn main() {
                         pb.push(format!("{}.rs", input_file_wo_ext.to_str().unwrap()).as_str());
                         pb
                     };
-                    let rdo = RustDataObjects{ enums: vec![], msgs: processed_bitis.msgs };
+                    let rdo = RustDataObjects{ enums: processed_bitis.enums, msgs: processed_bitis.msgs,
+                        oos: processed_bitis.oo_enums };
 
                     let rendered = rdo.render().unwrap();
                     println!("{}", rendered);
