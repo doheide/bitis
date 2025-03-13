@@ -1,3 +1,11 @@
+Versions:
+- base ist 0
+- version 1 immer leer
+- version N -> last changed version
+
+
+---
+
 * OneOf
 * Arrays: Fixed, dynamic
 * optional: may not be set
