@@ -1,9 +1,7 @@
-use std::collections::{HashMap};
 use std::process::abort;
 use askama::Template;
 use logos::{Lexer, Logos, Span};
 use regex::Regex;
-use crate::AttributeDetails::AttributeEnumOrMsg;
 
 // ************************************************************************
 #[derive(Template, Clone, Debug)]
@@ -95,15 +93,15 @@ pub struct Attribute {
     is_optional: bool,
     specific_details: AttributeDetails
 }
-#[derive(Debug, Clone)]
-pub enum VersionInfo {
-    Version(u16),
-    BaseWithAllowedVersion(u16),
-}
+// #[derive(Debug, Clone)]
+// pub enum VersionInfo {
+//     Version(u16),
+//     BaseWithAllowedVersion(u16),
+// }
 #[derive(Debug, Clone)]
 pub struct Message {
     pub name: String,
-    pub version_info: VersionInfo,
+    // pub version_info: VersionInfo,
     pub comment: Option<String>,
     pub parent: Option<String>,
     pub attributes: Vec<Attribute>,
@@ -112,7 +110,7 @@ pub struct Message {
 #[derive(Debug, Clone)]
 pub struct Enum {
     pub name: String,
-    pub version_info: VersionInfo,
+    // pub version_info: VersionInfo,
     pub comment: Option<String>,
     pub bit_size: DynOrFixedType,
     pub values: Vec<String>,
@@ -299,18 +297,18 @@ pub fn parse_msg(lexer: &mut Lexer<'_, Token>, comment_for_msg: Option<String>) 
         Err(s) => { return Err(("Code should not be reached".into(), s)); }
     };
 
-    let version_info = if(lexer.extras == 0) {
-        if let Some(token) = lexer.next() {
-            match token {
-                Ok(Token::MsgVersionToken(v)) => VersionInfo::Version(v),
-                Ok(Token::MsgBaseInfoToken(v)) => VersionInfo::BaseWithAllowedVersion(v),
-                Ok(_) => { return Err((format!("Unexpected token {:?} for message '{}' when expecting version info", token, name)
-                                       .to_owned(), lexer.span())); }
-                Err(_) => { return Err((format!("Error: Syntax error for message '{}'", name).to_owned(), lexer.span())); }
-            }
-        } else { return Err(("Unexpectedly did not find version information".to_owned(), lexer.span())); }
-    }
-    else { VersionInfo::Version(lexer.extras) };
+    // let version_info = if(lexer.extras == 0) {
+    //     if let Some(token) = lexer.next() {
+    //         match token {
+    //             Ok(Token::MsgVersionToken(v)) => VersionInfo::Version(v),
+    //             Ok(Token::MsgBaseInfoToken(v)) => VersionInfo::BaseWithAllowedVersion(v),
+    //             Ok(_) => { return Err((format!("Unexpected token {:?} for message '{}' when expecting version info", token, name)
+    //                                    .to_owned(), lexer.span())); }
+    //             Err(_) => { return Err((format!("Error: Syntax error for message '{}'", name).to_owned(), lexer.span())); }
+    //         }
+    //     } else { return Err(("Unexpectedly did not find version information".to_owned(), lexer.span())); }
+    // }
+    // else { VersionInfo::Version(lexer.extras) };
 
     let parent = {
         let has_parent; let p;
@@ -350,7 +348,7 @@ pub fn parse_msg(lexer: &mut Lexer<'_, Token>, comment_for_msg: Option<String>) 
         else { return Err(("Unexpected end of file".into(), lexer.span())); }
     }
 
-    Ok(Value::Message(Message{name, version_info, comment: comment_for_msg, parent, attributes}))
+    Ok(Value::Message(Message{name, /*version_info,*/ comment: comment_for_msg, parent, attributes}))
 }
 
 pub fn parse_attribute(last_token: Token, lexer: &mut Lexer<'_, Token>,
@@ -479,19 +477,18 @@ pub fn parse_enum(lexer: &mut Lexer<'_, Token>, comment: Option<String>) -> Resu
     };
     parse_one_token!(Token::BraceClose, lexer, Some(format!("Expected close bracket after enum properties for '{name}'")))?.unwrap();
 
-    let version_info = if(lexer.extras == 0) {
-        if let Some(token) = lexer.next() {
-            match token {
-                Ok(Token::MsgVersionToken(v)) => VersionInfo::Version(v),
-                Ok(Token::MsgBaseInfoToken(v)) => VersionInfo::BaseWithAllowedVersion(v),
-                Ok(_) => { return Err((format!("Unexpected token {:?} for enum '{}' when expecting version info", token, name)
-                                           .to_owned(), lexer.span())); }
-                Err(_) => { return Err((format!("Error: Syntax error for enum '{}'", name).to_owned(), lexer.span())); }
-            }
-        } else { return Err(("Unexpectedly did not find version information".to_owned(), lexer.span())); }
-    }
-    else { VersionInfo::Version(lexer.extras) };
-
+    // let version_info = if(lexer.extras == 0) {
+    //     if let Some(token) = lexer.next() {
+    //         match token {
+    //             Ok(Token::MsgVersionToken(v)) => VersionInfo::Version(v),
+    //             Ok(Token::MsgBaseInfoToken(v)) => VersionInfo::BaseWithAllowedVersion(v),
+    //             Ok(_) => { return Err((format!("Unexpected token {:?} for enum '{}' when expecting version info", token, name)
+    //                                        .to_owned(), lexer.span())); }
+    //             Err(_) => { return Err((format!("Error: Syntax error for enum '{}'", name).to_owned(), lexer.span())); }
+    //         }
+    //     } else { return Err(("Unexpectedly did not find version information".to_owned(), lexer.span())); }
+    // }
+    // else { VersionInfo::Version(lexer.extras) };
 
     parse_one_token!(Token::CBraceOpen, lexer, Some(format!("Expected open curly bracket for enum '{name}'")))?.unwrap();
 
@@ -507,7 +504,7 @@ pub fn parse_enum(lexer: &mut Lexer<'_, Token>, comment: Option<String>) -> Resu
         } else { return Err(("Unexpected end of file".into(), lexer.span())); }
     }
 
-    Ok(Value::Enum(Enum{name, version_info, comment, bit_size: prop, values}))
+    Ok(Value::Enum(Enum{name, /*version_info,*/ comment, bit_size: prop, values}))
 }
 
 
@@ -597,8 +594,8 @@ pub struct BitisProcessed {
 }
 
 /// This function prepares message and enums for rendering
-pub fn process_bitis(parsed_bitis: &Vec<Value>) -> BitisProcessed {
-    let (processed_msgs, max_msg_version_number) = {
+pub fn process_and_validate_bitis(parsed_bitis: &Vec<Value>) -> BitisProcessed {
+    /*let (processed_msgs, max_msg_version_number) = {
         let msgs: Vec<_> = parsed_bitis.iter().filter_map(|v| {
             match v { Value::Message(msg) => Some(msg.clone()), _ => None }
         }).collect();
@@ -717,12 +714,39 @@ pub fn process_bitis(parsed_bitis: &Vec<Value>) -> BitisProcessed {
         let mut msg_processed_concat: Vec<_> = msgs_processed.concat();
         msg_processed_concat.sort_by_key(|msg| { msg.name.to_lowercase() });
 
+
         (msg_processed_concat, max_version_number)
-    };
+    };*/
 
     //
-    BitisProcessed { max_version_number: max_msg_version_number, msgs: processed_msgs, enums: Vec::new() }
+    let msgs: Vec<_> = parsed_bitis.iter().filter_map(|v| {
+        match v { Value::Message(msg) => Some(msg.clone()), _ => None }
+    }).collect();
+    let enums: Vec<_> = parsed_bitis.iter().filter_map(|v| {
+        match v { Value::Enum(enm) => Some(enm.clone()), _ => None }
+    }).collect();
+
+    { // Test msgs and enum
+        let msg_names = msgs.iter().map(|msg| &msg.name).collect::<Vec<_>>();
+        msg_names.iter().for_each(|name| {
+            if msg_names.iter().filter(|cname| **cname == *name).count() > 1 {
+                println!("Error: Multiple instances of msg '{}' found.", name); abort()
+            }
+        });
+        let enum_names = enums.iter().map(|enm| &enm.name).collect::<Vec<_>>();
+        enum_names.iter().for_each(|name| {
+            if enum_names.iter().filter(|cname| **cname == *name).count() > 1 {
+                println!("Error: Multiple instances of enum '{}' found.", name); abort()
+            }
+        });
+
+        // check that all attributes are defined
+        //...
+    }
+
+    BitisProcessed { max_version_number: 0, msgs, enums }
 }
+
 
 // ***************************************************
 
@@ -731,9 +755,9 @@ mod bitis_semantic {
     use rstest::rstest;
     use super::*;
 
-    /*#[rstest]
+    #[rstest]
     fn msg_empty_msg() {
-        let test_empty_msg = "msg Lala [fixed] { }";
+        let test_empty_msg = "msg Lala { }";
 
         let mut lexer = Token::lexer(test_empty_msg);
         lexer.extras = 0;
@@ -753,10 +777,15 @@ mod bitis_semantic {
             assert_eq!(msg.name, "Lala".to_string());
         }
 
-        let validate_result = validate_bitis(&parsed_bitis);
-        println!("validate_result: {:?}", validate_result);
-        assert!(validate_result.is_none());
-    }*/
+        // let validate_result = validate_bitis(&parsed_bitis);
+        // println!("validate_result: {:?}", validate_result);
+
+        let process_result = process_and_validate_bitis(&parsed_bitis);
+        println!("process_result {:?}", process_result);
+
+        assert_eq!(process_result.msgs.len(), 1);
+        assert_eq!(process_result.enums.len(), 0);
+    }
 
     /*#[rstest]
     #[case::float("float", SimpleType::Float)]
@@ -798,14 +827,14 @@ mod bitis_semantic {
 
 #[cfg(test)]
 mod bitis_serialization {
-    use std::fs;
+    // use std::fs;
     use rstest::rstest;
     use super::*;
 
     //noinspection DuplicatedCode
     #[rstest]
     fn msg_simple_msg_compile() {
-        let test_empty_msg = "msg Lala [fixed] { repeated_fixed_10 bool data_bool; uint_4 data1_uint; uint_12 data2_uint; }";
+        let test_empty_msg = "msg Lala { repeated_fixed_10 bool data_bool; uint_4 data1_uint; uint_12 data2_uint; }";
 
         let mut lexer = Token::lexer(test_empty_msg);
         lexer.extras = 0;
@@ -813,7 +842,7 @@ mod bitis_serialization {
         let parsed_bitis = parse_root(&mut lexer);
         assert_eq!(parsed_bitis.is_ok(), true);
 
-        let parsed_bitis = parsed_bitis.unwrap();
+        let _parsed_bitis = parsed_bitis.unwrap();
 
         // let rdo = RustDataObjects {
         //     enums: parsed_bitis.iter().filter_map(|x|
@@ -849,11 +878,12 @@ mod bitis_processing {
     use super::*;
 
     #[rstest]
+    #[ignore]
     fn msg_base_and_v2() {
         let bitis_values = vec![
             Value::Message(Message{
                 name: "TestMsg".to_string(),
-                version_info: VersionInfo::BaseWithAllowedVersion(0),
+                /*version_info: VersionInfo::BaseWithAllowedVersion(0),*/
                 comment: Some("This is a test".to_string()),
                 parent: None,
                 attributes: vec![Attribute{name: "a1".to_string(), comment: None,
@@ -863,7 +893,7 @@ mod bitis_processing {
             }),
             Value::Message(Message{
                 name: "TestMsg".to_string(),
-                version_info: VersionInfo::Version(2),
+                /*version_info: VersionInfo::Version(2),*/
                 comment: Some("This is a test".to_string()),
                 parent: None,
                 attributes: vec![Attribute{name: "a2".to_string(), comment: None,
@@ -872,7 +902,7 @@ mod bitis_processing {
                 }],
             })
         ];
-        let pb = process_bitis(&bitis_values);
+        let pb = process_and_validate_bitis(&bitis_values);
 
         assert_eq!(pb.max_version_number, 2);
         assert_eq!(pb.msgs.len(), 3);
@@ -889,11 +919,12 @@ mod bitis_processing {
     }
 
     #[rstest]
+    #[ignore]
     fn msg_base_and_v2_and_add_msg() {
         let bitis_values = vec![
             Value::Message(Message{
                 name: "TestMsgInner".to_string(),
-                version_info: VersionInfo::BaseWithAllowedVersion(0),
+                /*version_info: VersionInfo::BaseWithAllowedVersion(0),*/
                 comment: Some("This is a test2".to_string()),
                 parent: None,
                 attributes: vec![Attribute{name: "lala".to_string(), comment: None,
@@ -903,7 +934,7 @@ mod bitis_processing {
             }),
             Value::Message(Message{
                 name: "TestMsgInner".to_string(),
-                version_info: VersionInfo::Version(1),
+                /*version_info: VersionInfo::Version(1),*/
                 comment: Some("This is a test2".to_string()),
                 parent: None,
                 attributes: vec![
@@ -915,7 +946,7 @@ mod bitis_processing {
             }),
             Value::Message(Message{
                 name: "TestMsg".to_string(),
-                version_info: VersionInfo::BaseWithAllowedVersion(0),
+                /*version_info: VersionInfo::BaseWithAllowedVersion(0),*/
                 comment: Some("This is a test".to_string()),
                 parent: None,
                 attributes: vec![
@@ -927,7 +958,7 @@ mod bitis_processing {
             }),
             Value::Message(Message{
                 name: "TestMsg".to_string(),
-                version_info: VersionInfo::Version(2),
+                /*version_info: VersionInfo::Version(2),*/
                 comment: Some("This isa test".to_string()),
                 parent: None,
                 attributes: vec![Attribute{name: "a2".to_string(), comment: None,
@@ -936,7 +967,7 @@ mod bitis_processing {
                 }],
             }),
         ];
-        let pb = process_bitis(&bitis_values);
+        let pb = process_and_validate_bitis(&bitis_values);
 
         assert_eq!(pb.max_version_number, 2);
         assert_eq!(pb.msgs.len(), 4);
@@ -956,6 +987,5 @@ mod bitis_processing {
         assert_eq!(pb.msgs[3].attributes.len(), 1);
         assert_eq!(pb.msgs[3].attributes.get(0).unwrap().name, "lala".to_string());*/
     }
-
 }
 

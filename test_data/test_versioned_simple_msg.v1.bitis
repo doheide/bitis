@@ -1,5 +1,0 @@
-
-msg Lala [versioned] {
-    uint_4 added;
-}
-

@@ -1,6 +1,0 @@
-
-
-msg Lala [versioned] {
-    Lili inner_msg;
-}
-

@@ -106,17 +106,12 @@ fn main() {
     }).flatten().collect();
     if cli.debug > 1 { println!("parsed_bitis: {:?}", parsed_bitis); }
 
-    let processed_bitis = process_bitis(&parsed_bitis);
+    let processed_bitis = process_and_validate_bitis(&parsed_bitis);
     if cli.debug > 2 { println!("processed_bitis: {:?}", processed_bitis); }
 
     // ******
     match cli.command {
         Commands::Test {} => {
-            if let Some(err_msg) = validate_bitis(&parsed_bitis) {
-                println!("\nError: {}", err_msg);
-            } else {
-                println!("Ok!");
-            }
         }
         Commands::Compile { lang, output_file: output_file_opt } => {
             match lang {
