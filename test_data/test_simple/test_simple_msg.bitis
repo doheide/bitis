@@ -1,4 +1,11 @@
 
+msg ExampleMessage {
+  bool is_active;
+  uint_3 value_one;
+  optional int_5 signed_value;
+  repeated_fixed_3 uint_3 array;
+}
+
 enum ErrorFlag(3) {
     DeviceId_Unknown,
     Version_Unknown,

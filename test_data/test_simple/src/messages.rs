@@ -18,10 +18,24 @@ pub enum ErrorFlag {
 pub enum OO_BsResponseAfterHi_Content {
   challenge(VarWithGivenBitSize<u16, 16>),
   error_reason(ErrorFlag),
+}#[derive(BiserdiOneOf, Debug, Clone, PartialEq)]
+#[biserdi_enum_id_dynbits(2)]
+#[allow(nonstandard_style)]
+pub enum OO_BsFinalSession_Content {
+  session_id(VarWithGivenBitSize<u32, 32>),
+  error(Error_WrongChallengeResponse),
 }
 
 // Messages
 
+#[derive(BiserdiMsg, Debug, Clone, PartialEq)]
+#[allow(nonstandard_style)]
+pub struct ExampleMessage {
+  pub is_active: bool,
+  pub value_one: VarWithGivenBitSize<u8, 3>,
+  pub signed_value: Option<VarWithGivenBitSize<i8, 5>>,
+  pub array: [VarWithGivenBitSize<u8, 3>;3],
+}
 #[derive(BiserdiMsg, Debug, Clone, PartialEq)]
 #[allow(nonstandard_style)]
 pub struct BSSayHiWithId {
@@ -41,6 +55,10 @@ pub struct BSChallengeResponse {
 }
 #[derive(BiserdiMsg, Debug, Clone, PartialEq)]
 #[allow(nonstandard_style)]
+pub struct Error_WrongChallengeResponse {
+}
+#[derive(BiserdiMsg, Debug, Clone, PartialEq)]
+#[allow(nonstandard_style)]
 pub struct BSFinalSession {
-  pub session_id: VarWithGivenBitSize<u32, 32>,
+  pub content: OO_BsFinalSession_Content,
 }
