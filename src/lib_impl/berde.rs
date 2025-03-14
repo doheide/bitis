@@ -265,6 +265,33 @@ impl_biserdi_var_bitsize_trait!(i64, i64::BITS>>3);
 impl_biserdi!(f32, 32);
 impl_biserdi!(f64, 64);
 
+impl<T> BiserdiTrait for Option<T> where T: BiserdiTrait + Default + Copy {
+    fn bit_serialize(self: &Self, biseri: &mut Biseri) -> Option<u64> {
+        let mut size = 1;
+        match self {
+            None => { false.bit_serialize(biseri)?; },
+            Some(v) => {
+                true.bit_serialize(biseri)?;
+                size += v.bit_serialize(biseri)?;
+            }
+        }
+        Some(size)
+    }
+    fn bit_deserialize(version_id: u16, bides: &mut Bides) -> Option<(Self, u64)> {
+        let mut size = 1;
+
+        let (is_set, _) = bool::bit_deserialize(version_id, bides)?;
+        let v = if is_set {
+            let vv = T::bit_deserialize(version_id, bides)?;
+            size += vv.1.clone();
+            Some(vv.0)
+        }
+        else { None };
+
+        Some((v, size))
+    }
+}
+
 impl<T, const N: usize> BiserdiTrait for [T; N] where T: BiserdiTrait + Default + Copy {
     fn bit_serialize(self: &Self, biseri: &mut Biseri) -> Option<u64> {
         let mut s = 0;
