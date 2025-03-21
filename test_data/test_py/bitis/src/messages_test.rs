@@ -1,7 +1,7 @@
 use bitis_lib::*;
 
 // Enums
-
+/// Test comment for Enum
 #[derive(BiserdiEnum, Debug, Clone, PartialEq)]
 #[biserdi_enum_id_dynbits(4)]
 #[allow(nonstandard_style)]
@@ -11,8 +11,6 @@ pub enum Numbers {
   Three,
   Four,
 }
-
-
 
 // Enums for oneof
 #[derive(BiserdiOneOf, Debug, Clone, PartialEq)]
@@ -24,7 +22,7 @@ pub enum OO_ParamTestWithInner_Action {
 }
 
 // Messages
-
+/// Test comment for Inner
 #[derive(BiserdiMsg, Debug, Clone, PartialEq)]
 #[allow(nonstandard_style)]
 pub struct Inner {

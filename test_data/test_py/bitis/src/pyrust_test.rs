@@ -10,6 +10,7 @@ use super::messages;
 
 
 // Enums
+/// Test comment for Enum
 #[pyclass]
 #[derive(Debug, Clone)]
 #[allow(nonstandard_style)]
@@ -110,6 +111,7 @@ impl std::fmt::Display for OO_ParamTestWithInner_Action {
 
 
 // *** Messages
+/// Test comment for Inner
 #[pyclass]
 #[derive(Debug)]
 pub struct Inner {
@@ -202,24 +204,24 @@ impl ParamTestWithInner {
       OO_ParamTestWithInner_Action::Val(_) => OO_ParamTestWithInner_ActionEnum::Val,
   } }
   #[getter(action_inner)]
-  fn get_action_inner(&self) -> Option<&Py<Inner>> {
+  fn action_get_inner(&self) -> Option<&Py<Inner>> {
     match self.action.get() {
       OO_ParamTestWithInner_Action::Inner(v) => Some(v), _ => None
   } }
   #[setter(action_inner)]
-  fn set_action_inner(&mut self, v:Py<Inner>) -> PyResult<()> {
+  fn action_set_inner(&mut self, v:Py<Inner>) -> PyResult<()> {
     Python::with_gil(|py| {
       self.action = Py::new(py, OO_ParamTestWithInner_Action::Inner(v))?;
       Ok(())
     })
   }
   #[getter(action_val)]
-  fn get_action_val(&self) -> Option<&u8> {
+  fn action_get_val(&self) -> Option<&u8> {
     match self.action.get() {
       OO_ParamTestWithInner_Action::Val(v) => Some(v), _ => None
   } }
   #[setter(action_val)]
-  fn set_action_val(&mut self, v:u8) -> PyResult<()> {
+  fn action_set_val(&mut self, v:u8) -> PyResult<()> {
     Python::with_gil(|py| {
       self.action = Py::new(py, OO_ParamTestWithInner_Action::Val(v))?;
       Ok(())

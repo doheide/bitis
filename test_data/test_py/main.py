@@ -10,8 +10,12 @@ def main():
     print(msg)
     msg.param_2 = False
     print(msg)
-    msg.param_1 = 22
+    msg.param_1 = 1
+    a = msg.param_2
+    print(f"a={a}")
     print(msg)
+    print(inner.val)
+
 
     # msg.inner.val = 3
     # msg.inner.num = bitis_msgs.Numbers.One

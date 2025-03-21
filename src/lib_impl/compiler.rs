@@ -146,6 +146,11 @@ pub struct RustPyDataObjects {
 pub struct RustPyLib {
     pub d: JinjaData
 }
+#[derive(Template, Clone, Debug)]
+#[template(path = "py_type_hints.pyi.jinja")]
+pub struct PyTypeHints {
+    pub d: JinjaData
+}
 
 
 mod filters {
@@ -160,6 +165,15 @@ mod filters {
     #[allow(dead_code)]
     pub fn pascal_case<T: std::fmt::Display>(s: T) -> ::askama::Result<String> {
         Ok(stringcase::pascal_case(s.to_string().as_str()))
+    }
+    #[allow(dead_code)]
+    pub fn to_py_type<T: std::fmt::Display>(s: T) -> ::askama::Result<String> {
+        if ["u8", "u16", "u32", "u64", "i8", "i16", "i32", "i64"].contains(&s.to_string().as_str()) {
+            Ok("int".to_string()) }
+        else if ["f32", "f64"].contains(&s.to_string().as_str()) {
+            Ok("float".to_string())
+        }
+        else { Ok(s.to_string()) }
     }
 }
 
@@ -1063,9 +1077,9 @@ mod bitis_generate_rust {
     use super::*;
 
     const HEADER: &str = "use bitis_lib::*;\n\n";
-    const ENUMS_HEADER: &str = "// Enums\n\n";
-    const OO_HEADER: &str = "// Enums for oneof\n\n";
-    const MSG_HEADER: &str = "// Messages\n\n";
+    const ENUMS_HEADER: &str = "// Enums\n";
+    const OO_HEADER: &str = "// Enums for oneof\n";
+    const MSG_HEADER: &str = "// Messages\n";
     const PER_ENUM_HEADER: &str = "#[derive(BiserdiEnum, Debug, Clone, PartialEq)]\n#[biserdi_enum_id_dynbits(3)]\n#[allow(nonstandard_style)]\n";
     const PER_OO_HEADER: &str = "#[derive(BiserdiOneOf, Debug, Clone, PartialEq)]\n#[biserdi_enum_id_dynbits(3)]\n#[allow(nonstandard_style)]\n";
     const PER_MSG_HEADER: &str = "#[derive(BiserdiMsg, Debug, Clone, PartialEq)]\n#[allow(nonstandard_style)]\n";
@@ -1182,7 +1196,7 @@ mod bitis_generate_rust {
 
         let rendered = rdo.render().unwrap();
         let testoo_commment = "/// comment for Oneof\n";
-        let testoo_enum = "pub enum OO_TestOo_OoLi {\n  test1(VarWithGivenBitSize<u8, 3>),\n  test2(f32),\n}\n\n";
+        let testoo_enum = "pub enum OO_TestOo_OoLi {\n  Test1(VarWithGivenBitSize<u8, 3>),\n  Test2(f32),\n}\n\n";
         let testoo_msg = "pub struct TestOO {\n  pub oo_li: OO_TestOo_OoLi,\n  pub b1: bool,\n}\n";
         println!("*rendered:\n{}",rendered);
         assert_eq!(rendered, (HEADER.to_owned() + ENUMS_HEADER + "\n\n" + OO_HEADER + PER_OO_HEADER
@@ -1210,6 +1224,7 @@ mod bitis_compile {
                 abort()
             }
         };
+        println!("** content:\n{:?}", bitis_parsed);
         process_and_validate_bitis(&bitis_parsed)
     }
     fn render(d: JinjaData) {
@@ -1223,10 +1238,15 @@ mod bitis_compile {
         println!("*** rendered PyDO:\n{}", rendered_rust);
         fs::write(Path::new("./test_data/test_py/bitis/src/pyrust_test.rs"), rendered_rust).expect("Unable to write file");
 
-        let rdo = RustPyLib{ d };
+        let rdo = RustPyLib{ d: d.clone() };
         let rendered_rust = rdo.render().unwrap();
         println!("*** rendered pyLib:\n{}", rendered_rust);
         fs::write(Path::new("./test_data/test_py/bitis/src/lib_test.rs"), rendered_rust).expect("Unable to write file");
+
+        let rdo = PyTypeHints{ d };
+        let rendered_rust = rdo.render().unwrap();
+        println!("*** rendered py_type_hints:\n{}", rendered_rust);
+        fs::write(Path::new("./test_data/test_py/bitis/bitis_msgs/bitis_msgs.pyi"), rendered_rust).expect("Unable to write file");
     }
 
     #[rstest]
@@ -1265,7 +1285,7 @@ mod bitis_compile {
     #[ignore]
     fn nested_and_enum_rust_py() {
         let bitis_str = [
-            "enum Numbers(4) { one, two, three, four }\nmsg Inner { uint_3 val; Numbers num; }\n",
+            "enum Numbers(4) { one, two, three, four }\n/// Test comment for Inner\nmsg Inner { uint_3 val; Numbers num; }\n",
             "msg ParamTestWithInner { uint_4 param_1; bool param_2; Inner inner; } }"
         ].join("");
 
@@ -1283,7 +1303,7 @@ mod bitis_compile {
     #[test]
     fn oneof_nested_and_enum_rust_py() {
         let bitis_str = [
-            "enum Numbers(4) { one, two, three, four }\nmsg Inner { uint_3 val; Numbers num; }\n",
+            "//| Test comment for Enum\nenum Numbers(4) { one, two, three, four }\n\n//| Test comment for Inner\nmsg Inner { uint_3 val; Numbers num; }\n",
             "msg ParamTestWithInner { uint_4 param_1; bool param_2; oneof action(4) { Inner inner; uint_3 val; } }"
         ].join("");
 

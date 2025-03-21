@@ -1,7 +1,6 @@
 use bitis_lib::*;
 
 // Enums
-
 {%+ for ce in d.enums ~%}
 {%- if let Some(comment_impl) = ce.comment -%}
 ///{{comment_impl}}
@@ -14,7 +13,7 @@ pub enum {{ ce.name }} {
   {{ cv|pascal_case }},
 {%- endfor %}
 }
-{%- endfor +%}
+{%- endfor -%}
 
 {# *****************************************************************#}
 {# *****************************************************************#}
@@ -28,17 +27,18 @@ pub enum {{ coo.name }} {
   {% include "data_oo_attr.rs.jinja" %}
 {%- endfor %}
 }
-{%- endfor +%}
+{%- endfor -%}
 
+{# *****************************************************************#}
+{# *****************************************************************#}
 // Messages
-
 {% for cm in d.msgs ~%}
 {%- if let Some(comment_impl) = cm.comment -%}
 ///{{comment_impl}}
 {%- endif -%}
 #[derive(BiserdiMsg, Debug, Clone, PartialEq)]
 #[allow(nonstandard_style)]
-pub struct {{ cm.name }} {
+pub struct {{cm.name|pascal_case}} {
 {%- if let Some(p) = cm.parent -%}// parent: {{ p }}{%- endif -%}
 {%- for ca in cm.attributes +%}
   {% include "data_object_attr.rs.jinja" %}

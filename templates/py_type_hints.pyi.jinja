@@ -1,0 +1,81 @@
+from __future__ import annotations
+
+{# *****************************************************************#}
+{# *****************************************************************#}
+# Enums
+{%+ for ce in d.enums ~%}
+class {{ ce.name }}(Enum):
+{%- if let Some(comment_impl) = ce.comment %}
+  """
+  {{comment_impl}}
+  """
+{%- endif -%}
+{%- for cv in ce.values +%}
+  {{ cv|pascal_case }} = {{loop.index}}
+{%- endfor %}
+{%- endfor %}
+
+{# *****************************************************************#}
+{# *****************************************************************#}
+# *** Enums for oneof
+{%+ for (_, coo) in d.oos -%}
+class {{ coo.name }}Enum(Enum):
+{%- for ca in coo.attributes +%}
+  {{ ca.base.name|pascal_case }} = {{loop.index}}
+{%- endfor %}
+
+class {{ coo.name }}:
+{%- for ca in coo.attributes +%}
+  @staticmethod
+  def new_{{ca.base.name|snake_case}}({{ca.base.name|snake_case}}: {{ ca.base_type_str|to_py_type|safe }}) -> {{ coo.name }}: ...
+{%- endfor %}
+{%- endfor -%}
+
+{# *****************************************************************#}
+{# *****************************************************************#}
+# *** Messages
+{%+ for cm in d.msgs ~%}
+class {{ cm.name|pascal_case }}:
+{%- if let Some(comment_impl) = cm.comment +%}
+  """
+  {{comment_impl}}
+  """
+{%+ endif +%}
+  def __init__(self, {%- for ca in cm.attributes +%} {{ca.base.name}}: {{ca.base_type_str|to_py_type|safe}},{%- endfor -%}) -> None: ...
+
+  def serialize(self) -> bytes:
+    """
+    Serialized the class instance to binary data
+
+    :return: bytes representing the serialized class instance
+    """
+  @classmethod
+  def deserialize(cls, data: bytes) -> {{ cm.name|pascal_case }}:
+    """
+    Deserializes bytes to a python object
+
+    :param data: binary data
+    :return: An instance of the class with attributes set from the byte data
+    """
+
+{%~ for ca in cm.attributes +%}{% if ca.is_oo %}{%- if let Some(coo) = d.oos.get(ca.rust_type_str) +%}
+  @property
+  def {{ca.base.name|snake_case}}_oo(self) -> {{ca.rust_type_str}}Enum: ...
+
+{%- for caa in coo.attributes +%}
+  @property
+  def {{ca.base.name|snake_case}}_{{caa.base.name|snake_case}}(self) -> None | {{caa.base_type_str|to_py_type|safe}}: ...
+  @{{ca.base.name|snake_case}}_{{caa.base.name|snake_case}}.setter
+  def {{ca.base.name|snake_case}}_{{caa.base.name|snake_case}}(self, val: {{caa.base_type_str|to_py_type|safe}}) -> None: ...
+{%- endfor -%}{%+ endif -%}
+{% else +%}
+  @property
+  def {{ca.base.name|snake_case}}(self) -> {{ca.base_type_str|to_py_type|safe}}: ...
+  @{{ca.base.name|snake_case}}.setter
+  def {{ca.base.name|snake_case}}(self, v: {{ca.base_type_str|to_py_type|safe}}) -> None: ...
+{%- endif -%}
+{%- endfor %}
+
+
+{% endfor %}
+

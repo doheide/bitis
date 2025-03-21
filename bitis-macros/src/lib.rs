@@ -76,7 +76,7 @@ pub fn biserdi_enum(item: TokenStream) -> TokenStream {
     if input.attrs.len() == 0 {
         panic!("One instance of biserdi_enum_id_dynbits is required with one unsigned integer as attribute (8-bit), e.g. #[biserdi_enum_id_dynbits(4)].")
     }
-    println!("meta: {:?}", input.attrs[0].meta);
+    // println!("meta: {:?}", input.attrs[0].meta);
 
 
     let v: Vec<_> = input.attrs.iter().filter_map(|attr| {
@@ -140,7 +140,7 @@ pub fn biserdi_enum(item: TokenStream) -> TokenStream {
                     }
                 }
             };
-            println!("{}", code);
+            // println!("{}", code);
             code
         },
         _ => panic!("BiserdiEnum only allowed for Enums")
@@ -337,7 +337,7 @@ pub fn biserdi_msg_versioned(item: TokenStream) -> TokenStream {
                     }
                 }
             };
-            println!("{}", code);
+            // println!("{}", code);
             code
         },
         _ => panic!("BiserdiMsgVersioned only allowed for Structs")
