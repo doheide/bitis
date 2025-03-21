@@ -30,6 +30,7 @@ struct Cli {
 enum Language {
     /// use rust code
     Rust,
+    Python,
 }
 #[derive(Subcommand)]
 enum Commands {
@@ -130,12 +131,17 @@ fn main() {
                         pb.push(format!("{}.rs", input_file_wo_ext.to_str().unwrap()).as_str());
                         pb
                     };
-                    let rdo = RustDataObjects{ enums: processed_bitis.enums, msgs: processed_bitis.msgs,
-                        oos: processed_bitis.oo_enums };
+                    let rdo = RustDataObjects{ d: JinjaData{enums: processed_bitis.enums,
+                        msgs: to_rust_messages(&processed_bitis.msgs),
+                        oos: to_rust_oneofs(&processed_bitis.oo_enums,&processed_bitis.msgs) } };
 
                     let rendered = rdo.render().unwrap();
                     println!("{}", rendered);
                     fs::write(output_file, rendered).expect("Unable to write file");
+                },
+                Language::Python => {
+                    // RustPyDataObjects
+
                 }
             }
         }

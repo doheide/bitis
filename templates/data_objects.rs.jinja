@@ -2,7 +2,7 @@ use bitis_lib::*;
 
 // Enums
 
-{%+ for ce in enums ~%}
+{%+ for ce in d.enums ~%}
 {%- if let Some(comment_impl) = ce.comment -%}
 ///{{comment_impl}}
 {%- endif -%}
@@ -11,19 +11,20 @@ use bitis_lib::*;
 #[allow(nonstandard_style)]
 pub enum {{ ce.name }} {
 {%- for cv in ce.values +%}
-  {{ cv }},
+  {{ cv|pascal_case }},
 {%- endfor %}
 }
 {%- endfor +%}
 
+{# *****************************************************************#}
+{# *****************************************************************#}
 // Enums for oneof
-
-{%+ for coo in oos -%}
+{%+ for (_, coo) in d.oos -%}
 #[derive(BiserdiOneOf, Debug, Clone, PartialEq)]
 #[biserdi_enum_id_dynbits({{coo.dyn_bits}})]
 #[allow(nonstandard_style)]
 pub enum {{ coo.name }} {
-{%- for ca in coo.attrs +%}
+{%- for ca in coo.attributes +%}
   {% include "data_oo_attr.rs.jinja" %}
 {%- endfor %}
 }
@@ -31,7 +32,7 @@ pub enum {{ coo.name }} {
 
 // Messages
 
-{% for cm in msgs ~%}
+{% for cm in d.msgs ~%}
 {%- if let Some(comment_impl) = cm.comment -%}
 ///{{comment_impl}}
 {%- endif -%}

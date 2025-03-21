@@ -1,0 +1,208 @@
+use bitis_lib::*;
+
+use pyo3::prelude::*;
+use pyo3::exceptions::PyException;
+use pyo3::types::{PyBytes};
+
+use super::messages;
+
+
+{# *****************************************************************#}
+{# *****************************************************************#}
+// Enums
+{%+ for ce in d.enums ~%}
+{%- if let Some(comment_impl) = ce.comment -%}
+///{{comment_impl}}
+{%- endif -%}
+#[pyclass]
+#[derive(Debug, Clone)]
+#[allow(nonstandard_style)]
+pub enum {{ ce.name }} {
+{%- for cv in ce.values +%}
+  {{ cv|pascal_case }},
+{%- endfor %}
+}
+impl std::fmt::Display for {{ ce.name }} {
+  fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+    match self {
+{%- for cv in ce.values +%}
+      {{ ce.name }}::{{ cv|pascal_case }} => { write!(f, "{{ ce.name }}::{{ cv|pascal_case }}") }, {% endfor %}
+    }
+} }
+#[allow(nonstandard_style)]
+fn {{ ce.name }}_rust_to_py(v: messages::{{ ce.name }}) -> {{ ce.name }} {
+    match v {
+{%- for cv in ce.values +%}
+      messages::{{ ce.name }}::{{ cv|pascal_case }} => {{ ce.name }}::{{ cv|pascal_case }}, {% endfor %}
+    }
+}
+#[allow(nonstandard_style)]
+fn {{ ce.name }}_py_to_rust(v: {{ ce.name }}) -> messages::{{ ce.name }} {
+    match v {
+{%- for cv in ce.values +%}
+      {{ ce.name }}::{{ cv|pascal_case }} => messages::{{ ce.name }}::{{ cv|pascal_case }}, {% endfor %}
+    }
+}
+{%- endfor +%}
+
+{# *****************************************************************#}
+{# *****************************************************************#}
+// *** Enums for oneof
+{%+ for (_, coo) in d.oos -%}
+#[pyclass]
+#[derive(Debug)]
+#[allow(nonstandard_style)]
+pub enum {{ coo.name }} {
+{%- for ca in coo.attributes +%}
+  {% include "pyclasses_oo_attr.py.rs.jinja" %}
+{%- endfor %}
+}
+#[pyclass]
+#[derive(Debug, PartialEq)]
+#[allow(nonstandard_style)]
+pub enum {{ coo.name }}Enum {
+{%- for ca in coo.attributes +%}
+  {{ca.base.name|pascal_case}},
+{%- endfor %}
+}
+#[pymethods]
+impl {{ coo.name }} {
+{%- for ca in coo.attributes +%}
+  #[staticmethod]
+  fn new_{{ca.base.name|snake_case}}({{ca.base.name|snake_case}}: {%+ if ca.is_msg | ca.is_oo +%}Py<{%- endif -%}
+      {{ ca.base_type_str|safe }}{%- if ca.is_msg | ca.is_oo -%}>{% endif %}) -> PyResult<Py<Self>> {
+    Ok(Python::with_gil(|_py| { Py::new(_py, Self::{{ca.base.name|pascal_case}}({{ca.base.name|snake_case}})) })?)
+  }
+{%- endfor %}
+  fn __repr__(&self) -> String { format!("{}", self) }
+}
+impl {{ coo.name }} {
+  pub fn to_rust(&self) -> messages::{{ coo.name }} {
+    Python::with_gil(|_py| {
+      match self { {%- for ca in coo.attributes -%}{%- if ca.is_msg | ca.is_oo +%}
+        Self::{{ca.base.name|pascal_case}}(v) => messages::{{ coo.name }}::{{ca.base.name|pascal_case}}(v.borrow(_py).to_rust()),
+{%- else +%}
+        Self::Val(v) => messages::{{ coo.name }}::Val((*v).into()){%- endif -%}
+{%+ endfor %}
+      }
+    })
+  }
+  pub fn from_rust_obj(d: messages::{{ coo.name }}) -> PyResult<Self> {
+    let r = Python::with_gil(|_py| {
+      match d { {%- for ca in coo.attributes -%}{%- if ca.is_msg | ca.is_oo +%}
+        messages::{{ coo.name }}::{{ca.base.name|pascal_case}}(v) => Self::{{ca.base.name|pascal_case}}(Py::new(_py, {{ca.base.name|pascal_case}}::from_rust_obj(v).unwrap()).unwrap()),
+{%- else +%}
+        messages::{{ coo.name }}::{{ca.base.name|pascal_case}}(v) => Self::{{ca.base.name|pascal_case}}(v.val.into()){%- endif -%}
+{%+ endfor %}
+      }
+    });
+    Ok(r)
+  }
+}
+impl std::fmt::Display for {{ coo.name }} {
+  fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+    match self { {%- for ca in coo.attributes -%}{%- if ca.is_msg | ca.is_oo +%}
+      {{ coo.name }}::{{ca.base.name|pascal_case}}(v) => {
+        Python::with_gil(|py| {
+          write!(f, "{{ coo.name }}({{ca.base.name|pascal_case}}({})", v.borrow(py).__repr__()) }
+        )},
+{%- else +%}
+      {{ coo.name }}::{{ca.base.name|pascal_case}}(v) => { write!(f, "{{ coo.name }}({{ca.base.name|pascal_case}}({}))", v) },
+{%- endif -%}{%- endfor %}
+    }
+  }
+}
+{%- endfor +%}
+
+{# *****************************************************************#}
+{# *****************************************************************#}
+// *** Messages
+{% for cm in d.msgs ~%}
+{%- if let Some(comment_impl) = cm.comment -%}
+///{{comment_impl}}
+{%- endif -%}
+#[pyclass]
+#[derive(Debug)]
+pub struct {{ cm.name }} {
+{%- if let Some(p) = cm.parent -%}// parent: {{ p }}{%- endif -%}
+{%- for ca in cm.attributes +%}
+{% include "pyclasses_attr.py.rs.jinja" %}
+{%- endfor %}
+}
+#[pymethods]
+impl {{ cm.name }} {
+  #[new]
+  pub fn __new__(
+{%- for ca in cm.attributes +%} {{ca.base.name}}: {%+ if ca.is_msg | ca.is_oo -%}Py<{%- endif -%}{{ca.base_type_str}}{%- if ca.is_msg | ca.is_oo -%}>{%- endif -%},{%- endfor -%}) -> Self {
+    Self{ {%- for ca in cm.attributes +%} {{ca.base.name}}: {{ca.base.name}}.into(),{%- endfor +%} }
+  }
+  pub fn serialize(&self, py: Python) -> PyObject {
+    let msg = self.to_rust();
+    PyBytes::new(py, &serialize(&msg)).into()
+  }
+  #[staticmethod]
+  pub fn deserialize(_py: Python, data: Bound<'_, PyBytes>) -> PyResult<Self> {
+    println!("rust: {:?}", data);
+    let dv: Vec<u8> = data.extract()?;
+    let v = match deserialize::<messages::{{ cm.name }}>(&dv) {
+      Some(v) => v, None => return Err(PyErr::new::<PyException, _>("Error when deserializing {{ cm.name }}"))
+    };
+    println!("{:?}", v);
+    Self::from_rust_obj(v.0)
+  }
+  pub fn __repr__(&self) -> String {
+    format!("{}", self)
+  }
+{% for ca in cm.attributes +%}{% if ca.is_oo %}{%- if let Some(coo) = d.oos.get(ca.rust_type_str) +%}
+  #[getter]
+  pub fn {{ca.base.name|snake_case}}_oo(&self) -> {{ca.rust_type_str}}Enum {
+    match self.{{ca.base.name|snake_case}}.get() {
+{%- for caa in coo.attributes +%}
+      {{ca.rust_type_str}}::{{caa.base.name|pascal_case}}(_) => {{ca.rust_type_str}}Enum::{{caa.base.name|pascal_case}},
+{%- endfor +%}
+  } }
+{%- for caa in coo.attributes +%}
+  #[getter({{ca.base.name|snake_case}}_{{caa.base.name|snake_case}})]
+  fn get_{{ca.base.name|snake_case}}_{{caa.base.name|snake_case}}(&self) -> Option<&
+    {%- if caa.is_msg | caa.is_oo -%}Py<{%endif%}{{caa.base_type_str|safe}}{%- if caa.is_msg | caa.is_oo -%}>{%endif%}> {
+    match self.{{ca.base.name|snake_case}}.get() {
+      {{ca.rust_type_str}}::{{caa.base.name|pascal_case}}(v) => Some(v), _ => None
+  } }
+  #[setter({{ca.base.name|snake_case}}_{{caa.base.name|snake_case}})]
+  fn set_{{ca.base.name|snake_case}}_{{caa.base.name|snake_case}}(&mut self, v: {%- if caa.is_msg | caa.is_oo -%}
+    Py<{%endif%}{{caa.base_type_str|safe}}{%- if caa.is_msg | caa.is_oo -%}>{%endif%}) -> PyResult<()> {
+    Python::with_gil(|py| {
+      self.{{ca.base.name|snake_case}} = Py::new(py, {{ca.rust_type_str}}::{{caa.base.name|pascal_case}}(v))?;
+      Ok(())
+    })
+  }
+{%- endfor -%}{%+ endif -%}{%+ endif -%}{%- endfor %}
+}
+impl {{ cm.name }} {
+  pub fn to_rust(&self) -> messages::{{ cm.name }} {
+    Python::with_gil(|_py| {
+      messages::{{ cm.name }}{ {%- for ca in cm.attributes +%} {{ca.base.name}}: {%+ if ca.is_enum -%} {{ ca.rust_type_str }}_py_to_rust({%- endif -%}
+      self.{{ca.base.name}}
+      {%- if ca.is_msg | ca.is_oo -%}.borrow(_py).to_rust()
+      {%- else -%}.clone().into() {%- endif -%}{%- if ca.is_enum -%}){%- endif -%}, {%- endfor -%}}
+    })
+  }
+  pub fn from_rust_obj(d: messages::{{ cm.name }}) -> PyResult<Self> {
+    let r = Python::with_gil(|_py| { Self{ {%- for ca in cm.attributes +%} {{ca.base.name}}: {%~ if ca.is_msg | ca.is_oo -%}
+        Py::new(_py, {{ ca.rust_type_str }}::from_rust_obj(d.{{ca.base.name}}).unwrap()).unwrap()
+        {%- else -%} {%- if ca.is_enum -%} {{ ca.rust_type_str }}_rust_to_py(d.{{ca.base.name}})
+        {%- else -%} d.{{ca.base.name}}{%- if ca.add_val -%}.val{%- endif -%} {%- endif -%}{%- endif -%}, {%- endfor -%}} });
+    Ok(r)
+  }
+}
+impl std::fmt::Display for {{ cm.name }} {
+  fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+    Python::with_gil(|_py| {
+      write!(f, "{{ cm.name }}({%- for ca in cm.attributes -%}{{ca.base.name}}: ({}), {%+ endfor -%})",
+        {%- for ca in cm.attributes +%} self.{{ca.base.name}}{%- if ca.is_msg | ca.is_oo -%}.borrow(_py).__repr__(){%- endif -%}, {%- endfor -%})
+    })
+  }
+}
+
+{% endfor %}
+

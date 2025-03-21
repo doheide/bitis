@@ -28,7 +28,7 @@ fn main() {
         is_active: false,
         value_one: 3.into(),
         signed_value: Some(2.into()),
-        array: [1.into(), 2.into(), 3.into()],
+        array: [1.into(), 2.into(), 3.into()].into(),
     };
     serialize_and_deserialize(msg);
 

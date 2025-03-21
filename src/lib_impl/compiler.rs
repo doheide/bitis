@@ -1,19 +1,158 @@
+use std::collections::HashMap;
 use std::process::abort;
 use askama::Template;
 use logos::{Lexer, Logos, Span};
 use regex::Regex;
 use stringcase::Caser;
 
+
 // ************************************************************************
+// ************************************************************************
+fn integer_bit_size(bit_size: &u8) -> u8 {
+    match bit_size {
+        0..=8 => 8,
+        9..=16 => 16,
+        17..=32 => 32,
+        _ => 64
+    }
+}
+// ************************************************************************
+#[derive(Debug, Clone )]
+#[allow(unused)]
+pub struct AttributeEx {
+    base: Attribute,
+    rust_type_str: String,
+    // rust_pyo3_str: String,
+    base_type_str: String,
+    is_py_wrapped: bool, is_msg: bool, is_enum: bool, is_oo: bool, add_val: bool,
+}
+#[derive(Debug, Clone )]
+pub struct MessageR {
+    pub name: String,
+    // pub version_info: VersionInfo,
+    pub comment: Option<String>,
+    pub parent: Option<String>,
+    pub attributes: Vec<AttributeEx>,
+}
+#[derive(Debug, Clone )]
+pub struct OneOfInfoR {
+    name: String,
+    dyn_bits: u8,
+    attributes: Vec<AttributeEx>,
+}
+fn to_rust_attribute(attribute: &Attribute, msg_names: &Vec<String>) -> AttributeEx {
+    let (rtype, base_type, is_py_wrapped, is_msg, is_enum, is_oo, add_val) = {
+        let mut is_py_wrapped = false;
+        let mut is_enum = false;
+        let mut is_msg = false;
+        let mut is_oo = false;
+        let mut add_val = false;
+
+        let (rtype, base_type) = match &attribute.specific_details {
+            AttributeDetails::AttributeSimple(a) => {
+                match a {
+                    SimpleType::NoTypeSetYet => {
+                        println!("Unexpected unspecified attribute type");
+                        abort()
+                    },
+                    SimpleType::Bool => { ("bool".to_string(), "bool".to_string()) }
+                    SimpleType::UIntFixed(b) => {
+                        add_val = true;
+                        let base = format!("u{}", integer_bit_size(&b));
+                        (format!("VarWithGivenBitSize<{}, {}>", base.clone(), b), base) }
+                    SimpleType::IntFixed(b) => {
+                        add_val = true;
+                        let base = format!("{}", integer_bit_size(&b));
+                        (format!("VarWithGivenBitSize<{}, {}>", base.clone(), b), base) }
+                    SimpleType::UIntDyn(b) => {
+                        add_val = true;
+                        let base = format!("u{}", integer_bit_size(&b.0));
+                        (format!("DynInteger<{}, {}>", base.clone(), b.1), base) }
+                    SimpleType::IntDyn(b) => {
+                        add_val = true;
+                        let base = format!("i{}", integer_bit_size(&b.0));
+                        (format!("DynInteger<{}, {}>", base.clone(), b.1), base) }
+                    SimpleType::Float => {
+                        add_val = true;
+                        let base = "f32".to_string();
+                        (base.clone(), base)
+                    }
+                    SimpleType::Double => {
+                        let base = "f64".to_string();
+                        (base.clone(), base) }
+                    SimpleType::FixedPrecision(fpp) => {
+                        add_val = true;
+                        (format!("FixPrecisionMinMax<{}, {}, {}>", fpp.bits, fpp.min_val, fpp.max_val), "f64".to_string())
+                    }
+                    SimpleType::Binary(b) => {
+                        add_val = true;
+                        (format!("Binary<{}>", b), "Vec<u8>".to_string()) }
+                }
+            }
+            AttributeDetails::AttributeEnumOrMsg(em) => {
+                is_py_wrapped = true;
+                is_msg = msg_names.contains(&em);
+                is_enum = !is_msg.clone();
+                (em.clone(), em.clone()) }
+            AttributeDetails::AttributeOneOf(ooi) => {
+                is_py_wrapped=true; is_oo = true;
+                (ooi.name.clone(), ooi.name.clone()) }
+        };
+        (rtype, base_type, is_py_wrapped, is_msg, is_enum, is_oo,  add_val)
+    };
+    AttributeEx{base: attribute.clone(), rust_type_str: rtype, base_type_str: base_type,
+        is_py_wrapped, is_msg, is_enum, is_oo, add_val }
+}
+
+pub fn to_rust_messages(msgs: &Vec<Message>) -> Vec<MessageR> {
+    let msgs_names: Vec<_> = msgs.iter().map(|m| {m.name.clone()}).collect();
+
+    msgs.iter().map(|msg| {
+        let attrs_rust: Vec<_> = msg.attributes.iter().map(|attribute| {
+            to_rust_attribute(attribute, &msgs_names) }).collect();
+        MessageR{name: msg.name.clone(), comment: msg.comment.clone(), parent: msg.parent.clone(),
+            attributes: attrs_rust}
+    }).collect()
+}
+pub fn to_rust_oneofs(oos: &Vec<OneOfInfo>, msgs: &Vec<Message>) -> HashMap<String, OneOfInfoR> {
+    let msgs_names: Vec<_> = msgs.iter().map(|m| {m.name.clone()}).collect();
+
+    oos.iter().map(|oo| {
+        let attrs_rust: Vec<_> = oo.attributes.iter().map(|attribute| {
+            to_rust_attribute(attribute, &msgs_names) }).collect();
+        (oo.name.clone(), OneOfInfoR{name: oo.name.clone(), dyn_bits: oo.dyn_bits, attributes: attrs_rust})
+    }).collect()
+}
+
+#[derive(Clone, Debug)]
+pub struct JinjaData {
+    pub enums: Vec<Enum>,
+    pub msgs: Vec<MessageR>,
+    pub oos: HashMap<String, OneOfInfoR>,
+}
+
 #[derive(Template, Clone, Debug)]
 #[template(path = "data_objects.rs.jinja")]
 pub struct RustDataObjects {
-    pub enums: Vec<Enum>,
-    pub msgs: Vec<Message>,
-    pub oos: Vec<OneOfInfo>,
+    pub d: JinjaData
+}
+#[derive(Template, Clone, Debug)]
+#[template(path = "pyclasses.py.rs.jinja")]
+pub struct RustPyDataObjects {
+    pub d: JinjaData
+}
+#[derive(Template, Clone, Debug)]
+#[template(path = "pylib.py.rs.jinja")]
+pub struct RustPyLib {
+    pub d: JinjaData
 }
 
+
 mod filters {
+    #[allow(dead_code)]
+    pub fn snake_case<T: std::fmt::Display>(s: T) -> ::askama::Result<String> {
+        Ok(stringcase::snake_case(s.to_string().as_str()))
+    }
     #[allow(dead_code)]
     pub fn camel_case<T: std::fmt::Display>(s: T) -> ::askama::Result<String> {
         Ok(stringcase::camel_case(s.to_string().as_str()))
@@ -35,7 +174,7 @@ pub enum DynOrFixedType {
     Fixed(u8)
 }
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub struct FixedPointProperties {
+pub struct FixedPrecisionProperties {
     bits: u8, min_val: i64, max_val: i64
 }
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -45,11 +184,10 @@ pub enum SimpleType {
     UIntFixed(u8), IntFixed(u8),
     UIntDyn((u8,u8)), IntDyn((u8,u8)),
     Float, Double,
-    UFixedPoint(FixedPointProperties),
-    FixedPoint(FixedPointProperties),
-    Binary
+    FixedPrecision(FixedPrecisionProperties),
+    Binary(u8)
 }
-impl SimpleType {
+/*impl SimpleType {
     fn int_size(min_bits: u8) -> std::result::Result<u8, String> {
         match min_bits {
             1..=8 => Ok(8),
@@ -67,8 +205,8 @@ impl SimpleType {
             SimpleType::IntFixed(s) => Ok(SimpleType::int_size(s)?),
             SimpleType::UIntDyn((s,_)) => Ok(SimpleType::int_size(s)?),
             SimpleType::IntDyn((s,_)) => Ok(SimpleType::int_size(s)?),
-            SimpleType::FixedPoint(fps) => Ok(SimpleType::int_size(fps.bits)?),
-            SimpleType::UFixedPoint(fps) => Ok(SimpleType::int_size(fps.bits)?),
+            SimpleType::FixedPrecision(fps) => Ok(SimpleType::int_size(fps.bits)?),
+            SimpleType::UFixedPrecision(fps) => Ok(SimpleType::int_size(fps.bits)?),
             _ => Err("get_int_bits(): Only integers types allowed.".into())
         }
     }
@@ -78,13 +216,13 @@ impl SimpleType {
             Err(e) => { println!("Error: {}", e); abort(); }
         }
     }
-}
+}*/
 
 #[derive(Debug, Clone )]
 pub struct OneOfInfo {
     name: String,
     dyn_bits: u8,
-    attrs: Vec<Attribute>,
+    attributes: Vec<Attribute>,
 }
 #[derive(Debug, Clone )]
 pub enum AttributeDetails {
@@ -137,13 +275,13 @@ pub fn get_d_suffix_numbers(lex: &mut Lexer<Token>) -> Option<(u8,u8)> {
     let second_num_str = re.captures(slice)?.get(2)?.as_str().parse().ok()?;
     Some((first_num_str, second_num_str))
 }
-pub fn get_fp_properties_number(lex: &mut Lexer<Token>) -> Option<FixedPointProperties> {
+pub fn get_fp_properties_number(lex: &mut Lexer<Token>) -> Option<FixedPrecisionProperties> {
     let slice = lex.slice();
     let re = Regex::new(r".?fp_([0-9]+)\[ *(-?[0-9]+) *, *(-?[0-9]+) *]").unwrap();
     let bits = re.captures(slice)?.get(1)?.as_str().parse::<u8>().ok()?;
     let min_val = re.captures(slice)?.get(2)?.as_str().parse::<i64>().ok()?;
     let max_val = re.captures(slice)?.get(3)?.as_str().parse::<i64>().ok()?;
-    Some(FixedPointProperties{bits, min_val, max_val})
+    Some(FixedPrecisionProperties {bits, min_val, max_val})
 }
 /*pub fn get_dyn_or_fixed_from_args(lex: &mut Lexer<Token>) -> Option<DynOrFixedType> {
     let slice = lex.slice();
@@ -202,10 +340,10 @@ pub enum Token{
     #[regex(r"int_[0-9]+d[0-9]+", get_d_suffix_numbers, priority=31)] IntDyn((u8,u8)),
     #[token("float", priority=30)] Float,
     #[token("double", priority=30)] Double,
-    #[regex(r"fp_[0-9]+\[ *-?[0-9]+ *, *-?[0-9]+ *]", get_fp_properties_number, priority=30)] FixedPoint(FixedPointProperties),
-    #[regex(r"ufp_[0-9]+\[ *-?[0-9]+ *, *-?[0-9]+ *]", get_fp_properties_number, priority=30)] UFixedPoint(FixedPointProperties),
+    #[regex(r"fp_[0-9]+\[ *-?[0-9]+ *, *-?[0-9]+ *]", get_fp_properties_number, priority=30)] FixedPoint(FixedPrecisionProperties),
+    #[regex(r"ufp_[0-9]+\[ *-?[0-9]+ *, *-?[0-9]+ *]", get_fp_properties_number, priority=30)] UFixedPoint(FixedPrecisionProperties),
     //#[token("str", priority=30)] String,
-    #[token("binary", priority=30)] Binary,
+    #[token("binary_d[0-9]+", get_suffix_number, priority=30)] Binary(u8),
     #[regex(r"repeated_dyn_[0-9]+", get_suffix_number, priority=30)] RepeatedDyn(u8),
     #[regex(r"repeated_fixed_[0-9]+", get_suffix_number, priority=30)] RepeatedFixed(u8),
     #[token("optional", priority=30)] Optional,
@@ -400,9 +538,8 @@ pub fn parse_attribute(last_token: Token, lexer: &mut Lexer<'_, Token>,
             //Token::String => { attr_type = SimpleType::String; break; },
             Token::Float => { attr_type = SimpleType::Float; break; },
             Token::Double => { attr_type = SimpleType::Double; break; },
-            Token::FixedPoint(s) => { attr_type = SimpleType::FixedPoint(s); break; },
-            Token::UFixedPoint(s) => { attr_type = SimpleType::UFixedPoint(s); break; },
-            Token::Binary => { attr_type = SimpleType::Binary; break; },
+            Token::FixedPoint(s) => { attr_type = SimpleType::FixedPrecision(s); break; },
+            Token::Binary(b) => { attr_type = SimpleType::Binary(b); break; },
             Token::StringVal(s) => { enum_or_msg_str = Some(s); break; }
             Token::OneOf => {
                 oneof_infos = match parse_oneof(lexer, parent_name.clone(), specific_comment.clone(),
@@ -483,7 +620,7 @@ pub fn parse_oneof(lexer: &mut Lexer<'_, Token>, parent_name: String, comment: O
     Ok(Attribute{name: oo_name.clone(), comment, is_repeated_and_size, is_optional,
         specific_details: AttributeDetails::AttributeOneOf(OneOfInfo{
             name: format!("OO_{}_{}", parent_name.to_pascal_case(), oo_name.to_pascal_case()),
-            dyn_bits: bit_size, attrs: oo_attribs})})
+            dyn_bits: bit_size, attributes: oo_attribs})})
 }
 
 pub fn parse_enum(lexer: &mut Lexer<'_, Token>, comment: Option<String>) -> Result<Value> {
@@ -604,7 +741,7 @@ pub fn parse_enum(lexer: &mut Lexer<'_, Token>, comment: Option<String>) -> Resu
 }
 */
 // Struct that collects all bitis information
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BitisProcessed {
     pub max_version_number: u16,
     pub msgs: Vec<Message>,
@@ -754,7 +891,7 @@ pub fn process_and_validate_bitis(parsed_bitis: &Vec<Value>) -> BitisProcessed {
         }).collect::<Vec<Vec<OneOfInfo>>>().concat();
 
         let inner_oos = direct_oos.iter().filter_map(|doo| {
-            get_oneofs(&doo.attrs)
+            get_oneofs(&doo.attributes)
         }).collect::<Vec<Vec<_>>>().concat();
 
         let all_oos = vec![direct_oos, inner_oos].concat();
@@ -770,8 +907,10 @@ pub fn process_and_validate_bitis(parsed_bitis: &Vec<Value>) -> BitisProcessed {
     { // Test msgs and enum
         let msg_names = msgs.iter().map(|msg| &msg.name).collect::<Vec<_>>();
         msg_names.iter().for_each(|name| {
+            println!("name: {}", name);
             if msg_names.iter().filter(|cname| **cname == *name).count() > 1 {
-                println!("Error: Multiple instances of msg '{}' found.", name); abort()
+                println!("Error: Multiple instances of msg '{}' found.", name);
+                abort()
             }
         });
         let enum_names = enums.iter().map(|enm| &enm.name).collect::<Vec<_>>();
@@ -948,8 +1087,10 @@ mod bitis_generate_rust {
         assert_eq!(parsed_bitis.len(), 1);
 
         let processed_bitis = process_and_validate_bitis(&parsed_bitis);
-        let rdo = RustDataObjects{ enums: processed_bitis.enums, msgs: processed_bitis.msgs,
-            oos: processed_bitis.oo_enums };
+        let rdo = RustDataObjects{ d: JinjaData{
+            enums: processed_bitis.enums,
+            msgs: to_rust_messages(&processed_bitis.msgs),
+            oos: to_rust_oneofs(&processed_bitis.oo_enums, &processed_bitis.msgs) } };
 
         let rendered = rdo.render().unwrap();
         let lala_empty = "pub struct Lala {\n}\n";
@@ -975,12 +1116,13 @@ mod bitis_generate_rust {
         assert_eq!(parsed_bitis.len(), 1);
 
         let processed_bitis = process_and_validate_bitis(&parsed_bitis);
-        let rdo = RustDataObjects{ enums: processed_bitis.enums, msgs: processed_bitis.msgs,
-            oos: processed_bitis.oo_enums };
+        let rdo = RustDataObjects{ d: JinjaData{
+            enums: processed_bitis.enums, msgs: to_rust_messages(&processed_bitis.msgs),
+            oos: to_rust_oneofs(&processed_bitis.oo_enums, &processed_bitis.msgs) } };
 
         let rendered = rdo.render().unwrap();
         let lala_commment = "/// comment for Lala\n";
-        let lala_empty = "pub struct Lala {\n  pub a1: VarWithGivenBitSize<u8, 5>,\n  pub bool_array: [bool;4],\n}\n";
+        let lala_empty = "pub struct Lala {\n  pub a1: VarWithGivenBitSize<u8, 5>,\n  pub bool_array: FixedArray<bool,4>,\n}\n";
         println!("rendered:\n{}",rendered);
         assert_eq!(rendered, (HEADER.to_owned() + ENUMS_HEADER + "\n\n" + OO_HEADER + "\n\n" +
             MSG_HEADER + lala_commment + PER_MSG_HEADER +lala_empty).to_string());
@@ -1004,8 +1146,9 @@ mod bitis_generate_rust {
         assert_eq!(parsed_bitis.len(), 1);
 
         let processed_bitis = process_and_validate_bitis(&parsed_bitis);
-        let rdo = RustDataObjects{ enums: processed_bitis.enums, msgs: processed_bitis.msgs,
-            oos: processed_bitis.oo_enums };
+        let rdo = RustDataObjects{ d: JinjaData{ enums: processed_bitis.enums,
+            msgs: to_rust_messages(&processed_bitis.msgs),
+            oos: to_rust_oneofs(&processed_bitis.oo_enums, &processed_bitis.msgs) } };
 
         let rendered = rdo.render().unwrap();
         let lala_commment = "/// comment for Numbers\n";
@@ -1033,8 +1176,9 @@ mod bitis_generate_rust {
         assert_eq!(parsed_bitis.len(), 1);
 
         let processed_bitis = process_and_validate_bitis(&parsed_bitis);
-        let rdo = RustDataObjects{ enums: processed_bitis.enums, msgs: processed_bitis.msgs,
-            oos: processed_bitis.oo_enums };
+        let rdo = RustDataObjects{ d: JinjaData{ enums: processed_bitis.enums,
+            msgs: to_rust_messages(&processed_bitis.msgs),
+            oos: to_rust_oneofs(&processed_bitis.oo_enums, &processed_bitis.msgs) } };
 
         let rendered = rdo.render().unwrap();
         let testoo_commment = "/// comment for Oneof\n";
@@ -1043,6 +1187,116 @@ mod bitis_generate_rust {
         println!("*rendered:\n{}",rendered);
         assert_eq!(rendered, (HEADER.to_owned() + ENUMS_HEADER + "\n\n" + OO_HEADER + PER_OO_HEADER
             + testoo_enum + MSG_HEADER + testoo_commment + PER_MSG_HEADER + testoo_msg).to_string());
+    }
+}
+
+#[cfg(test)]
+mod bitis_compile {
+    use std::fs;
+    use std::path::Path;
+    use rstest::rstest;
+    use super::*;
+
+    fn compile(content: &str) -> BitisProcessed {
+        let mut lexer = Token::lexer(content);
+        lexer.extras = 0;
+        println!("*** content:\n{}", content);
+        let bitis_parsed = match parse_root(&mut lexer) {
+            Ok(v) => v,
+            Err(e) => {
+                let (err_str, err_span) = e.clone();
+                let content_err = &content[err_span];
+                println!("Error: {}\n  -> Source: '{}'", err_str, content_err);
+                abort()
+            }
+        };
+        process_and_validate_bitis(&bitis_parsed)
+    }
+    fn render(d: JinjaData) {
+        let rdo = RustDataObjects{ d: d.clone() };
+        let rendered_rust = rdo.render().unwrap();
+        println!("*** rendered DO:\n{}", rendered_rust);
+        fs::write(Path::new("./test_data/test_py/bitis/src/messages_test.rs"), rendered_rust).expect("Unable to write file");
+
+        let rdo = RustPyDataObjects{ d: d.clone() };
+        let rendered_rust = rdo.render().unwrap();
+        println!("*** rendered PyDO:\n{}", rendered_rust);
+        fs::write(Path::new("./test_data/test_py/bitis/src/pyrust_test.rs"), rendered_rust).expect("Unable to write file");
+
+        let rdo = RustPyLib{ d };
+        let rendered_rust = rdo.render().unwrap();
+        println!("*** rendered pyLib:\n{}", rendered_rust);
+        fs::write(Path::new("./test_data/test_py/bitis/src/lib_test.rs"), rendered_rust).expect("Unable to write file");
+    }
+
+    #[rstest]
+    #[ignore]
+    fn simple_rust_py() {
+        let bitis_str = "msg ParamTestSimple { uint_4 param_1; bool param_2; }";
+
+        let bitis_processed_org = compile(bitis_str);
+
+        let bitis_processed = bitis_processed_org.clone();
+        let d = JinjaData{
+            enums: bitis_processed.enums,
+            msgs: to_rust_messages(&bitis_processed.msgs),
+            oos: to_rust_oneofs(&bitis_processed.oo_enums, &bitis_processed.msgs)
+        };
+        render(d);
+    }
+
+    #[rstest]
+    #[ignore]
+    fn nested_rust_py() {
+        let bitis_str = "msg Inner { uint_2 val; }\nmsg ParamTestWithInner { uint_4 param_1; bool param_2; Inner inner; }";
+
+        let bitis_processed_org = compile(bitis_str);
+
+        let bitis_processed = bitis_processed_org.clone();
+
+        let d = JinjaData{
+            enums: bitis_processed.enums,
+            msgs: to_rust_messages(&bitis_processed.msgs),
+            oos: to_rust_oneofs(&bitis_processed.oo_enums, &bitis_processed.msgs)
+        };
+        render(d);
+    }
+    #[test]
+    #[ignore]
+    fn nested_and_enum_rust_py() {
+        let bitis_str = [
+            "enum Numbers(4) { one, two, three, four }\nmsg Inner { uint_3 val; Numbers num; }\n",
+            "msg ParamTestWithInner { uint_4 param_1; bool param_2; Inner inner; } }"
+        ].join("");
+
+        let bitis_processed_org = compile(bitis_str.as_str());
+
+        let bitis_processed = bitis_processed_org.clone();
+
+        let d = JinjaData{
+            enums: bitis_processed.enums,
+            msgs: to_rust_messages(&bitis_processed.msgs),
+            oos: to_rust_oneofs(&bitis_processed.oo_enums, &bitis_processed.msgs)
+        };
+        render(d);
+    }
+    #[test]
+    fn oneof_nested_and_enum_rust_py() {
+        let bitis_str = [
+            "enum Numbers(4) { one, two, three, four }\nmsg Inner { uint_3 val; Numbers num; }\n",
+            "msg ParamTestWithInner { uint_4 param_1; bool param_2; oneof action(4) { Inner inner; uint_3 val; } }"
+        ].join("");
+
+        let bitis_processed_org = compile(bitis_str.as_str());
+
+        let bitis_processed = bitis_processed_org.clone();
+
+        let d = JinjaData{
+            enums: bitis_processed.enums,
+            msgs: to_rust_messages(&bitis_processed.msgs),
+            oos: to_rust_oneofs(&bitis_processed.oo_enums, &bitis_processed.msgs)
+        };
+        render(d);
     }
 }
 

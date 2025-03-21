@@ -1,0 +1,25 @@
+use pyo3::prelude::*;
+
+mod pyrust;
+mod messages;
+
+use pyrust::*;
+
+
+/// A Python module implemented in Rust.
+#[pymodule]
+fn bitis_msgs(m: &Bound<'_, PyModule>) -> PyResult<()> {
+
+{% for ce in d.enums +%}
+    m.add_class::<{{ce.name}}>()?;
+{%- endfor +%}
+{% for cm in d.msgs +%}
+    m.add_class::<{{cm.name}}>()?;
+{%- endfor +%}
+{%+ for (_, coo) in d.oos -%}
+    m.add_class::<{{coo.name}}>()?;
+{%- endfor +%}
+
+    Ok(())
+}
+

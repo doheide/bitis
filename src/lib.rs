@@ -10,6 +10,21 @@ pub use lib_impl::berde::*;
 pub use lib_impl::compiler::*;
 pub use bitis_macros::{BiserdiMsg, BiserdiOneOf, BiserdiEnum};
 
+pub fn serialize<T: BiserdiTrait>(data: &T) -> Vec<u8>{
+    let mut ser = Biseri::new();
+
+    data.bit_serialize(&mut ser);
+    let (bits, bytes) = ser.finish_add_data().unwrap();
+    println!("bits: {}, bytes: {}", bits, bytes);
+
+    ser.get_data().to_owned()
+}
+pub fn deserialize<T: BiserdiTrait>(data: &Vec<u8>) -> Option<(T, u64)> {
+    let mut der = Bides::from_vec(data);
+
+    T::bit_deserialize(1, &mut der)
+}
+
 #[cfg(test)]
 mod msg_deserialization {
     use rstest::rstest;
@@ -82,12 +97,12 @@ mod msg_deserialization {
     }
 
     #[derive(BiserdiOneOf, Debug, Clone, PartialEq)]
-    #[biserdi_enum_id_bits(4)]
+    #[biserdi_enum_id_dynbits(4)]
     enum OOLili {
         InnerMsg(MsgLalaBase),
         B1(bool),
         F2(f32),
-        #[biserdi_enum_id_bits(22)]
+        //#[biserdi_enum_id_bits(22)]
         Signed(VarWithGivenBitSize<i8, 6>),
     }
 

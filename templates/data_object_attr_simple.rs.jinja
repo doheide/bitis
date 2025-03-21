@@ -2,12 +2,12 @@
 {%- when SimpleType::Bool -%} bool
 {%- when SimpleType::Float -%} f32
 {%- when SimpleType::Double -%} f64
-{%- when SimpleType::Binary -%} Vec<u8>
+{%- when SimpleType::Binary(x) -%} Vec<u8>
 {%- when SimpleType::IntFixed with (x) -%} VarWithGivenBitSize<i{%- let bs = as.get_int_bits_no_error() -%}{{ bs }}, {{ x }}>
 {%- when SimpleType::UIntFixed with (x) -%} VarWithGivenBitSize<u{%- let bs = as.get_int_bits_no_error() -%}{{ bs }}, {{ x }}>
 {%- when SimpleType::IntDyn with (x) -%} i{%- let bs = as.get_int_bits_no_error() -%} {{ bs }}
 {%- when SimpleType::UIntDyn with (x) -%} u{%- let bs = as.get_int_bits_no_error() -%} {{ bs }}
-{%- when SimpleType::UFixedPoint with (_) -%} u{%- let bs = as.get_int_bits_no_error() -%} {{ bs }}
-{%- when SimpleType::FixedPoint with (_) -%} u{%- let bs = as.get_int_bits_no_error() -%} {{ bs }}
+{%- when SimpleType::UFixedPrecision with (_) -%} u{%- let bs = as.get_int_bits_no_error() -%} {{ bs }}
+{%- when SimpleType::FixedPrecision with (_) -%} u{%- let bs = as.get_int_bits_no_error() -%} {{ bs }}
 {%- else ~%} ERROR_TYPE_NOT_DEFINED
 {%- endmatch -%}
