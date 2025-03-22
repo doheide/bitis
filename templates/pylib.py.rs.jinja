@@ -8,7 +8,7 @@ use pyrust::*;
 
 /// A Python module implemented in Rust.
 #[pymodule]
-fn bitis_msgs(m: &Bound<'_, PyModule>) -> PyResult<()> {
+fn {{lib_name}}(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
 {% for ce in d.enums +%}
     m.add_class::<{{ce.name}}>()?;

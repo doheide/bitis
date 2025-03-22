@@ -132,12 +132,10 @@ impl Inner {
   }
   #[staticmethod]
   pub fn deserialize(_py: Python, data: Bound<'_, PyBytes>) -> PyResult<Self> {
-    println!("rust: {:?}", data);
     let dv: Vec<u8> = data.extract()?;
     let v = match deserialize::<messages::Inner>(&dv) {
       Some(v) => v, None => return Err(PyErr::new::<PyException, _>("Error when deserializing Inner"))
     };
-    println!("{:?}", v);
     Self::from_rust_obj(v.0)
   }
   pub fn __repr__(&self) -> String {
@@ -185,12 +183,10 @@ impl ParamTestWithInner {
   }
   #[staticmethod]
   pub fn deserialize(_py: Python, data: Bound<'_, PyBytes>) -> PyResult<Self> {
-    println!("rust: {:?}", data);
     let dv: Vec<u8> = data.extract()?;
     let v = match deserialize::<messages::ParamTestWithInner>(&dv) {
       Some(v) => v, None => return Err(PyErr::new::<PyException, _>("Error when deserializing ParamTestWithInner"))
     };
-    println!("{:?}", v);
     Self::from_rust_obj(v.0)
   }
   pub fn __repr__(&self) -> String {

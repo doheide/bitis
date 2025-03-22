@@ -142,12 +142,10 @@ impl {{cm.name|pascal_case}} {
   }
   #[staticmethod]
   pub fn deserialize(_py: Python, data: Bound<'_, PyBytes>) -> PyResult<Self> {
-    println!("rust: {:?}", data);
     let dv: Vec<u8> = data.extract()?;
     let v = match deserialize::<messages::{{cm.name|pascal_case}}>(&dv) {
       Some(v) => v, None => return Err(PyErr::new::<PyException, _>("Error when deserializing {{cm.name|pascal_case}}"))
     };
-    println!("{:?}", v);
     Self::from_rust_obj(v.0)
   }
   pub fn __repr__(&self) -> String {

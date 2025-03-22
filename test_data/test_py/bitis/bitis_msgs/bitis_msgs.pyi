@@ -64,7 +64,7 @@ class Inner:
 
 
 class ParamTestWithInner:
-  def __init__(self, param_1: int, param_2: bool, action: OO_ParamTestWithInner_Action) -> None: ...
+  def __init__(self, param_1: int, param_2: bool, action: OO_ParamTestWithInner_Action,) -> None: ...
 
   def serialize(self) -> bytes:
     """

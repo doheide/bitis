@@ -6,7 +6,7 @@ use logos::Logos;
 use bitis_lib::*;
 
 // use std::env;
-use std::process::abort;
+use std::process::{abort, exit, Command, Stdio};
 
 use clap::{Parser, Subcommand, ValueEnum};
 use regex::Regex;
@@ -32,6 +32,11 @@ enum Language {
     Rust,
     Python,
 }
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+enum System {
+    /// maturin framework to build python packages from rust
+    Maturin,
+}
 #[derive(Subcommand)]
 enum Commands {
     /// Test bitis data objects file
@@ -43,7 +48,7 @@ enum Commands {
         lang: Language,
         /// output file
         #[arg(short, long)]
-        output_file: Option<PathBuf>,
+        output_file_or_path: Option<PathBuf>,
     },
     /// Compare bitis data objects file
     Compare {
@@ -51,6 +56,13 @@ enum Commands {
         #[arg(short, long)]
         compare_file: PathBuf,
     },
+    /// Setup directory and file structures
+    Setup {
+        /// system to set up
+        #[arg(short, long)]
+        system: System,
+        output_path: PathBuf,
+    }
 }
 
 
@@ -93,8 +105,8 @@ fn main() {
         let content = fs::read_to_string(&(f.0)).expect("Input File not found");
         let mut lexer = Token::lexer(content.as_str());
         lexer.extras = f.1;
-        println!("file: {} ver: {}", f.0.to_str().unwrap(), f.1);
-        println!("{}", content);
+        if cli.debug > 3 { println!("file: {} ver: {}", f.0.to_str().unwrap(), f.1); }
+        if cli.debug > 3 { println!("bitis-file content:\n{}", content); }
         match parse_root(&mut lexer) {
             Ok(v) => v,
             Err(e) => {
@@ -114,7 +126,7 @@ fn main() {
     match cli.command {
         Commands::Test {} => {
         }
-        Commands::Compile { lang, output_file: output_file_opt } => {
+        Commands::Compile { lang, output_file_or_path: output_file_opt } => {
             match lang {
                 Language::Rust => {
                     let output_file = if let Some(output_file_opt_set) = output_file_opt {
@@ -140,13 +152,140 @@ fn main() {
                     fs::write(output_file, rendered).expect("Unable to write file");
                 },
                 Language::Python => {
-                    // RustPyDataObjects
+                    if output_file_opt.is_none() {
+                        println!("Error: Output path has to be set for python language compiler.");
+                        exit(-1);
+                    }
+                    let output_path = output_file_opt.unwrap();
+                    if !output_path.is_dir() {
+                        println!("Error: Output path has to be a directory for python language compiler.")
+                    }
+                    let lib_name = match output_path.file_name() {
+                        Some(v) => v.to_str().unwrap(), None => {
+                            println!("Error: Output path has to consist of the lib-name."); exit(-1); }
+                    };
 
+                    if cli.debug > 0 { println!("* Lib-name: {}\n", lib_name); }
+
+                    if !{ let mut t = output_path.clone(); t.push(lib_name); t }.is_dir() {
+                        println!("The python lib seems not to be setup correctly: Expected subdir '{}' in output path ({})",
+                                 lib_name, output_path.to_str().unwrap());
+                        exit(-1);
+                    }
+                    if !{ let mut t = output_path.clone(); t.push("src"); t }.is_dir() {
+                        println!("The python lib seems not to be setup correctly: Expected subdir 'src' in output path ({})", output_path.to_str().unwrap());
+                        exit(-1);
+                    }
+
+                    let d = JinjaData{
+                        enums: processed_bitis.enums,
+                        msgs: to_rust_messages(&processed_bitis.msgs),
+                        oos: to_rust_oneofs(&processed_bitis.oo_enums, &processed_bitis.msgs)
+                    };
+
+                    fn write_file(base_path: &PathBuf, file: &str, content: &str) {
+                        let mut cp = base_path.clone();
+                        cp.push(file);
+                        if fs::write(cp.clone(), content).is_err(){
+                            println!("Could not write file '{}'", cp.to_str().unwrap());
+                        }
+                    }
+                    let rdo = RustDataObjects{ d: d.clone() };
+                    let rendered_rust = rdo.render().unwrap();
+                    write_file(&output_path, "src/messages.rs", rendered_rust.as_str());
+                    // fs::write(Path::new("./test_data/test_py/bitis/src/messages_test.rs"), rendered_rust).expect("Unable to write file");
+
+                    let rdo = RustPyDataObjects{ d: d.clone() };
+                    let rendered_rust = rdo.render().unwrap();
+                    write_file(&output_path, "src/pyrust.rs", rendered_rust.as_str());
+                    // fs::write(Path::new("./test_data/test_py/bitis/src/pyrust_test.rs"), rendered_rust).expect("Unable to write file");
+
+                    let rdo = RustPyLib{ d: d.clone(), lib_name: String::from(lib_name) };
+                    let rendered_rust = rdo.render().unwrap();
+                    write_file(&output_path, "src/lib.rs", rendered_rust.as_str());
+                    // fs::write(Path::new("./test_data/test_py/bitis/src/lib_test.rs"), rendered_rust).expect("Unable to write file");
+
+                    let rdo = PyTypeHints{ d };
+                    let rendered_rust = rdo.render().unwrap();
+                    write_file(&output_path, format!("{}/bitis_msgs.pyi", lib_name).as_str(), rendered_rust.as_str());
+                    // fs::write(Path::new("./test_data/test_py/bitis/bitis_msgs/bitis_msgs.pyi"), rendered_rust).expect("Unable to write file");
+
+                    let r = match Command::new("maturin").args(["develop"]).current_dir(output_path)
+                        .stdout(Stdio::piped()).spawn() {
+                        Ok(v) => v, Err(_) => { println!("Could not execute 'maturin develop'"); exit(-1) }
+                    };
+                    let out = match r.wait_with_output() {
+                        Ok(v) => v, Err(e) => { println!("Error waiting for 'maturin develop': {}", e); exit(-1) }
+                    };
+                    if !out.status.success() {
+                        println!("Error: 'maturin develop' returned error {}'", String::from_utf8(out.stderr).unwrap());
+                        exit(-1);
+                    }
+                    else { println!("\n🎉 * Bitis compile and python lib build was successfully executed!\n"); }
                 }
             }
-        }
+        },
         Commands::Compare{ compare_file: _compare_file } => {
             println!("\n*** Compare not implemented yet\n");
+        },
+        Commands::Setup{system, output_path} => {
+            match system {
+                System::Maturin => {
+                    let lib_name = match output_path.file_name() {
+                        Some(v) => v.to_str().unwrap(), None => {
+                            println!("Error: Output path has to be the future lib name."); exit(-1); }
+                    };
+                    if cli.debug > 1 { println!("* Lib-name: {}\n", lib_name); }
+
+                    // check if venv is enabled
+                    let r = match Command::new("pip").args(["-V"]).output() {
+                        Ok(v) => v, Err(_) => { println!("Could not find pip executable"); exit(-1) }
+                    };
+                    if !String::from_utf8(r.stdout).unwrap().contains(".venv") {
+                        println!("Venv needs to be activated for setting up pylib"); exit(-1)
+                    }
+                    // check for maturin
+                    match Command::new("maturin").args(["--version"]).output() {
+                        Ok(v) => v, Err(_) => { println!("Maturin python package not installed. Please install it with\n\n  pip install maturin\n"); exit(-1) }
+                    };
+                    // make dir
+                    if !output_path.exists() {
+                        if fs::create_dir_all(output_path.clone()).is_err() {
+                            println!("Unable to create output directory {}", output_path.clone().to_str().unwrap());
+                            exit(-1);
+                        }
+                    }
+                    // if there is no src directory, call maturin init
+                    if !{ let mut t = output_path.clone(); t.push("src"); t}.exists() {
+                        if cli.debug > 1 { println!("Initializing maturin project ..."); }
+                        let r = match Command::new("maturin").args(["init", "-b", "pyo3"])
+                            .current_dir(output_path.clone().to_str().unwrap()).output() {
+                            Ok(v) => v, Err(e) => { println!("'maturin init' failed: {}", e); exit(-1) }
+                        };
+                        if !r.status.success() {
+                            println!("'maturin init' failed: {}", String::from_utf8(r.stderr).unwrap()); exit(-1)
+                        }
+                        println!("maturin response: {:?}", r);
+                        if cli.debug > 1 { println!("  done!"); }
+                    }
+                    let mut py_code_dir = output_path.clone();
+                    py_code_dir.push(lib_name);
+                    if !py_code_dir.exists() {
+                        if fs::create_dir_all(&py_code_dir).is_err() {
+                            println!("Could not create directory '{}'", py_code_dir.to_str().unwrap()); exit(-1);
+                        }
+                        if fs::write({let mut t = py_code_dir.clone(); t.push("__init__.py"); t},
+                                     format!("from .{} import *", lib_name).as_str()).is_err() {
+                            println!("Could not create file '__init__.py' in dir '{}'", py_code_dir.to_str().unwrap()); exit(-1);
+                        }
+                        if fs::write({let mut t = py_code_dir.clone(); t.push("py.typed"); t}, "").is_err() {
+                            println!("Could not create file 'py.typed' in dir '{}'", py_code_dir.to_str().unwrap()); exit(-1);
+                        }
+                    }
+                    println!("*** Project successfully setup.");
+                }
+            }
+
         }
     }
 }

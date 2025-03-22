@@ -14,8 +14,8 @@ pub fn serialize<T: BiserdiTrait>(data: &T) -> Vec<u8>{
     let mut ser = Biseri::new();
 
     data.bit_serialize(&mut ser);
-    let (bits, bytes) = ser.finish_add_data().unwrap();
-    println!("bits: {}, bytes: {}", bits, bytes);
+    let (_bits, _bytes) = ser.finish_add_data().unwrap();
+    // println!("bits: {}, bytes: {}", _bits, _bytes);
 
     ser.get_data().to_owned()
 }

@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::process::abort;
+use std::process::{abort};
 use askama::Template;
 use logos::{Lexer, Logos, Span};
 use regex::Regex;
@@ -144,7 +144,8 @@ pub struct RustPyDataObjects {
 #[derive(Template, Clone, Debug)]
 #[template(path = "pylib.py.rs.jinja")]
 pub struct RustPyLib {
-    pub d: JinjaData
+    pub d: JinjaData,
+    pub lib_name: String
 }
 #[derive(Template, Clone, Debug)]
 #[template(path = "py_type_hints.pyi.jinja")]
@@ -916,12 +917,12 @@ pub fn process_and_validate_bitis(parsed_bitis: &Vec<Value>) -> BitisProcessed {
         get_oneofs(&msg.attributes)
     }).collect::<Vec<_>>().concat();
 
-    println!("\noo_enums:\n{:?}\n", oo_enums);
+    // println!("\noo_enums:\n{:?}\n", oo_enums);
 
     { // Test msgs and enum
         let msg_names = msgs.iter().map(|msg| &msg.name).collect::<Vec<_>>();
         msg_names.iter().for_each(|name| {
-            println!("name: {}", name);
+            // println!("name: {}", name);
             if msg_names.iter().filter(|cname| **cname == *name).count() > 1 {
                 println!("Error: Multiple instances of msg '{}' found.", name);
                 abort()
