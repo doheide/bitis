@@ -25,6 +25,8 @@ askama = "0.12"
 stringcase = "0.4.0"
 clap = { version = "4.5.30", features = ["derive", "string", "cargo", "color", "help"] }
 bitis-macros = { path = "./bitis-macros" }
+console = "0.15.11"
+toml_edit = "0.22.24"
 
 [dev-dependencies]
 rstest = "0.25.0"

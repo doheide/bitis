@@ -24,5 +24,8 @@ Cargo.lock
 
 /target
 
+.venv/
+.github/
+
 .idea/
 
