@@ -1,4 +1,7 @@
+mod utils;
+
 use std::fs;
+use std::fs::write;
 use std::path::{Path, PathBuf};
 use askama::Template;
 use logos::Logos;
@@ -10,6 +13,9 @@ use std::process::{abort, exit, Command, Stdio};
 
 use clap::{Parser, Subcommand, ValueEnum};
 use regex::Regex;
+use toml_edit::{value, DocumentMut};
+use utils::*;
+
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -193,24 +199,20 @@ fn main() {
                     let rdo = RustDataObjects{ d: d.clone() };
                     let rendered_rust = rdo.render().unwrap();
                     write_file(&output_path, "src/messages.rs", rendered_rust.as_str());
-                    // fs::write(Path::new("./test_data/test_py/bitis/src/messages_test.rs"), rendered_rust).expect("Unable to write file");
 
                     let rdo = RustPyDataObjects{ d: d.clone() };
                     let rendered_rust = rdo.render().unwrap();
                     write_file(&output_path, "src/pyrust.rs", rendered_rust.as_str());
-                    // fs::write(Path::new("./test_data/test_py/bitis/src/pyrust_test.rs"), rendered_rust).expect("Unable to write file");
 
                     let rdo = RustPyLib{ d: d.clone(), lib_name: String::from(lib_name) };
                     let rendered_rust = rdo.render().unwrap();
                     write_file(&output_path, "src/lib.rs", rendered_rust.as_str());
-                    // fs::write(Path::new("./test_data/test_py/bitis/src/lib_test.rs"), rendered_rust).expect("Unable to write file");
 
                     let rdo = PyTypeHints{ d };
                     let rendered_rust = rdo.render().unwrap();
                     write_file(&output_path, format!("{}/bitis_msgs.pyi", lib_name).as_str(), rendered_rust.as_str());
-                    // fs::write(Path::new("./test_data/test_py/bitis/bitis_msgs/bitis_msgs.pyi"), rendered_rust).expect("Unable to write file");
 
-                    let r = match Command::new("maturin").args(["develop"]).current_dir(output_path)
+                    let r = match Command::new("maturin").args(["develop"]).current_dir(output_path.clone())
                         .stdout(Stdio::piped()).spawn() {
                         Ok(v) => v, Err(_) => { println!("Could not execute 'maturin develop'"); exit(-1) }
                     };
@@ -222,9 +224,29 @@ fn main() {
                         exit(-1);
                     }
                     else { println!("\n🎉 * Bitis compile and python lib build was successfully executed!\n"); }
+
+                    {
+                        let toml_file = output_path.join("Cargo.toml");
+                        if toml_file.exists() {
+                            let cct_content = match fs::read(toml_file.clone()) {
+                                Ok(content) => String::from_utf8(content).unwrap(),
+                                Err(e) => { print_error(format!("Could not read lock file '{}': {:?}", toml_file.display(), e)); }
+                            };
+                            let mut toml_doc = match cct_content.parse::<DocumentMut>() {
+                                Ok(v) => v, Err(e) => {
+                                    print_error(format!("Could not parse toml from lock file '{}': {:?}", toml_file.display(), e)); }
+                            };
+
+                            toml_doc["dependencies"]["bitis"] = value(env!("CARGO_PKG_VERSION"));
+
+                            if let Err(e) = write(toml_file.clone(), toml_doc.to_string()) {
+                                print_error(format!("Failed to write to lock '{}': {}", toml_file.display(), e));
+                            }
+                        }
+                        else { print_warn("There was no toml file found in the base directory.".into()) }
+                    }
                 }
-            }
-        },
+        } },
         Commands::Compare{ compare_file: _compare_file } => {
             println!("\n*** Compare not implemented yet\n");
         },
