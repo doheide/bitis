@@ -1,12 +1,20 @@
 [package]
 name = "bitis-macros"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
+license = "MIT"
+keywords = ["interface", "serialization", "bitwise", "data description language"]
+description = "Bitwise serialization of messages defined in a data description language"
+readme = "README.md"
+homepage = "https://github.com/doheide/bitis"
+repository = "https://github.com/doheide/bitis"
+
 
 [lib]
 name = "bitis_macros"
 path = "src/lib.rs"
 proc-macro = true
+
 
 [dependencies]
 darling = "0.20.10"
