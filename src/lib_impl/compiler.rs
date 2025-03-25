@@ -1198,7 +1198,7 @@ mod bitis_generate_rust {
         let rendered = rdo.render().unwrap();
         let testoo_commment = "/// comment for Oneof\n";
         let testoo_enum = "pub enum OO_TestOo_OoLi {\n  Test1(VarWithGivenBitSize<u8, 3>),\n  Test2(f32),\n}\n\n";
-        let testoo_msg = "pub struct TestOO {\n  pub oo_li: OO_TestOo_OoLi,\n  pub b1: bool,\n}\n";
+        let testoo_msg = "pub struct TestOo {\n  pub oo_li: OO_TestOo_OoLi,\n  pub b1: bool,\n}\n";
         println!("*rendered:\n{}",rendered);
         assert_eq!(rendered, (HEADER.to_owned() + ENUMS_HEADER + "\n\n" + OO_HEADER + PER_OO_HEADER
             + testoo_enum + MSG_HEADER + testoo_commment + PER_MSG_HEADER + testoo_msg).to_string());
@@ -1239,7 +1239,7 @@ mod bitis_compile {
         println!("*** rendered PyDO:\n{}", rendered_rust);
         fs::write(Path::new("./test_data/test_py/bitis/src/pyrust_test.rs"), rendered_rust).expect("Unable to write file");
 
-        let rdo = RustPyLib{ d: d.clone() };
+        let rdo = RustPyLib{ d: d.clone(), lib_name: "bitis_msgs".into() };
         let rendered_rust = rdo.render().unwrap();
         println!("*** rendered pyLib:\n{}", rendered_rust);
         fs::write(Path::new("./test_data/test_py/bitis/src/lib_test.rs"), rendered_rust).expect("Unable to write file");

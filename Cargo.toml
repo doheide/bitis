@@ -3,7 +3,7 @@ name = "bitis"
 version = "0.5.3"
 edition = "2024"
 license = "MIT"
-keywords = ["interface", "serialization", "bitwise", "data description language"]
+keywords = ["interface", "serialization", "bitwise", "DSL"]
 description = "Bitwise serialization of messages defined in a data description language"
 readme = "README.md"
 homepage = "https://github.com/doheide/bitis"
@@ -24,9 +24,11 @@ regex = "1.11.1"
 askama = "0.12"
 stringcase = "0.4.0"
 clap = { version = "4.5.30", features = ["derive", "string", "cargo", "color", "help"] }
-bitis-macros = { path = "./bitis-macros" }
 console = "0.15.11"
 toml_edit = "0.22.24"
+bitis-macros = "0.5.3"
+[dependencies_when_dev]
+bitis-macros = { path = "./bitis-macros" }
 
 [dev-dependencies]
 rstest = "0.25.0"
