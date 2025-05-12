@@ -1,0 +1,47 @@
+use bitis_lib::*;
+
+// Enums
+{%+ for ce in d.enums ~%}
+{%- if let Some(comment_impl) = ce.comment -%}
+///{{comment_impl}}
+{%- endif -%}
+#[derive(BiserdiEnum, Debug, Clone, PartialEq)]
+#[biserdi_enum_id_dynbits({{ce.bit_size}})]
+#[allow(nonstandard_style)]
+pub enum {{ ce.name }} {
+{%- for cv in ce.values +%}
+  {{ cv|pascal_case }},
+{%- endfor %}
+}
+{%- endfor -%}
+
+{# *****************************************************************#}
+{# *****************************************************************#}
+// Enums for oneof
+{%+ for (_, coo) in d.oos -%}
+#[derive(BiserdiOneOf, Debug, Clone, PartialEq)]
+#[biserdi_enum_id_dynbits({{coo.dyn_bits}})]
+#[allow(nonstandard_style)]
+pub enum {{ coo.name }} {
+{%- for ca in coo.attributes +%}
+  {% include "data_oo_attr.rs.jinja" %}
+{%- endfor %}
+}
+{%- endfor -%}
+
+{# *****************************************************************#}
+{# *****************************************************************#}
+// Messages
+{% for cm in d.msgs ~%}
+{%- if let Some(comment_impl) = cm.comment -%}
+///{{comment_impl}}
+{%- endif -%}
+#[derive(BiserdiMsg, Debug, Clone, PartialEq)]
+#[allow(nonstandard_style)]
+pub struct {{cm.name|pascal_case}} {
+{%- if let Some(p) = cm.parent -%}// parent: {{ p }}{%- endif -%}
+{%- for ca in cm.attributes +%}
+  {% include "data_object_attr.rs.jinja" %}
+{%- endfor %}
+}
+{% endfor %}

@@ -1,0 +1,11 @@
+[package]
+name = "bitis"
+version = "0.5.3"
+edition = "2024"
+
+[[bin]]
+name = "bitis"
+path = "src/main.rs"
+
+[dependencies]
+bitis = { path = "../.." }
