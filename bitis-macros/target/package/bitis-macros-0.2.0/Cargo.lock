@@ -13,7 +13,7 @@ dependencies = [
 
 [[package]]
 name = "bitis-macros"
-version = "0.5.3"
+version = "0.6.0"
 dependencies = [
  "darling",
  "proc-macro2",
