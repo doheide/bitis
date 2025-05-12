@@ -1,20 +1,4 @@
 {%- if let Some(comment_impl) = ca.base.comment -%}
-//{{comment_impl}}  {{ca.base.name}}:
-{%- else -%}
-pub {{ca.base.name}}: {#+ #}
-{%- endif -%}
- {%~ if ca.base.is_optional -%}Option<{%- endif -%}
-{%- if let Some(repeated_type) = ca.base.is_repeated_and_size -%}
-{%- match repeated_type -%}
-{%- when DynOrFixedType::Dyn(_) ~%}Vec<
-{%- when DynOrFixedType::Fixed with (s) ~%}FixedArray<
-{%- endmatch -%}
-{%- endif -%}
-{{ ca.rust_type_str|safe }}
-{%- if let Some(repeated_type) = ca.base.is_repeated_and_size -%}
-{%- match repeated_type -%}
-{%- when DynOrFixedType::Dyn(_) -%}>
-{%- when DynOrFixedType::Fixed with (s) -%},{{s}}>
-{%- endmatch -%}
-{%- endif -%}
-{%- if ca.base.is_optional -%}>{%- endif -%},
+//{{comment_impl}}
+{%- endif %}
+    {% include "data_object_attr_type.cpp.jinja" %} {{ca.base.name}};

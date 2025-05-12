@@ -4,7 +4,7 @@ version = "0.5.3"
 edition = "2024"
 license = "MIT"
 keywords = ["interface", "serialization", "bitwise", "DSL"]
-description = "Bitwise serialization of messages defined in a data description language"
+description = "Bitwise serialization of messages defined in a data description language with interfaces for rust, python and c++."
 readme = "README.md"
 homepage = "https://github.com/doheide/bitis"
 repository = "https://github.com/doheide/bitis"
@@ -21,7 +21,7 @@ path = "src/main.rs"
 [dependencies]
 logos = "0.15.0"
 regex = "1.11.1"
-askama = "0.12"
+askama = "0.14"
 stringcase = "0.4.0"
 clap = { version = "4.5.30", features = ["derive", "string", "cargo", "color", "help"] }
 console = "0.15.11"

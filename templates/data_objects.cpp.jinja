@@ -1,16 +1,14 @@
-use bitis_lib::*;
+#include "bitis_lib.h"
+#include <optional>
 
 // Enums
 {%+ for ce in d.enums ~%}
 {%- if let Some(comment_impl) = ce.comment -%}
 ///{{comment_impl}}
 {%- endif -%}
-#[derive(BiserdiEnum, Debug, Clone, PartialEq)]
-#[biserdi_enum_id_dynbits({{ce.bit_size}})]
-#[allow(nonstandard_style)]
-pub enum {{ ce.name }} {
+namespace {{ ce.name }}Enum {
 {%- for cv in ce.values +%}
-  {{ cv|pascal_case }},
+    ENUM_INSTANCE({{ cv|pascal_case }});
 {%- endfor %}
 }
 {%- endfor -%}
@@ -19,19 +17,90 @@ pub enum {{ ce.name }} {
 {# *****************************************************************#}
 // Enums for oneof
 {%+ for (_, coo) in d.oos -%}
-#[derive(BiserdiOneOf, Debug, Clone, PartialEq)]
-#[biserdi_enum_id_dynbits({{coo.dyn_bits}})]
-#[allow(nonstandard_style)]
-pub enum {{ coo.name }} {
-{%- for ca in coo.attributes +%}
-  {% include "data_oo_attr.rs.jinja" %}
+struct {{ coo.name }}  {
+    static const char *oo_enums[];
+    enum OOEnum { {%- for ca in coo.attributes %}
+        {{ca.base.name|pascal_case}}{% if !loop.last %}, {% endif %}{%- endfor %}
+    };
+    typedef std::integral_constant<uint8_t, 4> SelectorBits;
+    typedef oneof_helper::OneOfT<{%- for ca in coo.attributes %}
+        {{ ca.rust_type_str|safe}}{% if !loop.last %}, {% endif %}{%- endfor %}
+    > OneOfT;
+    OOEnum oo_selector;
+    union {
+        char _base;{%- for ca in coo.attributes %}
+        {{ ca.rust_type_str|safe}} {{ca.base.name|snake_case}};
+        {%- endfor %}
+    } oo;
+
+    explicit OOEnum_Val(const OOEnum _oo_selector) : oo_selector(_oo_selector), oo{(0)} {}
+
+    {%- for ca in coo.attributes %}
+    void set_{{ca.base.name|snake_case}}(const {{ ca.rust_type_str|safe}} {{ca.base.name|snake_case}}) {
+        oo.{{ca.base.name|snake_case}} = {{ca.base.name|snake_case}};
+        oo_selector = {{ca.base.name|pascal_case}};
+    }
+    {{ ca.rust_type_str|safe}} *get_{{ca.base.name|snake_case}}() {
+        if (oo_selector == {{ca.base.name|pascal_case}}) { return &oo.{{ca.base.name|snake_case}}; }
+        return nullptr;
+    }
+    OOEnum_Val create_{{ca.base.name|snake_case}}(const {{ ca.rust_type_str|safe}} v) {
+        auto oo = OOEnum_Val(OOEnum_{{ coo.name|pascal_case }}::OOEnum::{{ca.base.name|pascal_case}});
+        oo.set_{{ca.base.name|snake_case}}(v);
+        // ReSharper disable once CppSomeObjectMembersMightNotBeInitialized
+        return oo;
+    };
+    {%- endfor %}
+
+    std::size_t serialize(BitisSerializer &ser) const {
+        return oneof_helper::oneof_serialize(this, ser);
+    }
+    void print(int16_t indent=0) {
+        printf("Oneof ");
+        oneof_helper::oneof_print(this, (indent>=0) ? indent + 2 : indent, oo_enums);
+    }
+};
+const char *OOEnum_Val::oo_enums[] = { {%- for ca in coo.attributes %}"{{ca.base.name|snake_case}}"{% if !loop.last %}, {% endif %}{%- endfor -%}};
 {%- endfor %}
-}
-{%- endfor -%}
 
 {# *****************************************************************#}
 {# *****************************************************************#}
 // Messages
+{% for cm in d.msgs ~%}
+{%- if let Some(comment_impl) = cm.comment -%}
+///{{comment_impl}}
+{%- endif -%}
+struct {{cm.name|pascal_case}} {
+    static const char *msg_attr[];
+
+    typedef message_helper::MessageT<
+{%- for ca in cm.attributes +%}
+        {% include "data_object_attr_type.cpp.jinja" %},
+{%- endfor %}
+    > MsgT;
+{%+ for ca in cm.attributes -%}
+    {% include "data_object_attr.cpp.jinja" -%}
+{%- endfor %}
+
+    std::size_t serialize(BitisSerializer &ser) const {
+        return message_helper::msg_serialize(this, ser);
+    }
+    static bitis_helper::BitiaDeserializerHelper<MsgA> deserialize(BitisDeserializer &des) {
+        return message_helper::msg_deserialize<MsgA>(des);
+    }
+
+    void print(int16_t indent=0) {
+        printf("{{cm.name|pascal_case}}{ ");
+        if (indent>=0) printf("\n");
+        message_helper::msg_print(this, (indent>=0) ? (2 + indent) : indent, msg_attr);
+        print_indent(indent); printf("}");
+        // if (indent>=0) printf("\n");
+    }
+};
+const char *MsgA::msg_attr[] = { {%- for ca in cm.attributes -%}"{{ca.base.name}}"{% if !loop.last %}, {% endif %}{%- endfor -%}};
+
+{% endfor %}
+
 {% for cm in d.msgs ~%}
 {%- if let Some(comment_impl) = cm.comment -%}
 ///{{comment_impl}}

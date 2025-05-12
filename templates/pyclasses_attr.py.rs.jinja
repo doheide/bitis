@@ -9,7 +9,7 @@
 {%- when DynOrFixedType::Dyn(_) ~%}Vec<
 {%- when DynOrFixedType::Fixed with (s) ~%}[
 {%- endmatch -%}
-{%- endif -%} {%+ if ca.is_msg | ca.is_oo -%}Py<{%- endif -%}{{ ca.base_type_str|safe }}{%+ if ca.is_msg | ca.is_oo -%}>{%- endif -%}
+{%- endif -%} {%+ if ca.is_msg || ca.is_oo -%}Py<{%- endif -%}{{ ca.base_type_str|safe }}{%+ if ca.is_msg || ca.is_oo -%}>{%- endif -%}
 {%- if let Some(repeated_type) = ca.base.is_repeated_and_size -%}
 {%- match repeated_type -%}
 {%- when DynOrFixedType::Dyn(_) -%}>

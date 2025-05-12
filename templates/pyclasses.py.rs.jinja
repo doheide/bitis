@@ -69,8 +69,8 @@ pub enum {{ coo.name }}Enum {
 impl {{ coo.name }} {
 {%- for ca in coo.attributes +%}
   #[staticmethod]
-  fn new_{{ca.base.name|snake_case}}({{ca.base.name|snake_case}}: {%+ if ca.is_msg | ca.is_oo +%}Py<{%- endif -%}
-      {{ ca.base_type_str|safe }}{%- if ca.is_msg | ca.is_oo -%}>{% endif %}) -> PyResult<Py<Self>> {
+  fn new_{{ca.base.name|snake_case}}({{ca.base.name|snake_case}}: {%+ if ca.is_msg || ca.is_oo +%}Py<{%- endif -%}
+      {{ ca.base_type_str|safe }}{%- if ca.is_msg || ca.is_oo -%}>{% endif %}) -> PyResult<Py<Self>> {
     Ok(Python::with_gil(|_py| { Py::new(_py, Self::{{ca.base.name|pascal_case}}({{ca.base.name|snake_case}})) })?)
   }
 {%- endfor %}
@@ -79,7 +79,7 @@ impl {{ coo.name }} {
 impl {{ coo.name }} {
   pub fn to_rust(&self) -> messages::{{ coo.name }} {
     Python::with_gil(|_py| {
-      match self { {%- for ca in coo.attributes -%}{%- if ca.is_msg | ca.is_oo +%}
+      match self { {%- for ca in coo.attributes -%}{%- if ca.is_msg || ca.is_oo +%}
         Self::{{ca.base.name|pascal_case}}(v) => messages::{{ coo.name }}::{{ca.base.name|pascal_case}}(v.borrow(_py).to_rust()),
 {%- else +%}
         Self::Val(v) => messages::{{ coo.name }}::Val((*v).into()){%- endif -%}
@@ -89,7 +89,7 @@ impl {{ coo.name }} {
   }
   pub fn from_rust_obj(d: messages::{{ coo.name }}) -> PyResult<Self> {
     let r = Python::with_gil(|_py| {
-      match d { {%- for ca in coo.attributes -%}{%- if ca.is_msg | ca.is_oo +%}
+      match d { {%- for ca in coo.attributes -%}{%- if ca.is_msg || ca.is_oo +%}
         messages::{{ coo.name }}::{{ca.base.name|pascal_case}}(v) => Self::{{ca.base.name|pascal_case}}(Py::new(_py, {{ca.base.name|pascal_case}}::from_rust_obj(v).unwrap()).unwrap()),
 {%- else +%}
         messages::{{ coo.name }}::{{ca.base.name|pascal_case}}(v) => Self::{{ca.base.name|pascal_case}}(v.val.into()){%- endif -%}
@@ -101,7 +101,7 @@ impl {{ coo.name }} {
 }
 impl std::fmt::Display for {{ coo.name }} {
   fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-    match self { {%- for ca in coo.attributes -%}{%- if ca.is_msg | ca.is_oo +%}
+    match self { {%- for ca in coo.attributes -%}{%- if ca.is_msg || ca.is_oo +%}
       {{ coo.name }}::{{ca.base.name|pascal_case}}(v) => {
         Python::with_gil(|py| {
           write!(f, "{{ coo.name }}({{ca.base.name|pascal_case}}({})", v.borrow(py).__repr__()) }
@@ -133,7 +133,7 @@ pub struct {{cm.name|pascal_case}} {
 impl {{cm.name|pascal_case}} {
   #[new]
   pub fn __new__(
-{%- for ca in cm.attributes +%} {{ca.base.name}}: {%+ if ca.is_msg | ca.is_oo -%}Py<{%- endif -%}{{ca.base_type_str}}{%- if ca.is_msg | ca.is_oo -%}>{%- endif -%},{%- endfor -%}) -> Self {
+{%- for ca in cm.attributes +%} {{ca.base.name}}: {%+ if ca.is_msg || ca.is_oo -%}Py<{%- endif -%}{{ca.base_type_str}}{%- if ca.is_msg || ca.is_oo -%}>{%- endif -%},{%- endfor -%}) -> Self {
     Self{ {%- for ca in cm.attributes +%} {{ca.base.name}}: {{ca.base.name}}.into(),{%- endfor +%} }
   }
   pub fn serialize(&self, py: Python) -> PyObject {
@@ -162,13 +162,13 @@ impl {{cm.name|pascal_case}} {
 {%- for caa in coo.attributes +%}
   #[getter({{ca.base.name|snake_case}}_{{caa.base.name|snake_case}})]
   fn {{ca.base.name|snake_case}}_get_{{caa.base.name|snake_case}}(&self) -> Option<&
-    {%- if caa.is_msg | caa.is_oo -%}Py<{%endif%}{{caa.base_type_str|safe}}{%- if caa.is_msg | caa.is_oo -%}>{%endif%}> {
+    {%- if caa.is_msg || caa.is_oo -%}Py<{%endif%}{{caa.base_type_str|safe}}{%- if caa.is_msg || caa.is_oo -%}>{%endif%}> {
     match self.{{ca.base.name|snake_case}}.get() {
       {{ca.rust_type_str}}::{{caa.base.name|pascal_case}}(v) => Some(v), _ => None
   } }
   #[setter({{ca.base.name|snake_case}}_{{caa.base.name|snake_case}})]
-  fn {{ca.base.name|snake_case}}_set_{{caa.base.name|snake_case}}(&mut self, v: {%- if caa.is_msg | caa.is_oo -%}
-    Py<{%endif%}{{caa.base_type_str|safe}}{%- if caa.is_msg | caa.is_oo -%}>{%endif%}) -> PyResult<()> {
+  fn {{ca.base.name|snake_case}}_set_{{caa.base.name|snake_case}}(&mut self, v: {%- if caa.is_msg || caa.is_oo -%}
+    Py<{%endif%}{{caa.base_type_str|safe}}{%- if caa.is_msg || caa.is_oo -%}>{%endif%}) -> PyResult<()> {
     Python::with_gil(|py| {
       self.{{ca.base.name|snake_case}} = Py::new(py, {{ca.rust_type_str}}::{{caa.base.name|pascal_case}}(v))?;
       Ok(())
@@ -181,12 +181,12 @@ impl {{cm.name|pascal_case}} {
     Python::with_gil(|_py| {
       messages::{{cm.name|pascal_case}}{ {%- for ca in cm.attributes +%} {{ca.base.name}}: {%+ if ca.is_enum -%} {{ ca.rust_type_str }}_py_to_rust({%- endif -%}
       self.{{ca.base.name}}
-      {%- if ca.is_msg | ca.is_oo -%}.borrow(_py).to_rust()
+      {%- if ca.is_msg || ca.is_oo -%}.borrow(_py).to_rust()
       {%- else -%}.clone().into() {%- endif -%}{%- if ca.is_enum -%}){%- endif -%}, {%- endfor -%}}
     })
   }
   pub fn from_rust_obj(d: messages::{{cm.name|pascal_case}}) -> PyResult<Self> {
-    let r = Python::with_gil(|_py| { Self{ {%- for ca in cm.attributes +%} {{ca.base.name}}: {%~ if ca.is_msg | ca.is_oo -%}
+    let r = Python::with_gil(|_py| { Self{ {%- for ca in cm.attributes +%} {{ca.base.name}}: {%~ if ca.is_msg || ca.is_oo -%}
         Py::new(_py, {{ ca.rust_type_str }}::from_rust_obj(d.{{ca.base.name}}).unwrap()).unwrap()
         {%- else -%} {%- if ca.is_enum -%} {{ ca.rust_type_str }}_rust_to_py(d.{{ca.base.name}})
         {%- else -%} d.{{ca.base.name}}{%- if ca.add_val -%}.val{%- endif -%} {%- endif -%}{%- endif -%}, {%- endfor -%}} });
@@ -197,7 +197,7 @@ impl std::fmt::Display for {{cm.name|pascal_case}} {
   fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
     Python::with_gil(|_py| {
       write!(f, "{{cm.name|pascal_case}}({%- for ca in cm.attributes -%}{{ca.base.name}}: ({}), {%+ endfor -%})",
-        {%- for ca in cm.attributes +%} self.{{ca.base.name}}{%- if ca.is_msg | ca.is_oo -%}.borrow(_py).__repr__(){%- endif -%}, {%- endfor -%})
+        {%- for ca in cm.attributes +%} self.{{ca.base.name}}{%- if ca.is_msg || ca.is_oo -%}.borrow(_py).__repr__(){%- endif -%}, {%- endfor -%})
     })
   }
 }
