@@ -12,7 +12,7 @@ msg ParamTestWithInner {
   bool param_2;
   oneof action(4) {
     Inner inner;
-    uint_3 val;
+    int_3 val;
   }
 }
 

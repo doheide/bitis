@@ -12,5 +12,5 @@ use bitis_lib::*;
 pub struct MsgSimpleTest {
   pub param_1: VarWithGivenBitSize<u8, 4>,
   pub param_2: bool,
-  pub param_3: VarWithGivenBitSize<8, 5>,
+  pub param_3: VarWithGivenBitSize<i8, 5>,
 }
