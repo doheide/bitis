@@ -13,8 +13,7 @@
 #include <array>
 #include <algorithm>
 #include <cmath>
-#include <bits/locale_facets_nonio.h>
-
+#include <cstdio>
 
 inline void print_indent(const int16_t indent) {
     for(int i=0; i < indent; i++) { printf(" "); }
@@ -265,7 +264,7 @@ struct BitisOptional {
     BitisOptional() : value(), is_none(true) {}
     explicit BitisOptional(T value, bool _is_none) : value(value), is_none(_is_none) {}
     static BitisOptional create_none() { return BitisOptional(T(), true); }
-    static BitisOptional create_val(T &v) { return BitisOptional(v, false); }
+    static BitisOptional create_val(T v) { return BitisOptional(v, false); }
 
     std::size_t serialize(BitisSerializer &ser) const {
         std::size_t num_bits = 1;
@@ -412,7 +411,7 @@ struct FixedArray {
     static bitis_helper::BitiaDeserializerHelper<FixedArray> deserialize(BitisDeserializer &des) {
         std::size_t num_bits = 0;
         //T values[ARRAY_SIZE];
-        std::array<T, ARRAY_SIZE> values{};
+        std::array<T, ARRAY_SIZE> values;
 
         for (std::size_t i=0; i < ARRAY_SIZE; i++) {
             auto dr = T::deserialize(des);
@@ -691,13 +690,15 @@ struct EnumBase { };
 
 // template<typename ...> struct BitisEnum;
 template<typename ES_COLLECTOR, uint8_t DYN_BITS>
-struct BitisEnum : DynInteger<uint32_t, DYN_BITS> {
+struct BitisEnum  {
+    DynInteger<uint32_t, DYN_BITS> value;
+
     typedef typename bitis_helper::EnumeratedListCollector<ES_COLLECTOR>::type EnumeratedEnumCollector;
 
-    BitisEnum() : DynInteger<uint32_t, DYN_BITS>() {}
+    explicit BitisEnum() : value(0) {}
 
 private:
-    explicit BitisEnum(uint32_t enum_id) : DynInteger<uint32_t, DYN_BITS>(enum_id) {}
+    explicit BitisEnum(uint32_t enum_id) : value(enum_id) {}
 
 public:
     template<typename SET_ENUM>
@@ -716,19 +717,34 @@ public:
         return this->value == id_in;
     }
 
+    std::size_t serialize(BitisSerializer &ser) const {
+        return value.serialize(ser);
+    }
+    static bitis_helper::BitiaDeserializerHelper<BitisEnum> deserialize(BitisDeserializer &des) {
+        auto r = DynInteger<uint32_t, DYN_BITS>::deserialize(des);
+        return bitis_helper::BitiaDeserializerHelper<BitisEnum>{.bits=r.bits, .data=BitisEnum(r.data.value)};
+    }
+
     void print(int16_t indent=0) {
-        auto v = bitis_enum_helper::get_name<EnumeratedEnumCollector>(this->value);
+        auto v = bitis_enum_helper::get_name<EnumeratedEnumCollector>(value.value);
         // ReSharper disable once CppCStyleCast
-        printf("%s (id:%" PRIu32 ") [enum_%u]", v, this->value, DYN_BITS);
+        printf("%s (id:%" PRIu32 ") [enum_%u]", v, value.value, DYN_BITS);
     }
-    BitisEnum &operator=(const BitisEnum &other) {
-        this->value = other.value;
-        return *this;
+
+    bool is_equal(const BitisEnum &other) const {
+        return this->value == other.value;
     }
-    BitisEnum &operator=(const DynInteger<uint32_t, DYN_BITS> &other) {
-        this->value = other.value;
-        return *this;
-    }
+    bool operator==(const BitisEnum &other) const { return is_equal(other); }
+    bool operator!=(const BitisEnum &other) const { return !is_equal(other); }
+
+    // BitisEnum &operator=(const BitisEnum &other) {
+    //     this->value = other.value;
+    //     return *this;
+    // }
+    // BitisEnum &operator=(const DynInteger<uint32_t, DYN_BITS> &other) {
+    //     this->value = other.value;
+    //     return *this;
+    // }
 };
 
 
@@ -828,6 +844,7 @@ namespace message_helper{
 
         MessageT_ImplStart<typename Msg::MsgT> inner;
         auto r = inner.deserialize(dt, des);
+
         return bitis_helper::BitiaDeserializerHelper<Msg>(
             // ReSharper disable once CppCStyleCast
             bitis_helper::BitiaDeserializerHelper<Msg>{.bits=r, .data = *((Msg*)dt)});
