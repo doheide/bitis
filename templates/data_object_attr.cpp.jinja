@@ -1,4 +1,4 @@
 {%- if let Some(comment_impl) = ca.base.comment -%}
 //{{comment_impl}}
 {%- endif %}
-    {% include "data_object_attr_type.cpp.jinja" %} {{ca.base.name}};
+    {{ca.base.name|pascal_case}}_T {{ca.base.name}};

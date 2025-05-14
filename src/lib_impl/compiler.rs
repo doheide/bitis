@@ -116,7 +116,7 @@ pub fn to_rust_messages(msgs: &Vec<Message>) -> Vec<MessageR> {
             attributes: attrs_rust}
     }).collect()
 }
-pub fn to_rust_cpp_oneofs(oos: &Vec<(String, OneOfInfo)>, msgs: &Vec<Message>) -> HashMap<String, OneOfInfoR> {
+pub fn to_rust_oneofs(oos: &Vec<(String, OneOfInfo)>, msgs: &Vec<Message>) -> HashMap<String, OneOfInfoR> {
     let msgs_names: Vec<_> = msgs.iter().map(|m| {m.name.clone()}).collect();
 
     oos.iter().map(|(msg_name, oo)| {
@@ -141,7 +141,7 @@ fn to_cpp_attribute(attribute: &Attribute, msg_names: &Vec<String>) -> Attribute
                         println!("Unexpected unspecified attribute type");
                         abort()
                     },
-                    SimpleType::Bool => { ("bool".to_string(), "bool".to_string()) }
+                    SimpleType::Bool => { ("BitisBool".to_string(), "bool".to_string()) }
                     SimpleType::UIntFixed(b) => {
                         add_val = true;
                         let base = format!("uint{}_t", integer_bit_size(&b));
@@ -199,15 +199,15 @@ pub fn to_cpp_messages(msgs: &Vec<Message>) -> Vec<MessageR> {
             attributes: attrs_rust}
     }).collect()
 }
-// pub fn to_cpp_oneofs(oos: &Vec<(String, OneOfInfo)>, msgs: &Vec<Message>) -> HashMap<String, OneOfInfoR> {
-//     let msgs_names: Vec<_> = msgs.iter().map(|m| {m.name.clone()}).collect();
-// 
-//     oos.iter().map(|(msg_name, oo)| {
-//         let attrs_cpp: Vec<_> = oo.attributes.iter().map(|attribute| {
-//             to_rust_attribute(attribute, &msgs_names) }).collect();
-//         (oo.name.clone(), OneOfInfoR{msg_name: msg_name.clone(), name: oo.name.clone(), dyn_bits: oo.dyn_bits, attributes: attrs_cpp })
-//     }).collect()
-// }
+pub fn to_cpp_oneofs(oos: &Vec<(String, OneOfInfo)>, msgs: &Vec<Message>) -> HashMap<String, OneOfInfoR> {
+    let msgs_names: Vec<_> = msgs.iter().map(|m| {m.name.clone()}).collect();
+
+    oos.iter().map(|(msg_name, oo)| {
+        let attrs_cpp: Vec<_> = oo.attributes.iter().map(|attribute| {
+            to_cpp_attribute(attribute, &msgs_names) }).collect();
+        (oo.name.clone(), OneOfInfoR{msg_name: msg_name.clone(), name: oo.name.clone(), dyn_bits: oo.dyn_bits, attributes: attrs_cpp })
+    }).collect()
+}
 
 #[derive(Clone, Debug)]
 pub struct JinjaData {
@@ -1195,7 +1195,7 @@ mod bitis_generate_rust {
         let rdo = RustDataObjects{ d: JinjaData{
             enums: processed_bitis.enums,
             msgs: to_rust_messages(&processed_bitis.msgs),
-            oos: to_rust_cpp_oneofs(&processed_bitis.oo_enums, &processed_bitis.msgs) } };
+            oos: to_rust_oneofs(&processed_bitis.oo_enums, &processed_bitis.msgs) } };
 
         let rendered = rdo.render().unwrap();
         let lala_empty = "pub struct Lala {\n}\n";
@@ -1223,7 +1223,7 @@ mod bitis_generate_rust {
         let processed_bitis = process_and_validate_bitis(&parsed_bitis);
         let rdo = RustDataObjects{ d: JinjaData{
             enums: processed_bitis.enums, msgs: to_rust_messages(&processed_bitis.msgs),
-            oos: to_rust_cpp_oneofs(&processed_bitis.oo_enums, &processed_bitis.msgs) } };
+            oos: to_rust_oneofs(&processed_bitis.oo_enums, &processed_bitis.msgs) } };
 
         let rendered = rdo.render().unwrap();
         let lala_commment = "/// comment for Lala\n";
@@ -1253,7 +1253,7 @@ mod bitis_generate_rust {
         let processed_bitis = process_and_validate_bitis(&parsed_bitis);
         let rdo = RustDataObjects{ d: JinjaData{ enums: processed_bitis.enums,
             msgs: to_rust_messages(&processed_bitis.msgs),
-            oos: to_rust_cpp_oneofs(&processed_bitis.oo_enums, &processed_bitis.msgs) } };
+            oos: to_rust_oneofs(&processed_bitis.oo_enums, &processed_bitis.msgs) } };
 
         let rendered = rdo.render().unwrap();
         let lala_commment = "/// comment for Numbers\n";
@@ -1283,7 +1283,7 @@ mod bitis_generate_rust {
         let processed_bitis = process_and_validate_bitis(&parsed_bitis);
         let rdo = RustDataObjects{ d: JinjaData{ enums: processed_bitis.enums,
             msgs: to_rust_messages(&processed_bitis.msgs),
-            oos: to_rust_cpp_oneofs(&processed_bitis.oo_enums, &processed_bitis.msgs) } };
+            oos: to_rust_oneofs(&processed_bitis.oo_enums, &processed_bitis.msgs) } };
 
         let rendered = rdo.render().unwrap();
         let testoo_commment = "/// comment for Oneof\n";
@@ -1351,7 +1351,7 @@ mod bitis_compile {
         let d = JinjaData{
             enums: bitis_processed.enums,
             msgs: to_rust_messages(&bitis_processed.msgs),
-            oos: to_rust_cpp_oneofs(&bitis_processed.oo_enums, &bitis_processed.msgs)
+            oos: to_rust_oneofs(&bitis_processed.oo_enums, &bitis_processed.msgs)
         };
         render(d);
     }
@@ -1368,7 +1368,7 @@ mod bitis_compile {
         let d = JinjaData{
             enums: bitis_processed.enums,
             msgs: to_rust_messages(&bitis_processed.msgs),
-            oos: to_rust_cpp_oneofs(&bitis_processed.oo_enums, &bitis_processed.msgs)
+            oos: to_rust_oneofs(&bitis_processed.oo_enums, &bitis_processed.msgs)
         };
         render(d);
     }
@@ -1387,7 +1387,7 @@ mod bitis_compile {
         let d = JinjaData{
             enums: bitis_processed.enums,
             msgs: to_rust_messages(&bitis_processed.msgs),
-            oos: to_rust_cpp_oneofs(&bitis_processed.oo_enums, &bitis_processed.msgs)
+            oos: to_rust_oneofs(&bitis_processed.oo_enums, &bitis_processed.msgs)
         };
         render(d);
     }
@@ -1405,7 +1405,7 @@ mod bitis_compile {
         let d = JinjaData{
             enums: bitis_processed.enums,
             msgs: to_rust_messages(&bitis_processed.msgs),
-            oos: to_rust_cpp_oneofs(&bitis_processed.oo_enums, &bitis_processed.msgs)
+            oos: to_rust_oneofs(&bitis_processed.oo_enums, &bitis_processed.msgs)
         };
         render(d);
     }

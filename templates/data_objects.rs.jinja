@@ -24,7 +24,7 @@ pub enum {{ ce.name }} {
 #[allow(nonstandard_style)]
 pub enum {{ coo.name }} {
 {%- for ca in coo.attributes +%}
-  {% include "data_oo_attr.rs.jinja" %}
+{%- include "data_oo_attr.rs.jinja" %}
 {%- endfor %}
 }
 {%- endfor -%}

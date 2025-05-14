@@ -11,6 +11,9 @@ namespace {{ ce.name }}Enum {
     ENUM_INSTANCE({{ cv|pascal_case }});
 {%- endfor %}
 }
+typedef BitisEnum<bitis_helper::Collector<{%- for cv in ce.values %}
+    {{ ce.name }}Enum::{{ cv|pascal_case }}{% if !loop.last %}, {% endif %}{%- endfor %}
+>, {{ce.bit_size}}> {{ ce.name }};
 {%- endfor -%}
 
 {# *****************************************************************#}
@@ -18,49 +21,50 @@ namespace {{ ce.name }}Enum {
 // Enums for oneof
 {%+ for (_, coo) in d.oos -%}
 struct {{ coo.name }}  {
-    static const char *oo_enums[];
-    enum OOEnum { {%- for ca in coo.attributes %}
-        {{ca.base.name|pascal_case}}{% if !loop.last %}, {% endif %}{%- endfor %}
-    };
-    typedef std::integral_constant<uint8_t, 4> SelectorBits;
-    typedef oneof_helper::OneOfT<{%- for ca in coo.attributes %}
-        {{ ca.rust_type_str|safe}}{% if !loop.last %}, {% endif %}{%- endfor %}
-    > OneOfT;
-    OOEnum oo_selector;
-    union {
-        char _base;{%- for ca in coo.attributes %}
-        {{ ca.rust_type_str|safe}} {{ca.base.name|snake_case}};
-        {%- endfor %}
-    } oo;
-
-    explicit OOEnum_Val(const OOEnum _oo_selector) : oo_selector(_oo_selector), oo{(0)} {}
-
     {%- for ca in coo.attributes %}
-    void set_{{ca.base.name|snake_case}}(const {{ ca.rust_type_str|safe}} {{ca.base.name|snake_case}}) {
-        oo.{{ca.base.name|snake_case}} = {{ca.base.name|snake_case}};
-        oo_selector = {{ca.base.name|pascal_case}};
+    struct OO_{{ca.base.name|pascal_case}} {
+        static constexpr auto name = "{{ca.base.name|pascal_case}}"; typedef {{ ca.rust_type_str|safe}} Type; };
+    {%- endfor %}
+
+    typedef BitisEnum<bitis_helper::Collector<{%- for ca in coo.attributes %}
+        OO_{{ca.base.name|pascal_case}}{% if !loop.last %}, {% endif %}{%- endfor %}
+    >, {{coo.dyn_bits}}> OOEnum;
+
+    OOEnum oo_selector;
+//    union {
+//        char _base;{%- for ca in coo.attributes %}
+//        OO_{{ca.base.name|pascal_case}}::OOType {{ca.base.name}};
+//        {%- endfor %}
+//    } oo;
+    oneof_helper::UnionT<
+        {% for ca in coo.attributes -%}OO_{{ca.base.name|pascal_case}}::OOType{% if !loop.last %}, {% endif %}{%- endfor %}
+    > oo_value;
+
+    {{ coo.name }}() : oo_selector(), oo_value() {}
+
+    template<typename OOT>
+    {{ coo.name }} set_oo(typename OOT::OOType v) {
+        static_assert(oneof_helper::ContainsType<OOT, OOEnum::EnumCollector>::value);
+        oo_selector.set_enum<OOT>();
+        oo_value.set(v);
+        return *this;
     }
-    {{ ca.rust_type_str|safe}} *get_{{ca.base.name|snake_case}}() {
-        if (oo_selector == {{ca.base.name|pascal_case}}) { return &oo.{{ca.base.name|snake_case}}; }
+    template<typename OOT>
+    OOT *get_oo() {
+        static_assert(oneof_helper::ContainsType<OOT, OOEnum::EnumCollector>::value);
+        if(oo_selector.is_enum<OOT>())
+            return oo_value.get<OOT>();
         return nullptr;
     }
-    OOEnum_Val create_{{ca.base.name|snake_case}}(const {{ ca.rust_type_str|safe}} v) {
-        auto oo = OOEnum_Val(OOEnum_{{ coo.name|pascal_case }}::OOEnum::{{ca.base.name|pascal_case}});
-        oo.set_{{ca.base.name|snake_case}}(v);
-        // ReSharper disable once CppSomeObjectMembersMightNotBeInitialized
-        return oo;
-    };
-    {%- endfor %}
 
     std::size_t serialize(BitisSerializer &ser) const {
         return oneof_helper::oneof_serialize(this, ser);
     }
-    void print(int16_t indent=0) {
+    void print(const int16_t indent=0) {
         printf("Oneof ");
         oneof_helper::oneof_print(this, (indent>=0) ? indent + 2 : indent, oo_enums);
     }
 };
-const char *OOEnum_Val::oo_enums[] = { {%- for ca in coo.attributes %}"{{ca.base.name|snake_case}}"{% if !loop.last %}, {% endif %}{%- endfor -%}};
 {%- endfor %}
 
 {# *****************************************************************#}
@@ -73,10 +77,12 @@ const char *OOEnum_Val::oo_enums[] = { {%- for ca in coo.attributes %}"{{ca.base
 struct {{cm.name|pascal_case}} {
     static const char *msg_attr[];
 
-    typedef message_helper::MessageT<
-{%- for ca in cm.attributes +%}
-        {% include "data_object_attr_type.cpp.jinja" %},
+{%- for ca in cm.attributes %}
+    typedef {% include "data_object_attr_type.cpp.jinja" %} {{ca.base.name|pascal_case}}_T;
 {%- endfor %}
+
+    typedef message_helper::MessageT<
+        {% for ca in cm.attributes +%}{{ca.base.name|pascal_case}}_T{% if !loop.last %}, {% endif %} {%- endfor %}
     > MsgT;
 {%+ for ca in cm.attributes -%}
     {% include "data_object_attr.cpp.jinja" -%}
@@ -85,8 +91,8 @@ struct {{cm.name|pascal_case}} {
     std::size_t serialize(BitisSerializer &ser) const {
         return message_helper::msg_serialize(this, ser);
     }
-    static bitis_helper::BitiaDeserializerHelper<MsgA> deserialize(BitisDeserializer &des) {
-        return message_helper::msg_deserialize<MsgA>(des);
+    static bitis_helper::BitiaDeserializerHelper<{{cm.name|pascal_case}}> deserialize(BitisDeserializer &des) {
+        return message_helper::msg_deserialize<{{cm.name|pascal_case}}>(des);
     }
 
     void print(int16_t indent=0) {
@@ -97,20 +103,7 @@ struct {{cm.name|pascal_case}} {
         // if (indent>=0) printf("\n");
     }
 };
-const char *MsgA::msg_attr[] = { {%- for ca in cm.attributes -%}"{{ca.base.name}}"{% if !loop.last %}, {% endif %}{%- endfor -%}};
+const char *{{cm.name|pascal_case}}::msg_attr[] = { {%- for ca in cm.attributes -%}"{{ca.base.name}}"{% if !loop.last %}, {% endif %}{%- endfor -%}};
 
 {% endfor %}
 
-{% for cm in d.msgs ~%}
-{%- if let Some(comment_impl) = cm.comment -%}
-///{{comment_impl}}
-{%- endif -%}
-#[derive(BiserdiMsg, Debug, Clone, PartialEq)]
-#[allow(nonstandard_style)]
-pub struct {{cm.name|pascal_case}} {
-{%- if let Some(p) = cm.parent -%}// parent: {{ p }}{%- endif -%}
-{%- for ca in cm.attributes +%}
-  {% include "data_object_attr.rs.jinja" %}
-{%- endfor %}
-}
-{% endfor %}

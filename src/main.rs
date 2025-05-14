@@ -152,7 +152,7 @@ fn main() {
                     };
                     let rdo = RustDataObjects{ d: JinjaData{enums: processed_bitis.enums,
                         msgs: to_rust_messages(&processed_bitis.msgs),
-                        oos: to_rust_cpp_oneofs(&processed_bitis.oo_enums,&processed_bitis.msgs) } };
+                        oos: to_rust_oneofs(&processed_bitis.oo_enums,&processed_bitis.msgs) } };
 
                     let rendered = rdo.render().unwrap();
                     println!("{}", rendered);
@@ -187,7 +187,7 @@ fn main() {
                     let d = JinjaData{
                         enums: processed_bitis.enums,
                         msgs: to_rust_messages(&processed_bitis.msgs),
-                        oos: to_rust_cpp_oneofs(&processed_bitis.oo_enums, &processed_bitis.msgs)
+                        oos: to_rust_oneofs(&processed_bitis.oo_enums, &processed_bitis.msgs)
                     };
 
                     fn write_file(base_path: &PathBuf, file: &str, content: &str) {
@@ -251,7 +251,7 @@ fn main() {
                     let output_file = if let Some(output_file_opt_set) = output_file_opt {
                         if output_file_opt_set.is_dir() {
                             let mut of = output_file_opt_set.clone();
-                            of.push(format!("{}.cpp", input_file_wo_ext.to_str().unwrap()).as_str());
+                            of.push(format!("{}.h", input_file_wo_ext.to_str().unwrap()).as_str());
                             of
                         }
                         else { output_file_opt_set }
@@ -259,16 +259,17 @@ fn main() {
                     else{
                         let mut pb = PathBuf::new();
                         pb.push(input_dir.clone().to_str().unwrap());
-                        pb.push(format!("{}.cpp", input_file_wo_ext.to_str().unwrap()).as_str());
+                        pb.push(format!("{}.h", input_file_wo_ext.to_str().unwrap()).as_str());
                         pb
                     };
                     let rdo = CppDataObjects{ d: JinjaData{enums: processed_bitis.enums,
                         msgs: to_cpp_messages(&processed_bitis.msgs),
-                        oos: to_rust_cpp_oneofs(&processed_bitis.oo_enums,&processed_bitis.msgs) } };
+                        oos: to_cpp_oneofs(&processed_bitis.oo_enums,&processed_bitis.msgs) } };
 
                     let rendered = rdo.render().unwrap();
                     println!("{}", rendered);
-                    fs::write(output_file, rendered).expect("Unable to write file");                    
+                    fs::write(output_file.clone(), rendered).expect("Unable to write file");
+                    println!("Written to {}", output_file.to_str().unwrap());
                 }
         } },
         Commands::Compare{ compare_file: _compare_file } => {
