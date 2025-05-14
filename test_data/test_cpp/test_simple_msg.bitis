@@ -4,12 +4,23 @@ enum Numbers(4) {
 
 msg Inner {
   uint_3 val;
+  optional bool opt_bool;
+//  Numbers num;
+}
+
+msg InnerWithEnum {
+  uint_3 val;
+  optional bool opt_bool;
   Numbers num;
 }
 
 msg ParamTestWithInner {
   uint_4 param_1;
-  optional bool param_2;
+  Inner inner;
+}
+
+msg ParamTestWithOO {
+  uint_4 param_1;
   oneof action(4) {
     Inner inner;
     int_3 val;
