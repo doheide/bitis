@@ -6,14 +6,14 @@
 
 #include "bitis_lib.h"
 
+void print_u8vec_as_hex(std::vector<uint8_t> &vec) {
+    for (size_t i = 0; i < vec.size(); i++) {
+        printf("%02X ", vec[i]);
+    }
+}
+
 
 namespace test_serializer {
-    void print_u8vec_as_hex(std::vector<uint8_t> &vec) {
-        for (size_t i = 0; i < vec.size(); i++) {
-            printf("%02X ", vec[i]);
-        }
-    }
-
     TEST(BITIS_Serialization_BaseTypes, IntWithSize) {
         auto ser = BitisSerializer();
 
@@ -254,6 +254,7 @@ namespace test_serializer {
         printf("deserialized data: "); dd.data.print(-1); printf("\n");
         EXPECT_TRUE(data==dd.data);
     }
+
     TEST(BITIS_Serialization_BaseTypes, OptionalWithVal) {
         printf("* Testing optional value\n");
 
@@ -403,6 +404,61 @@ namespace test_msg {
         auto r = d.serialize(ser);
         printf("r: %" PRIu64 "\n", r);
     }
+
+    // ****
+    namespace AssetStatesEnum {
+        ENUM_INSTANCE(On);
+        ENUM_INSTANCE(Off);
+        ENUM_INSTANCE(SomewhereInBetween);
+        ENUM_INSTANCE(la);
+    }
+    typedef BitisEnum<bitis_helper::Collector<AssetStatesEnum::Off, AssetStatesEnum::On, AssetStatesEnum::SomewhereInBetween>, 4> EnumType;
+
+    struct MsgD {
+        static const char *msg_attr[];
+
+        typedef message_helper::MessageT<
+            IntgralWithGivenBitSize<uint16_t, 12>,
+            EnumType
+        > MsgT;
+
+        IntgralWithGivenBitSize<uint16_t, 12> a;
+        EnumType b;
+
+        std::size_t serialize(BitisSerializer &ser) const {
+            return message_helper::msg_serialize(this, ser);
+        }
+        static bitis_helper::BitiaDeserializerHelper<MsgD> deserialize(BitisDeserializer &des) {
+            return message_helper::msg_deserialize<MsgD>(des);
+        }
+
+        void print(int16_t indent=0) {
+            printf("MsgA{ ");
+            if (indent>=0) printf("\n");
+            message_helper::msg_print(this, (indent>=0) ? (2 + indent) : indent, msg_attr);
+            print_indent(indent); printf("}");
+            // if (indent>=0) printf("\n");
+        }
+    };
+    const char *MsgD::msg_attr[] = {"a", "b"};
+
+    TEST(BITIS_Messages, MsgWithEnum) {
+        // auto b = MessageT<EnumeratedList<uint8_t, uint16_t, float, uint8_t, uint8_t>::type>();
+        // A *a = (A *) &b;
+        auto d = MsgD {
+            .a = IntgralWithGivenBitSize<uint16_t, 12>(1111),
+            .b = EnumType::create_enum<AssetStatesEnum::SomewhereInBetween>()
+        };
+
+        d.print(0);
+        printf("\n");
+
+        auto ser = BitisSerializer();
+        // auto r = serialize(a, ser);
+        auto r = d.serialize(ser);
+        printf("r: %" PRIu64 "\n", r);
+    }
+
 }
 
 
@@ -410,13 +466,18 @@ namespace test_oneof {
     struct MsgInner {
         static const char *msg_attr[];
         typedef message_helper::MessageT<
-            IntgralWithGivenBitSize<uint16_t, 12>
+            IntgralWithGivenBitSize<uint16_t, 12>,
+            IntgralWithGivenBitSize<uint8_t, 3>
         > MsgT;
 
         IntgralWithGivenBitSize<uint16_t, 12> a;
+        IntgralWithGivenBitSize<uint8_t, 3> b;
 
         std::size_t serialize(BitisSerializer &ser) const {
             return message_helper::msg_serialize(this, ser);
+        }
+        static bitis_helper::BitiaDeserializerHelper<MsgInner> deserialize(BitisDeserializer &des) {
+            return message_helper::msg_deserialize<MsgInner>(des);
         }
         void print(const int16_t indent=0) {
             printf("MsgInner{ ");
@@ -426,95 +487,65 @@ namespace test_oneof {
             // if (indent>=0) printf("\n");
         }
     };
-    const char *MsgInner::msg_attr[] = {"a"};
+    const char *MsgInner::msg_attr[] = {"a", "b"};
 
-    namespace MsgC_helper {
-        struct OOEnum_Val {
-            static const char *oo_enums[];
-            enum OOEnum {
-                Inner, FloatVal, SmallInt
-            };
-            typedef std::integral_constant<uint8_t, 4> SelectorBits;
-            typedef oneof_helper::OneOfT<
-                MsgInner, BitisFloatingPoint<float>, IntgralWithGivenBitSize<uint8_t, 4>
-            > OneOfT;
-            OOEnum oo_selector;
-            union {
-                char _base;
-                MsgInner inner;
-                BitisFloatingPoint<float> float_val;
-                IntgralWithGivenBitSize<uint8_t, 4> small_int;
-            } oo;
+    struct OO_ParamTestWithOo_Action  {
+        struct OO_Inner {
+            static constexpr auto name = "Inner"; typedef MsgInner OOType; };
+        struct OO_Val {
+            static constexpr auto name = "Val"; typedef IntgralWithGivenBitSize<int8_t, 3> OOType; };
 
-            explicit OOEnum_Val(const OOEnum _oo_selector) : oo_selector(_oo_selector), oo{(0)} {}
+        typedef BitisEnum<bitis_helper::Collector<
+            OO_Inner,
+            OO_Val
+        >, 4> OOEnum;
 
-            void set_inner(const MsgInner inner) {
-                oo.inner = inner;
-                oo_selector = Inner;
-            }
-            void set_float_val(const BitisFloatingPoint<float> float_val) {
-                oo.float_val = float_val;
-                oo_selector = FloatVal;
-            }
-            void set_small_int(const IntgralWithGivenBitSize<uint8_t, 4> small_int) {
-                oo.small_int = small_int;
-                oo_selector = SmallInt;
-            }
-            MsgInner *get_inner() {
-                if (oo_selector == Inner) { return &oo.inner; }
-                return nullptr;
-            }
-            BitisFloatingPoint<float> *get_float_val() {
-                if (oo_selector == FloatVal) { return &oo.float_val; }
-                return nullptr;
-            }
-            IntgralWithGivenBitSize<uint8_t, 4> *get_small_int() {
-                if (oo_selector == SmallInt) { return &oo.small_int; }
-                return nullptr;
-            }
+        OOEnum oo_selector;
+        oneof_helper::UnionT<
+            OO_Inner::OOType, OO_Val::OOType
+        > oo_value;
 
-            std::size_t serialize(BitisSerializer &ser) const {
-                return oneof_helper::oneof_serialize(this, ser);
-            }
-            void print(int16_t indent=0) {
-                printf("Oneof ");
-                oneof_helper::oneof_print(this, (indent>=0) ? indent + 2 : indent, oo_enums);
-            }
-        };
-        const char *OOEnum_Val::oo_enums[] = {"inner", "float_val", "small_int"};
+        OO_ParamTestWithOo_Action() : oo_selector(), oo_value() {}
 
-        OOEnum_Val OOEnum_Val_Factory_Init_inner(const MsgInner v) {
-            auto oo = OOEnum_Val(OOEnum_Val::OOEnum::Inner);
-            oo.oo.inner = v;
-            // ReSharper disable once CppSomeObjectMembersMightNotBeInitialized
-            return oo;
-        };
-        OOEnum_Val OOEnum_Val_Factory_Init_float_val(const BitisFloatingPoint<float> v) {
-            auto oo = OOEnum_Val(OOEnum_Val::OOEnum::FloatVal);
-            oo.oo.float_val = v;
-            // ReSharper disable once CppSomeObjectMembersMightNotBeInitialized
-            return oo;
-        };
-        OOEnum_Val OOEnum_Val_Factory_Init_small_int(const IntgralWithGivenBitSize<uint8_t, 4> v) {
-            auto oo = OOEnum_Val(OOEnum_Val::OOEnum::SmallInt);
-            oo.oo.small_int = v;
-            // ReSharper disable once CppSomeObjectMembersMightNotBeInitialized
-            return oo;
-        };
-    }
+        template<typename OOT>
+        OO_ParamTestWithOo_Action set_oo(typename OOT::OOType v) {
+            static_assert(oneof_helper::ContainsType<OOT, OOEnum::EnumCollector>::value);
+            oo_selector.set_enum<OOT>();
+            oo_value.set(v);
+            return *this;
+        }
+        template<typename OOT>
+        typename OOT::OOType *get_oo() {
+            static_assert(oneof_helper::ContainsType<OOT, OOEnum::EnumCollector>::value);
+            if(oo_selector.is_enum<OOT>())
+                return oo_value.get<typename OOT::OOType>();
+            return nullptr;
+        }
+
+        std::size_t serialize(BitisSerializer &ser) {
+            return oneof_helper::oneof_serialize(this, ser);
+        }
+        static bitis_helper::BitiaDeserializerHelper<OO_ParamTestWithOo_Action> deserialize(BitisDeserializer &des) {
+            return oneof_helper::oneof_deserialize<OO_ParamTestWithOo_Action>(des);
+        }
+        void print(const int16_t indent=0) {
+            printf("Oneof = ");
+            oneof_helper::oneof_print(this, (indent>=0) ? indent + 2 : indent);
+        }
+    };
+
     struct MsgC {
-
         static const char *msg_attr[];
         // static constexpr const char* msg_attr[] = {"a", "val", "b"};
 
         typedef message_helper::MessageT<
             IntgralWithGivenBitSize<uint16_t, 3>,
-            MsgC_helper::OOEnum_Val,
+            OO_ParamTestWithOo_Action,
             IntgralWithGivenBitSize<uint16_t, 3>
         > MsgT;
 
         IntgralWithGivenBitSize<uint16_t, 3> a;
-        MsgC_helper::OOEnum_Val val;
+        OO_ParamTestWithOo_Action val;
         IntgralWithGivenBitSize<uint16_t, 3> b;
 
         std::size_t serialize(BitisSerializer &ser) const {
@@ -534,32 +565,41 @@ namespace test_oneof {
         {
             auto d = MsgC{
                 .a = IntgralWithGivenBitSize<uint16_t, 3>(3),
-                .val = MsgC_helper::OOEnum_Val_Factory_Init_float_val(BitisFloatingPoint<float>(1.2345)),
+                .val = OO_ParamTestWithOo_Action().set_oo<OO_ParamTestWithOo_Action::OO_Val>(
+                    OO_ParamTestWithOo_Action::OO_Val::OOType(2)),
                 .b = IntgralWithGivenBitSize<uint16_t, 3>(5),
             };
             d.print(0);
             printf("\n");
 
+            // ***
             auto ser = BitisSerializer();
-            // auto r = serialize(a, ser);
-            const auto r = d.serialize(ser);
-            printf("r: %" PRIu64 "\n", r);
+            d.serialize(ser);
+            auto r = ser.finalize();
+            printf("bits: %zu, bytes: %zu\n", r.bits, r.bytes);
+            printf("serialized data: "); print_u8vec_as_hex(ser.data_cache); printf("\n");
         }
         {
             auto d = MsgC{
                 .a = IntgralWithGivenBitSize<uint16_t, 3>(2),
-                .val = MsgC_helper::OOEnum_Val_Factory_Init_small_int(IntgralWithGivenBitSize<uint8_t, 4>(7)),
-                .b = IntgralWithGivenBitSize<uint16_t, 3>(1),
+                .val = OO_ParamTestWithOo_Action().set_oo<OO_ParamTestWithOo_Action::OO_Inner>(
+                    MsgInner{
+                        .a=IntgralWithGivenBitSize<uint16_t, 12>(1357),
+                        .b=IntgralWithGivenBitSize<uint8_t, 3>(3)
+                    }),
+                .b = IntgralWithGivenBitSize<uint16_t, 3>(1)
             };
             d.print(0);
             printf("\n");
 
+            // ***
             auto ser = BitisSerializer();
-            // auto r = serialize(a, ser);
-            const auto r = d.serialize(ser);
-            printf("r: %" PRIu64 "\n", r);
+            d.serialize(ser);
+            auto r = ser.finalize();
+            printf("bits: %zu, bytes: %zu\n", r.bits, r.bytes);
+            printf("serialized data: "); print_u8vec_as_hex(ser.data_cache); printf("\n");
         }
-        {
+/*        {
             auto d = MsgC{
                 .a = IntgralWithGivenBitSize<uint16_t, 3>(2),
                 .val = MsgC_helper::OOEnum_Val_Factory_Init_inner(MsgInner{.a = IntgralWithGivenBitSize<uint16_t, 12>(2040)}),
@@ -572,7 +612,7 @@ namespace test_oneof {
             // auto r = serialize(a, ser);
             const auto r = d.serialize(ser);
             printf("r: %" PRIu64 "\n", r);
-        }
+        }*/
     }
 }
 

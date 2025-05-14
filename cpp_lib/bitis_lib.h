@@ -638,6 +638,15 @@ namespace bitis_helper {
         typedef typename EnumeratedListImpl<Collector<>, ETN<T, 0>, Ts...>::type type;
     };
 
+    template<typename ...> struct ContainsType;
+    template<typename U, typename T> struct ContainsType<U, Collector<T>> { static constexpr auto value = false; };
+    template<typename U> struct ContainsType<U, Collector<U>> { static constexpr auto value = true; };
+    template<typename U, typename... Ts> struct ContainsType<U, Collector<U, Ts...>> {
+        static constexpr auto value = true;
+    };
+    template<typename U, typename T, typename... Ts> struct ContainsType<U, Collector<T, Ts...>> {
+        static constexpr auto value = ContainsType<U, Collector<Ts...>>::value;
+    };
 }
 
 // ***************************************************************
@@ -686,13 +695,13 @@ namespace bitis_enum_helper {
     }
 }
 
-struct EnumBase { };
 
 // template<typename ...> struct BitisEnum;
 template<typename ES_COLLECTOR, uint8_t DYN_BITS>
-struct BitisEnum  {
+struct BitisEnum {
     DynInteger<uint32_t, DYN_BITS> value;
 
+    typedef ES_COLLECTOR EnumCollector;
     typedef typename bitis_helper::EnumeratedListCollector<ES_COLLECTOR>::type EnumeratedEnumCollector;
 
     explicit BitisEnum() : value(0) {}
@@ -709,12 +718,14 @@ public:
 
     template<typename SET_ENUM>
     void set_enum() {
-        this->value = bitis_enum_helper::get_id<SET_ENUM, EnumeratedEnumCollector>();
+        static_assert(bitis_helper::ContainsType<SET_ENUM, EnumCollector>::value);
+        this->value.value = bitis_enum_helper::get_id<SET_ENUM, EnumeratedEnumCollector>();
     }
     template<typename SET_ENUM>
     bool is_enum() {
+        static_assert(bitis_helper::ContainsType<SET_ENUM, EnumCollector>::value);
         auto id_in = bitis_enum_helper::get_id<SET_ENUM, EnumeratedEnumCollector>();
-        return this->value == id_in;
+        return this->value.value == id_in;
     }
 
     std::size_t serialize(BitisSerializer &ser) const {
@@ -874,79 +885,181 @@ namespace message_helper{
 namespace oneof_helper {
     using namespace bitis_helper;
 
-    template<typename ...> struct OneofAttribute;
-    template<typename T, uint32_t IDX> struct OneofAttribute<ETN<T, IDX>> {
-        typedef std::integral_constant<uint32_t, IDX> id;
-        typedef T type;
+    template<typename...> struct MaxSizeof;
+    template<typename T> struct MaxSizeof<T> {
+        static constexpr size_t value = sizeof(T);
+    };
+    template<typename T, typename... Ts> struct MaxSizeof<T, Ts...> {
+      static constexpr size_t value = std::max(sizeof(T), MaxSizeof<Ts...>::value);
     };
 
-    template<typename ...> struct OneOfTE;
+    template<typename ...> struct UnionT;
     template<typename ... Ts>
-    struct OneOfTE<Collector<Ts ...>> : OneofAttribute<Ts> ... { };
+    struct UnionT {
+    private:
+        void *data[MaxSizeof<Ts ...>::value] = {};
+    public:
+        template<typename T>
+        void set(T v) {
+            static_assert(ContainsType<T, Collector<Ts...>>::value);
+            *((T*)data) = v;
+        }
+        template<typename T>
+        T *get() {
+            static_assert(ContainsType<T, Collector<Ts...>>::value);
+            return (T*)data;
+        }
+    };
 
-    template<typename ... Ts>
-    struct OneOfT : OneOfTE<typename EnumeratedList<Ts...>::type> { };
+    // template<typename ...> struct OneofAttribute;
+    // template<typename T, uint32_t IDX> struct OneofAttribute<ETN<T, IDX>> {
+    //     typedef std::integral_constant<uint32_t, IDX> id;
+    //     typedef T type;
+    // };
+    //
+    // template<typename ...> struct OneOfTE;
+    // template<typename ... Ts>
+    // struct OneOfTE<Collector<Ts ...>> : OneofAttribute<Ts> ... { };
+    //
+    // template<typename ... Ts>
+    // struct OneOfT : OneOfTE<typename EnumeratedList<Ts...>::type> { };
+    //
+    // template<typename ...> struct OneOfT_Impl;
+    // template<typename OOT_STRUCT, typename OOT, typename T, typename ... Ts>
+    // struct OneOfT_Impl<OOT_STRUCT, OOT, Collector<T, Ts ...>> {
+    //     size_t serialize(OOT_STRUCT *d, BitisSerializer &ser) {
+    //         // ReSharper disable once CppCStyleCast
+    //         auto active_oneof = (uint32_t) d->oo_value;
+    //
+    //         auto data_pointer = d->template get_oo<T>();
+    //         if (data_pointer) {
+    //             // ReSharper disable once CppCStyleCast
+    //             const std::size_t r = d->serialize(ser);
+    //             return r;
+    //         }
+    //         OneOfT_Impl<OOT_STRUCT, OOT, Collector<Ts ...>> inner;
+    //         return inner.serialize(d, ser);
+    //     }
+    //     void oneof_print(OOT_STRUCT *d, int16_t indent, const char **oo_enums) {
+    //         // ReSharper disable once CppCStyleCast
+    //         auto active_oneof = (uint32_t) d->oo_selector;
+    //         if (active_oneof == T::id::value) {
+    //             // ReSharper disable once CppCStyleCast
+    //             printf("[%s] -> ", oo_enums[T::id::value]);
+    //             // ReSharper disable once CppCStyleCast
+    //             ((typename T::type *)&(d->oo))->print(indent);
+    //             // if (indent >= 0) printf(",\n");
+    //             // else printf(", ");
+    //             return;
+    //         }
+    //         OneOfT_Impl<OOT_STRUCT, OOT, Collector<Ts ...>> inner;
+    //         return inner.oneof_print(d, indent, oo_enums);
+    //     }
+    // };
+    // template<typename OOT_STRUCT, typename OOT>
+    // struct OneOfT_Impl<OOT_STRUCT, OOT, Collector<>> {
+    //     // ReSharper disable once CppMemberFunctionMayBeStatic
+    //     size_t serialize(OOT_STRUCT *d, BitisSerializer &ser) { return 0; }
+    //     void oneof_print(OOT_STRUCT *, int16_t , const char **) { }
+    // };
+    // template<typename ...> struct OneOfT_ImplStart;
+    // template<typename OOT_STRUCT, typename ... Ts>
+    // struct OneOfT_ImplStart<OOT_STRUCT, OneOfT<Ts ...>> {
+    //     size_t serialize(OOT_STRUCT *d, BitisSerializer &ser) {
+    //         // serialize enum for selected type
+    //         d->oo_value.serialize(ser);
+    //
+    //         // serialize selected type
+    //         OneOfT_Impl<OOT_STRUCT, OneOfT<Ts ...>, typename EnumeratedList<Ts ...>::type> inner;
+    //         return inner.serialize(d, ser);
+    //     }
+    //     void oneof_print(OOT_STRUCT *d, int16_t indent, const char **oo_enums) {
+    //         OneOfT_Impl<OOT_STRUCT, OneOfT<Ts ...>, typename EnumeratedList<Ts ...>::type> inner;
+    //         inner.oneof_print(d, indent, oo_enums);
+    //     }
+    // };
+    //
+    // template<typename OOTS>
+    // size_t oneof_serialize(OOTS *d, BitisSerializer &ser) {
+    //     OneOfT_ImplStart<OOTS, typename OOTS::OOEnum::EnumeratedEnumCollector> inner;
+    //     return inner.serialize(d, ser);
+    // }
+    // template<typename OOTS>
+    // void oneof_print(OOTS *d, int16_t indent, const char **oo_enums) {
+    //     // ReSharper disable once CppCStyleCast
+    //     OneOfT_ImplStart<OOTS, typename OOTS::OOEnum::EnumeratedEnumCollector> inner;
+    //     inner.oneof_print(d, indent, oo_enums);
+    // }
 
     template<typename ...> struct OneOfT_Impl;
-    template<typename OOT_STRUCT, typename OOT, typename T, typename ... Ts>
-    struct OneOfT_Impl<OOT_STRUCT, OOT, Collector<T, Ts ...>> {
+    template<typename OOT_STRUCT, typename T, typename ... Ts>
+    struct OneOfT_Impl<OOT_STRUCT, Collector<T, Ts ...>> {
         size_t serialize(OOT_STRUCT *d, BitisSerializer &ser) {
             // ReSharper disable once CppCStyleCast
-            auto active_oneof = (uint32_t) d->oo_selector;
-            if (active_oneof == T::id::value) {
+            auto data_pointer = d->template get_oo<T>();
+            if (data_pointer) {
                 // ReSharper disable once CppCStyleCast
-                const std::size_t r = ((typename T::type *)&(d->oo))->serialize(ser);
+                const std::size_t r = data_pointer->serialize(ser);
                 return r;
             }
-            OneOfT_Impl<OOT_STRUCT, OOT, Collector<Ts ...>> inner;
+            OneOfT_Impl<OOT_STRUCT, Collector<Ts ...>> inner;
             return inner.serialize(d, ser);
         }
-        void oneof_print(OOT_STRUCT *d, int16_t indent, const char **oo_enums) {
-            // ReSharper disable once CppCStyleCast
-            auto active_oneof = (uint32_t) d->oo_selector;
-            if (active_oneof == T::id::value) {
+        void oneof_print(OOT_STRUCT *d, int16_t indent) {
+            auto data_pointer = d->template get_oo<T>();
+            if (data_pointer) {
                 // ReSharper disable once CppCStyleCast
-                printf("[%s] -> ", oo_enums[T::id::value]);
-                // ReSharper disable once CppCStyleCast
-                ((typename T::type *)&(d->oo))->print(indent);
-                // if (indent >= 0) printf(",\n");
-                // else printf(", ");
+                data_pointer->print(indent);
                 return;
             }
-            OneOfT_Impl<OOT_STRUCT, OOT, Collector<Ts ...>> inner;
-            return inner.oneof_print(d, indent, oo_enums);
+            OneOfT_Impl<OOT_STRUCT, Collector<Ts ...>> inner;
+            return inner.oneof_print(d, indent);
         }
     };
-    template<typename OOT_STRUCT, typename OOT>
-    struct OneOfT_Impl<OOT_STRUCT, OOT, Collector<>> {
+    template<typename OOT_STRUCT>
+    struct OneOfT_Impl<OOT_STRUCT, Collector<>> {
         // ReSharper disable once CppMemberFunctionMayBeStatic
         size_t serialize(OOT_STRUCT *d, BitisSerializer &ser) { return 0; }
-        void oneof_print(OOT_STRUCT *, int16_t , const char **) { }
+        void oneof_print(OOT_STRUCT *, int16_t ) { }
     };
 
     template<typename ...> struct OneOfT_ImplStart;
     template<typename OOT_STRUCT, typename ... Ts>
-    struct OneOfT_ImplStart<OOT_STRUCT, OneOfT<Ts ...>> {
+    struct OneOfT_ImplStart<OOT_STRUCT, Collector<Ts ...>> {
         size_t serialize(OOT_STRUCT *d, BitisSerializer &ser) {
-            OneOfT_Impl<OOT_STRUCT, OneOfT<Ts ...>, typename EnumeratedList<Ts ...>::type> inner;
-            return inner.serialize(d, ser);
+            // serialize enum for selected type
+            auto bits_num = d->oo_selector.serialize(ser);
+
+            // serialize selected type
+            OneOfT_Impl<OOT_STRUCT, Collector<Ts ...>> inner;
+            return bits_num + inner.serialize(d, ser);
         }
-        void oneof_print(OOT_STRUCT *d, int16_t indent, const char **oo_enums) {
-            OneOfT_Impl<OOT_STRUCT, OneOfT<Ts ...>, typename EnumeratedList<Ts ...>::type> inner;
-            inner.oneof_print(d, indent, oo_enums);
+        void oneof_print(OOT_STRUCT *d, int16_t indent) {
+            d->oo_selector.print(indent);
+            printf(" -> ");
+            OneOfT_Impl<OOT_STRUCT, Collector<Ts ...>> inner;
+            inner.oneof_print(d, indent);
         }
     };
 
     template<typename OOTS>
     size_t oneof_serialize(OOTS *d, BitisSerializer &ser) {
-        OneOfT_ImplStart<OOTS, typename OOTS::OneOfT> inner;
+        OneOfT_ImplStart<OOTS, typename OOTS::OOEnum::EnumCollector> inner;
         return inner.serialize(d, ser);
     }
+
     template<typename OOTS>
-    void oneof_print(OOTS *d, int16_t indent, const char **oo_enums) {
+    BitiaDeserializerHelper<OOTS> oneof_deserialize(BitisDeserializer &des) {
+        // OneOfT_ImplStart<OOTS, typename OOTS::OOEnum::EnumCollector> inner;
+        // return inner.serialize(d, ser);
+        return BitiaDeserializerHelper<OOTS>{.bits=0, .data=OOTS()};
+    }
+
+    template<typename OOTS>
+    void oneof_print(OOTS *d, int16_t indent) {
         // ReSharper disable once CppCStyleCast
-        OneOfT_ImplStart<OOTS, typename OOTS::OneOfT> inner;
-        inner.oneof_print(d, indent, oo_enums);
+        OneOfT_ImplStart<OOTS, typename OOTS::OOEnum::EnumCollector> inner;
+        inner.oneof_print(d, indent);
     }
 
 }
