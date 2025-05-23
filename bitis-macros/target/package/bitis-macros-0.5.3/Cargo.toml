@@ -12,7 +12,7 @@
 [package]
 edition = "2024"
 name = "bitis-macros"
-version = "0.6.1"
+version = "0.6.2"
 build = false
 autolib = false
 autobins = false
