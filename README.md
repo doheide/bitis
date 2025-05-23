@@ -1,4 +1,6 @@
 # bitis
+This library/compiler is currently in an early **alpha version**! 
+
 <u>Bit</u>w<u>is</u>e data serialization is a Rust library with Python interface and a C++ implementation for bit-level serialization and deserialization, designed to be lightweight and efficient. It provides support for messages, enums, and various numeric types, including integers, floating points, dynamic-sized integers, and fixed-point numbers.
 Key Features
 
