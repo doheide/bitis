@@ -1,8 +1,12 @@
 #include "bitis_lib.h"
 #include <optional>
 
-// Enums
-{%+ for ce in d.enums ~%}
+{%+ for objo_name in object_order %}
+
+// ****** {{ objo_name }} *****
+{# ***************************************************************** -#}
+{#- Enums ***************************************************************** -#}
+{%+ for ce in d.enums ~%}{% if *objo_name == ce.name %}
 {%- if let Some(comment_impl) = ce.comment -%}
 ///{{comment_impl}}
 {%- endif -%}
@@ -14,31 +18,26 @@ namespace {{ ce.name }}Enum {
 typedef BitisEnum<bitis_helper::Collector<{%- for cv in ce.values %}
     {{ ce.name }}Enum::{{ cv|pascal_case }}{% if !loop.last %}, {% endif %}{%- endfor %}
 >, {{ce.bit_size}}> {{ ce.name }};
-{%- endfor -%}
+{%- endif -%}{%- endfor -%}
 
-{# *****************************************************************#}
-{# *****************************************************************#}
-// Enums for oneof
-{%+ for (_, coo) in d.oos -%}
+{#- *****************************************************************#}
+{#- Enums for oneof *****************************************************************#}
+{%+ for (_, coo) in d.oos -%}{% if *objo_name == coo.name %}
 struct {{ coo.name }}  {
     {%- for ca in coo.attributes %}
     struct OO_{{ca.base.name|pascal_case}} {
-        static constexpr auto name = "{{ca.base.name|pascal_case}}"; typedef {{ ca.rust_type_str|safe}} Type; };
+        static constexpr auto name = "{{ca.base.name|pascal_case}}"; typedef {{ ca.rust_type_str|safe}} OOType; };
     {%- endfor %}
 
     typedef BitisEnum<bitis_helper::Collector<{%- for ca in coo.attributes %}
         OO_{{ca.base.name|pascal_case}}{% if !loop.last %}, {% endif %}{%- endfor %}
-    >, {{coo.dyn_bits}}> OOEnum;
+    >, {{coo.dyn_bits}}> T_OOEnum;
+    T_OOEnum oo_selector;
 
-    OOEnum oo_selector;
-//    union {
-//        char _base;{%- for ca in coo.attributes %}
-//        OO_{{ca.base.name|pascal_case}}::OOType {{ca.base.name}};
-//        {%- endfor %}
-//    } oo;
-    oneof_helper::UnionT<
+    typedef oneof_helper::UnionT<
         {% for ca in coo.attributes -%}OO_{{ca.base.name|pascal_case}}::OOType{% if !loop.last %}, {% endif %}{%- endfor %}
-    > oo_value;
+    > T_OOValue;
+    T_OOValue oo_value;
 
     {{ coo.name }}() : oo_selector(), oo_value() {}
 
@@ -50,27 +49,44 @@ struct {{ coo.name }}  {
         return *this;
     }
     template<typename OOT>
-    OOT *get_oo() {
+    typename OOT::OOType *get_oo() const {
         static_assert(oneof_helper::ContainsType<OOT, OOEnum::EnumCollector>::value);
         if(oo_selector.is_enum<OOT>())
-            return oo_value.get<OOT>();
+            return oo_value.get<typename OOT::OOType>();
         return nullptr;
     }
+    template<typename OOT>
+    bool is_oo_value() const {
+        static_assert(oneof_helper::ContainsType<OOT, OOEnum::EnumCollector>::value);
+        if(oo_selector.is_enum<OOT>())
+            return true;
+        return false;
+    }
 
-    std::size_t serialize(BitisSerializer &ser) const {
+    std::size_t serialize(BitisSerializer &ser) {
         return oneof_helper::oneof_serialize(this, ser);
     }
-    void print(const int16_t indent=0) {
-        printf("Oneof ");
-        oneof_helper::oneof_print(this, (indent>=0) ? indent + 2 : indent, oo_enums);
+    static bitis_helper::BitiaDeserializerHelper<{{ coo.name }}> deserialize(BitisDeserializer &des) {
+        return oneof_helper::oneof_deserialize<{{ coo.name }}>(des);
     }
-};
-{%- endfor %}
 
-{# *****************************************************************#}
-{# *****************************************************************#}
-// Messages
-{% for cm in d.msgs ~%}
+    void print(const int16_t indent=0) {
+        printf("Oneof = ");
+        oneof_helper::oneof_print(this, (indent>=0) ? indent + 2 : indent);
+    }
+
+    bool is_equal(const {{ coo.name }} &other) const {
+        if (oo_selector != other.oo_selector) return false;
+        return oneof_helper::oneof_is_equal(this, &other);
+    }
+    bool operator==(const {{ coo.name }} &other) const { return is_equal(other); }
+    bool operator!=(const {{ coo.name }} &other) const { return !is_equal(other); }
+};
+{%- endif %}{%- endfor -%}
+
+{#- *****************************************************************#}
+{#- Messages *****************************************************************#}
+{% for cm in d.msgs ~%}{%- if *objo_name == cm.name -%}
 {%- if let Some(comment_impl) = cm.comment -%}
 ///{{comment_impl}}
 {%- endif -%}
@@ -102,8 +118,15 @@ struct {{cm.name|pascal_case}} {
         print_indent(indent); printf("}");
         // if (indent>=0) printf("\n");
     }
+
+    bool is_equal(const {{cm.name|pascal_case}} &other) const {
+        return {% for ca in cm.attributes +%}{{ca.base.name}}==other.{{ca.base.name}}{% if !loop.last %} && {% endif %} {%- endfor %};
+   }
+    bool operator==(const {{cm.name|pascal_case}} &other) const { return is_equal(other); }
+    bool operator!=(const {{cm.name|pascal_case}} &other) const { return !is_equal(other); }
 };
 const char *{{cm.name|pascal_case}}::msg_attr[] = { {%- for ca in cm.attributes -%}"{{ca.base.name}}"{% if !loop.last %}, {% endif %}{%- endfor -%}};
 
-{% endfor %}
+{%- endif -%}{%- endfor -%}
 
+{%- endfor -%}

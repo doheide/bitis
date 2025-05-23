@@ -262,12 +262,15 @@ fn main() {
                         pb.push(format!("{}.h", input_file_wo_ext.to_str().unwrap()).as_str());
                         pb
                     };
-                    let rdo = CppDataObjects{ d: JinjaData{enums: processed_bitis.enums,
+                    
+                    let jd = JinjaData{enums: processed_bitis.enums,
                         msgs: to_cpp_messages(&processed_bitis.msgs),
-                        oos: to_cpp_oneofs(&processed_bitis.oo_enums,&processed_bitis.msgs) } };
-
+                        oos: to_cpp_oneofs(&processed_bitis.oo_enums, &processed_bitis.msgs) };
+                    let object_order = dependencies_process(jd.clone());
+                    let rdo = CppDataObjects{ d: jd, object_order };
+                    
                     let rendered = rdo.render().unwrap();
-                    println!("{}", rendered);
+                    // println!("{}", rendered);
                     fs::write(output_file.clone(), rendered).expect("Unable to write file");
                     println!("Written to {}", output_file.to_str().unwrap());
                 }

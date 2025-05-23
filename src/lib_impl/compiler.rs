@@ -168,7 +168,7 @@ fn to_cpp_attribute(attribute: &Attribute, msg_names: &Vec<String>) -> Attribute
                         (base.clone(), base) }
                     SimpleType::FixedPrecision(fpp) => {
                         add_val = true;
-                        (format!("FixPrecisionMinMax<{}, {}, {}>", fpp.bits, fpp.min_val, fpp.max_val), "f64".to_string())
+                        (format!("FixPrecisionMinMax<{}, {}, {}>", fpp.bits, fpp.min_val, fpp.max_val), "double".to_string())
                     }
                     SimpleType::Binary(b) => {
                         add_val = true;
@@ -240,7 +240,8 @@ pub struct PyTypeHints {
 #[derive(Template, Clone, Debug)]
 #[template(path = "data_objects.cpp.jinja")]
 pub struct CppDataObjects {
-    pub d: JinjaData
+    pub d: JinjaData,
+    pub object_order: Vec<String>,
 }
 
 
@@ -290,7 +291,7 @@ pub enum SimpleType {
     UIntDyn((u8,u8)), IntDyn((u8,u8)),
     Float, Double,
     FixedPrecision(FixedPrecisionProperties),
-    Binary(u8)
+    Binary(u8),
 }
 /*impl SimpleType {
     fn int_size(min_bits: u8) -> std::result::Result<u8, String> {
@@ -439,6 +440,7 @@ pub enum Token{
     #[regex(r"-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?",
         |lex| lex.slice().parse::<f64>().unwrap(), priority=2)] Number(f64),
     #[token("bool", priority=30)] Bool,
+    #[token("msg_size_type", priority=30)] MsgSizeType,
     #[regex(r"uint_[0-9]+", get_suffix_number, priority=30)] UIntFixed(u8),
     #[regex(r"int_[0-9]+", get_suffix_number, priority=30)] IntFixed(u8),
     #[regex(r"uint_[0-9]+d[0-9]+", get_d_suffix_numbers, priority=31)] UIntDyn((u8,u8)),
@@ -454,8 +456,7 @@ pub enum Token{
     #[token("optional", priority=30)] Optional,
     #[regex(r"[A-Za-z][A-Za-z0-9_-]+", |lex| lex.slice().to_owned(), priority=11)] StringVal(String),
     #[token("false", |_| false, priority=20)]
-    #[token("true", |_| true, priority=20)]
-    BoolVal(bool),
+    #[token("true", |_| true, priority=20)] BoolVal(bool),
     #[regex(r"\( *([0-9]+) *\)", get_enum_bit_size, priority=40)] EnumDynSize(u8),
 }
 
@@ -520,7 +521,6 @@ macro_rules! parse_one_token_with_arg {
         }
     }
 }
-
 
 pub fn parse_root(lexer: &mut Lexer<'_, Token>) -> Result<Vec<Value>> {
     let mut list: Vec<Value> = Vec::new();
@@ -634,7 +634,6 @@ pub fn parse_attribute(last_token: Token, lexer: &mut Lexer<'_, Token>,
             Token::Optional => is_optional = true,
             Token::RepeatedDyn(b) => is_repeated_and_size = Some(DynOrFixedType::Dyn(b)),
             Token::RepeatedFixed(b) => is_repeated_and_size = Some(DynOrFixedType::Fixed(b)),
-
             Token::Bool => { attr_type = SimpleType::Bool; break; },
             Token::UIntFixed(s) => { attr_type = SimpleType::UIntFixed(s); break; },
             Token::UIntDyn((m,s)) => { attr_type = SimpleType::UIntDyn((m, s)); break; },
@@ -847,6 +846,11 @@ pub fn parse_enum(lexer: &mut Lexer<'_, Token>, comment: Option<String>) -> Resu
 */
 // Struct that collects all bitis information
 #[derive(Debug, Clone)]
+pub struct Dependencies {
+    pub in_deps: Vec<String>,
+    pub out_deps: Vec<String>,
+}
+#[derive(Debug, Clone)]
 pub struct BitisProcessed {
     pub max_version_number: u16,
     pub msgs: Vec<Message>,
@@ -1029,10 +1033,66 @@ pub fn process_and_validate_bitis(parsed_bitis: &Vec<Value>) -> BitisProcessed {
         //...
     }
 
+
     BitisProcessed { max_version_number: 0, msgs, enums, oo_enums}
 }
 
+pub fn dependencies_process(jd: JinjaData) -> Vec<String>{
+    let mut dependencies = HashMap::new();
 
+    for msgs in jd.msgs.clone() {
+        dependencies.insert(
+            msgs.name.clone(), Dependencies{in_deps: vec![], out_deps: vec![]});
+    }
+    for enm in jd.enums {
+        dependencies.insert(
+            enm.name.clone(), Dependencies{in_deps: vec![], out_deps: vec![]});
+    }
+    for (_, oos) in jd.oos.clone() {
+        dependencies.insert(
+            oos.name.clone(), Dependencies{in_deps: vec![], out_deps: vec![]});
+    }
+
+    // msgs
+    for msgs in jd.msgs {
+        for attr in msgs.attributes {
+            if attr.is_enum || attr.is_msg || attr.is_oo {
+                dependencies.get_mut(&attr.rust_type_str).unwrap().out_deps.push(msgs.name.clone());
+                dependencies.get_mut(&msgs.name).unwrap().in_deps.push(attr.rust_type_str.clone());
+            }
+        }
+    }
+    for (_, msgs) in jd.oos {
+        for attr in msgs.attributes {
+            if attr.is_enum || attr.is_msg || attr.is_oo {
+                dependencies.get_mut(&attr.rust_type_str).unwrap().out_deps.push(msgs.name.clone());
+                dependencies.get_mut(&msgs.name).unwrap().in_deps.push(attr.rust_type_str.clone());
+            }
+        }
+    }
+    println!("{:#?}", dependencies.clone());
+
+    let mut object_order = Vec::new();
+    while dependencies.len() > 0 {
+        let mut cobjs: Vec<_> = dependencies.clone().iter().filter_map(|(obj_name, deps)| {
+            if deps.in_deps.len() == 0 { Some(obj_name.clone()) }
+            else { None }
+        }).collect();
+
+        for co in cobjs.clone() {
+            dependencies.remove(&co);
+        }
+        for co in cobjs.clone() {
+            for (_, deps) in &mut dependencies {
+                deps.in_deps.retain(|x| *x != co);
+            }
+        }
+        object_order.append(&mut cobjs);
+    }
+    println!("{:?}", object_order);
+
+    object_order
+}
 // ***************************************************
 
 #[cfg(test)]
