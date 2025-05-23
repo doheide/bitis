@@ -75,8 +75,11 @@ impl Biseri {
     pub fn data_size_bytes(&self) -> u64 {
         self.data_cache.len() as u64
     }
-    pub fn get_data(&self) -> &Vec<u8> {
+    pub fn get_data_ref(&self) -> &Vec<u8> {
         &self.data_cache
+    }
+    pub fn get_data(&self) -> Vec<u8> {
+        self.data_cache.clone()
     }
 
     fn add_data_base_u8(&mut self, cur_u8: &u8, total_bits: u64) -> u64 {
@@ -144,10 +147,11 @@ impl Biseri {
 pub struct Bides {
     cur_read_pos: u64,
     sub_byte_counter: u8,
-    data_cache: Vec<u8>,
+    pub data_cache: Vec<u8>,
 }
 #[allow(dead_code)]
 impl Bides {
+    pub fn new() -> Bides { Bides { cur_read_pos: 0, sub_byte_counter: 0, data_cache: Vec::new() } }
     pub fn from_vec(data: &Vec<u8>) -> Bides {
         Bides{sub_byte_counter: 0, data_cache: data.clone(), cur_read_pos: 0}
     }
@@ -155,8 +159,16 @@ impl Bides {
         Bides{sub_byte_counter: 0, data_cache: biseri.get_data().clone(), cur_read_pos: 0}
     }
 
+    pub fn append_data(&mut self, data: &Vec<u8>) {
+        self.data_cache.extend(data);
+    }
+
+    pub fn reset_position(&mut self) {
+        self.sub_byte_counter = 0;
+        self.cur_read_pos = 0;
+    }
     pub fn decode_data_base_u8(&mut self, total_bits: u64) -> Option<(u8, u64)> {
-        if self.cur_read_pos as usize >= self.data_cache.len() { return None}
+        if self.cur_read_pos as usize >= self.data_cache.len() { return None }
         let mut cur_u16: u16 = self.data_cache[self.cur_read_pos as usize] as u16;
         if (self.cur_read_pos + 1 < self.data_cache.len() as u64) && (self.sub_byte_counter > 0) {
             cur_u16 += (self.data_cache[(self.cur_read_pos + 1) as usize] as u16) << 8;
@@ -266,7 +278,7 @@ impl_biserdi_var_bitsize_trait!(i64, i64::BITS>>3);
 impl_biserdi!(f32, 32);
 impl_biserdi!(f64, 64);
 
-impl<T> BiserdiTrait for Option<T> where T: BiserdiTrait + Default + Copy {
+impl<T> BiserdiTrait for Option<T> where T: BiserdiTrait + Default {
     fn bit_serialize(self: &Self, biseri: &mut Biseri) -> Option<u64> {
         let mut size = 1;
         match self {
@@ -293,40 +305,8 @@ impl<T> BiserdiTrait for Option<T> where T: BiserdiTrait + Default + Copy {
     }
 }
 
-/* impl<T, const N: usize> BiserdiTrait for [T; N] where T: BiserdiTrait + Default + Copy {
-    fn bit_serialize(self: &Self, biseri: &mut Biseri) -> Option<u64> {
-        let mut s = 0;
-        for i in 0..N { s += self[i].bit_serialize(biseri)?; }
-        Some(s)
-    }
-    fn bit_deserialize(version_id: u16, bides: &mut Bides) -> Option<(Self, u64)> {
-        let mut v: Self = [T::default(); N];
-        let mut bits = 0;
-        let mut cur_bits;
-        for i in 0..N { (v[i], cur_bits) = T::bit_deserialize(version_id, bides)?; bits += cur_bits; }
-        Some((v, bits))
-    }
-}
-impl<T, const N: usize> BiserdiTraitVarBitSize for [T; N] where T: BiserdiTraitVarBitSize + Default + Copy {
-    fn bit_serialize(self: &Self, total_bits_per_unit: u64, biseri: &mut Biseri) -> Option<u64> {
-        let mut s = 0;
-        for i in 0..N {
-            s += self[i].bit_serialize(total_bits_per_unit, biseri)?;
-        }
-        Some(s)
-    }
-    fn bit_deserialize(version_id: u16, total_bits_per_unit: u64, bides: &mut Bides) -> Option<(Self, u64)> {
-        let mut v: Self = [T::default(); N];
-        let mut bits = 0;
-        let mut cur_bits;
-        for i in 0..N {
-            (v[i], cur_bits) = T::bit_deserialize(version_id, total_bits_per_unit, bides)?; bits += cur_bits; }
-        Some((v, bits))
-    }
-} */
-
 #[derive(Debug, Clone, PartialEq, Eq, Copy)]
-pub struct FixedArray<T, const N: usize> { pub val: [T; N] }
+pub struct FixedArray<T: Default, const N: usize> { pub val: [T; N] }
 impl<T, const N: usize> BiserdiTrait for FixedArray<T, N> where T: BiserdiTrait + Default + Copy {
     fn bit_serialize(self: &Self, biseri: &mut Biseri) -> Option<u64> {
         let mut s = 0;
@@ -358,13 +338,18 @@ impl<T, const N: usize> BiserdiTraitVarBitSize for FixedArray<T, N> where T: Bis
         Some((Self{ val: v}, bits))
     }
 }
-impl<T: Sized + Copy + BiserdiTrait, const N: usize> From<[T; N]> for FixedArray<T, N> {
+impl<T: Sized + Copy + BiserdiTrait + Default, const N: usize> From<[T; N]> for FixedArray<T, N> {
     fn from(val: [T;N]) -> Self { Self{ val: val.clone()} } }
-impl<T: Sized + Copy + Display, const N: usize> std::fmt::Display for FixedArray<T, N> {
+impl<T: Sized + Copy + Display + Default, const N: usize> std::fmt::Display for FixedArray<T, N> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         let das: Vec<String> = self.val.iter().map(|v| format!("{}", v)).collect();
         write!(f, "[{}]", das.join(", "))
     } }
+impl<T: Sized + Copy + BiserdiTrait + Default, const N: usize> Default for FixedArray<T, N>  {
+    fn default() -> Self {
+        Self{val: [T::default(); N]}
+    }
+}
 
 pub struct DynArray<T, const DYNSIZEBITS: u8> { pub val: Vec<T> }
 impl<T, const DYNSIZEBITS: u8> BiserdiTrait for DynArray<T, DYNSIZEBITS> where T: BiserdiTrait + Default + Copy {
@@ -400,25 +385,35 @@ impl<T: Sized + Copy + BiserdiTraitVarBitSize + Display, const DYNSIZEBITS: u8> 
         let das: Vec<String> = self.val.iter().map(|v| v.to_string()).collect();
         write!(f, "[{} |dynbits:{}]", das.join(", "), DYNSIZEBITS)
     } }
+impl<T: Sized + Copy + BiserdiTraitVarBitSize, const DYNSIZEBITS: u8> Default for DynArray<T, DYNSIZEBITS> {
+    fn default() -> Self {
+        Self{val: Vec::new()}
+    }
+}
 
 
 #[derive(Debug, Clone, PartialEq, Eq, Default, Copy)]
-pub struct VarWithGivenBitSize<T: Sized + Copy + BiserdiTraitVarBitSize, const NUM_BITS: u64> {
+pub struct VarWithGivenBitSize<T: Sized + Copy + BiserdiTraitVarBitSize + Default, const NUM_BITS: u64> {
     pub val: T
 }
-impl<T: Sized + Copy + BiserdiTraitVarBitSize, const NUM_BITS: u64> VarWithGivenBitSize<T, NUM_BITS> {
+impl<T: Sized + Copy + BiserdiTraitVarBitSize + Default, const NUM_BITS: u64> VarWithGivenBitSize<T, NUM_BITS> {
     pub fn new(v: T) -> Self { VarWithGivenBitSize {val: v} }
 }
-impl<T: Sized + Copy + BiserdiTraitVarBitSize, const NUM_BITS: u64> From<T> for VarWithGivenBitSize<T, NUM_BITS> {
+impl<T: Sized + Copy + BiserdiTraitVarBitSize + Default, const NUM_BITS: u64> From<T> for VarWithGivenBitSize<T, NUM_BITS> {
     fn from(val: T) -> Self {
         VarWithGivenBitSize::<T, NUM_BITS>::new(val)
     }
 }
-impl<T: Sized + Copy + BiserdiTraitVarBitSize + Display, const NUM_BITS: u64> std::fmt::Display for VarWithGivenBitSize<T, NUM_BITS> {
+// impl<const NUM_BITS: u64> From<usize> for VarWithGivenBitSize<usize, NUM_BITS> {
+//     fn from(val: usize) -> Self {
+//         VarWithGivenBitSize::<usize, NUM_BITS>::new(val)
+//     }
+// }
+impl<T: Sized + Copy + BiserdiTraitVarBitSize + Display + Default, const NUM_BITS: u64> std::fmt::Display for VarWithGivenBitSize<T, NUM_BITS> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "{} |bits:{}", self.val, NUM_BITS)
 } }
-impl<T: Sized + Copy + BiserdiTraitVarBitSize, const NUM_BITS: u64> BiserdiTrait for VarWithGivenBitSize<T, NUM_BITS> {
+impl<T: Sized + Copy + BiserdiTraitVarBitSize + Default, const NUM_BITS: u64> BiserdiTrait for VarWithGivenBitSize<T, NUM_BITS> {
     fn bit_serialize(self: &Self, biseri: &mut Biseri) -> Option<u64> {
         self.val.bit_serialize(NUM_BITS, biseri)
     }
@@ -428,20 +423,21 @@ impl<T: Sized + Copy + BiserdiTraitVarBitSize, const NUM_BITS: u64> BiserdiTrait
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Default, Copy)]
 pub struct DynInteger<
-    T: Sized + Copy + BiserdiTraitVarBitSize + AddAssign + Shl<Output = T> + Shr + Ord + PartialEq + TryFrom<u64>
-    + IntegerBaseFunctions, const N: u8> {
+    T: Sized + Copy + BiserdiTraitVarBitSize + AddAssign + Shl<Output = T> + Shr + Ord + PartialEq //+ TryFrom<u64>
+    + IntegerBaseFunctions + Default, const N: u8> {
     pub val: T
 }
 impl<T: Display + Sized + Copy + BiserdiTraitVarBitSize + AddAssign + Shl<Output = T> + Shr + Ord + PartialEq + TryFrom<u64>
-    + IntegerBaseFunctions, const N: u8> DynInteger<T, N> {
+    + IntegerBaseFunctions + Default, const N: u8> DynInteger<T, N> {
     const DYN_SIZE: u8 = N;
     pub fn new(v: T) -> Self{
         DynInteger{val: v}
     }
 }
 impl<T: Display + Sized + Copy + BiserdiTraitVarBitSize + AddAssign + Shl<Output = T> + Shr + Ord + PartialEq + TryFrom<u64>
-    + IntegerBaseFunctions, const N: u8> BiserdiTrait for DynInteger<T, N> {
+    + IntegerBaseFunctions + Default, const N: u8> BiserdiTrait for DynInteger<T, N> {
     fn bit_serialize(self: &Self, biseri: &mut Biseri) -> Option<u64> {
         // let br = self.bits_required();
         // let dyn_sections = br / Self::DYN_SIZE;
@@ -484,19 +480,21 @@ impl<T: Display + Sized + Copy + BiserdiTraitVarBitSize + AddAssign + Shl<Output
     }
 }
 impl<T: Display + Sized + Copy + BiserdiTraitVarBitSize + AddAssign + Shl<Output = T> + Shr + Ord + PartialEq + TryFrom<u64>
-    + IntegerBaseFunctions, const N: u8> Display for DynInteger<T, N> {
+    + IntegerBaseFunctions + Default, const N: u8> Display for DynInteger<T, N> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "{} |dynbits:{}]", self.val, N)
     } }
 
+
 // ***
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub enum FixPrecisionVal {
+    #[default]
     Overflow,
     Value(f64),
     Underflow
 }
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct FixPrecisionMinMax<const NUM_BITS: u8, const MIN_IVALUE: i64, const MAX_IVALUE: i64> {
     pub val: FixPrecisionVal
 }
@@ -553,6 +551,9 @@ pub struct Binary<const DYNSIZEBITS: u8> {
 impl<const DYNSIZEBITS: u8> Binary<DYNSIZEBITS> {
     pub fn new(data: Vec<u8>) -> Self {
         Self{ val: data }
+    }
+    pub fn empty() -> Self {
+        Self{val: Vec::new()}
     }
 }
 impl<const DYNSIZEBITS: u8> BiserdiTrait for Binary<DYNSIZEBITS> {
@@ -1011,6 +1012,24 @@ mod bitis_base_serialization_deserialization {
         let vv = vv.unwrap().0;
 
         assert_eq!(v.val, vv.val);
+    }
+
+    #[rstest]
+    fn ser_and_deserialize_fixed_int_not_enough_data() {
+        let mut ser = Biseri::new();
+
+        let v = VarWithGivenBitSize::<u32, 20>::new(1111);
+        v.bit_serialize(&mut ser);
+
+        let (bits, bytes) = ser.finish_add_data().unwrap();
+        println!("bits: {}, bytes: {}", bits, bytes);
+
+        let mut der = Bides::from_biseri(&ser);
+        der.data_cache.truncate(1);
+        let vv = VarWithGivenBitSize::<u32, 20>::bit_deserialize(1, &mut der);
+
+        println!("v: {:?}, vv: {:?}", v, vv);
+        assert!(vv.is_none());
     }
 
     #[rstest]
