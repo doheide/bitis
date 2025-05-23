@@ -1,7 +1,6 @@
 use bitis_lib::*;
 
 // Enums
-
 #[derive(BiserdiEnum, Debug, Clone, PartialEq)]
 #[biserdi_enum_id_dynbits(4)]
 #[allow(nonstandard_style)]
@@ -13,17 +12,15 @@ pub enum Numbers {
 }
 
 // Enums for oneof
-
 #[derive(BiserdiOneOf, Debug, Clone, PartialEq)]
 #[biserdi_enum_id_dynbits(4)]
 #[allow(nonstandard_style)]
 pub enum OO_ParamTestWithInner_Action {
-  inner(Inner),
-  val(VarWithGivenBitSize<u8, 3>),
+  Inner(Inner),
+  Val(VarWithGivenBitSize<u8, 3>),
 }
 
 // Messages
-
 #[derive(BiserdiMsg, Debug, Clone, PartialEq)]
 #[allow(nonstandard_style)]
 pub struct Inner {

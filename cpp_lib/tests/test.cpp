@@ -455,8 +455,10 @@ namespace test_msg {
 
         auto ser = BitisSerializer();
         // auto r = serialize(a, ser);
-        auto r = d.serialize(ser);
-        printf("r: %" PRIu64 "\n", r);
+        d.serialize(ser);
+        auto r = ser.finalize();
+        printf("serialized data: "); print_u8vec_as_hex(ser.data_cache); printf("\n");
+        printf("bits: %zu, bytes: %zu\n", r.bits, r.bytes);
     }
 
 }
@@ -486,6 +488,11 @@ namespace test_oneof {
             print_indent(indent); printf("}");
             // if (indent>=0) printf("\n");
         }
+        bool is_equal(const MsgInner &other) const {
+            return a==other.a && b==other.b;
+        }
+        bool operator==(const MsgInner &other) const { return is_equal(other); }
+        bool operator!=(const MsgInner &other) const { return !is_equal(other); }
     };
     const char *MsgInner::msg_attr[] = {"a", "b"};
 
@@ -499,11 +506,12 @@ namespace test_oneof {
             OO_Inner,
             OO_Val
         >, 4> OOEnum;
-
         OOEnum oo_selector;
-        oneof_helper::UnionT<
+
+        typedef oneof_helper::UnionT<
             OO_Inner::OOType, OO_Val::OOType
-        > oo_value;
+        > OO_Value;
+        OO_Value oo_value;
 
         OO_ParamTestWithOo_Action() : oo_selector(), oo_value() {}
 
@@ -515,11 +523,18 @@ namespace test_oneof {
             return *this;
         }
         template<typename OOT>
-        typename OOT::OOType *get_oo() {
+        typename OOT::OOType *get_oo() const {
             static_assert(oneof_helper::ContainsType<OOT, OOEnum::EnumCollector>::value);
             if(oo_selector.is_enum<OOT>())
                 return oo_value.get<typename OOT::OOType>();
             return nullptr;
+        }
+        template<typename OOT>
+        bool is_oo_value() const {
+            static_assert(oneof_helper::ContainsType<OOT, OOEnum::EnumCollector>::value);
+            if(oo_selector.is_enum<OOT>())
+                return true;
+            return false;
         }
 
         std::size_t serialize(BitisSerializer &ser) {
@@ -532,11 +547,16 @@ namespace test_oneof {
             printf("Oneof = ");
             oneof_helper::oneof_print(this, (indent>=0) ? indent + 2 : indent);
         }
+        bool is_equal(const OO_ParamTestWithOo_Action &other) const {
+            if (oo_selector != other.oo_selector) return false;
+            return oneof_helper::oneof_is_equal(this, &other);
+        }
+        bool operator==(const OO_ParamTestWithOo_Action &other) const { return is_equal(other); }
+        bool operator!=(const OO_ParamTestWithOo_Action &other) const { return !is_equal(other); }
     };
 
     struct MsgC {
         static const char *msg_attr[];
-        // static constexpr const char* msg_attr[] = {"a", "val", "b"};
 
         typedef message_helper::MessageT<
             IntgralWithGivenBitSize<uint16_t, 3>,
@@ -551,6 +571,9 @@ namespace test_oneof {
         std::size_t serialize(BitisSerializer &ser) const {
             return message_helper::msg_serialize(this, ser);
         }
+        static bitis_helper::BitiaDeserializerHelper<MsgC> deserialize(BitisDeserializer &des) {
+            return message_helper::msg_deserialize<MsgC>(des);
+        }
         void print(int16_t indent=0) {
             print_indent(indent); printf("MsgC{ ");
             if (indent>=0) printf("\n");
@@ -558,6 +581,12 @@ namespace test_oneof {
             print_indent(indent); printf("}");
             // if (indent>=0) printf("\n");
         }
+        bool is_equal(const MsgC &other) const {
+            printf("a: %d, b: %d, val:  %d\n", a == other.a, b == other.b, val == other.val);
+            return a == other.a && b == other.b && val == other.val;
+        }
+        bool operator==(const MsgC &other) const { return is_equal(other); }
+        bool operator!=(const MsgC &other) const { return !is_equal(other); }
     };
     const char *MsgC::msg_attr[] = {"a", "val", "b"};
 
@@ -567,10 +596,9 @@ namespace test_oneof {
                 .a = IntgralWithGivenBitSize<uint16_t, 3>(3),
                 .val = OO_ParamTestWithOo_Action().set_oo<OO_ParamTestWithOo_Action::OO_Val>(
                     OO_ParamTestWithOo_Action::OO_Val::OOType(2)),
-                .b = IntgralWithGivenBitSize<uint16_t, 3>(5),
+                // .b = IntgralWithGivenBitSize<uint16_t, 3>(5),
             };
-            d.print(0);
-            printf("\n");
+            printf("*d: \n"); d.print(0); printf("\n");
 
             // ***
             auto ser = BitisSerializer();
@@ -578,6 +606,12 @@ namespace test_oneof {
             auto r = ser.finalize();
             printf("bits: %zu, bytes: %zu\n", r.bits, r.bytes);
             printf("serialized data: "); print_u8vec_as_hex(ser.data_cache); printf("\n");
+
+            // ***
+            auto des = BitisDeserializer(ser.data_cache);
+            auto dd = MsgC::deserialize(des);
+            printf("deserialized data:\n"); dd.data.print(-1); printf("\n");
+            EXPECT_TRUE(d==dd.data);
         }
         {
             auto d = MsgC{

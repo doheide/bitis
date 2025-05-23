@@ -20,10 +20,12 @@ msg ParamTestWithInner {
 }
 
 msg ParamTestWithOO {
+  msg_size_type size;
   uint_4 param_1;
   oneof action(4) {
     Inner inner;
     int_3 val;
   }
+  Numbers num;
 }
 

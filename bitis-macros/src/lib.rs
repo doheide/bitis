@@ -24,7 +24,7 @@ pub fn biserdi_msg(item: TokenStream) -> TokenStream {
             // let size_identifier = quote::format_ident!("s");
             let bit_serialize_self_identifier = quote::format_ident!("self");
 
-            for field in fields {
+            for (idx, field) in fields.iter().enumerate() {
                 let identifier = field.ident.as_ref().unwrap();
                 let ty = field.ty.clone();
                 let temp_identifier = quote::format_ident!("t_{}", identifier);
