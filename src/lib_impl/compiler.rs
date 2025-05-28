@@ -383,7 +383,7 @@ pub fn get_d_suffix_numbers(lex: &mut Lexer<Token>) -> Option<(u8,u8)> {
 }
 pub fn get_fp_properties_number(lex: &mut Lexer<Token>) -> Option<FixedPrecisionProperties> {
     let slice = lex.slice();
-    let re = Regex::new(r".?fp_([0-9]+)\[ *(-?[0-9]+) *, *(-?[0-9]+) *]").unwrap();
+    let re = Regex::new(r"fp_([0-9]+)\[ *(-?[0-9]+) *, *(-?[0-9]+) *]").unwrap();
     let bits = re.captures(slice)?.get(1)?.as_str().parse::<u8>().ok()?;
     let min_val = re.captures(slice)?.get(2)?.as_str().parse::<i64>().ok()?;
     let max_val = re.captures(slice)?.get(3)?.as_str().parse::<i64>().ok()?;
@@ -448,7 +448,7 @@ pub enum Token{
     #[token("float", priority=30)] Float,
     #[token("double", priority=30)] Double,
     #[regex(r"fp_[0-9]+\[ *-?[0-9]+ *, *-?[0-9]+ *]", get_fp_properties_number, priority=30)] FixedPoint(FixedPrecisionProperties),
-    #[regex(r"ufp_[0-9]+\[ *-?[0-9]+ *, *-?[0-9]+ *]", get_fp_properties_number, priority=30)] UFixedPoint(FixedPrecisionProperties),
+    // #[regex(r"ufp_[0-9]+\[ *-?[0-9]+ *, *-?[0-9]+ *]", get_fp_properties_number, priority=30)] UFixedPoint(FixedPrecisionProperties),
     //#[token("str", priority=30)] String,
     #[token("binary_d[0-9]+", get_suffix_number, priority=30)] Binary(u8),
     #[regex(r"repeated_dyn_[0-9]+", get_suffix_number, priority=30)] RepeatedDyn(u8),
@@ -636,9 +636,19 @@ pub fn parse_attribute(last_token: Token, lexer: &mut Lexer<'_, Token>,
             Token::RepeatedFixed(b) => is_repeated_and_size = Some(DynOrFixedType::Fixed(b)),
             Token::Bool => { attr_type = SimpleType::Bool; break; },
             Token::UIntFixed(s) => { attr_type = SimpleType::UIntFixed(s); break; },
+            Token::UIntDyn((m,s)) if m < s =>
+                return Err(("Error: Unsigned dyn integer bit size of integer type must be bigger than the bit size of the package".to_owned(), lexer.span())),
+            Token::UIntDyn((m,_)) if (m & 3) != 0 =>
+                return Err(("Error: Unsigned dyn integer bit size of integer type must be a multiple of 8".to_owned(), lexer.span())),
             Token::UIntDyn((m,s)) => { attr_type = SimpleType::UIntDyn((m, s)); break; },
             Token::IntFixed(s) => { attr_type = SimpleType::IntFixed(s); break; },
-            Token::IntDyn((m,s)) => { attr_type = SimpleType::IntDyn((m,s)); break; },
+            Token::IntDyn((m,s)) if m < s =>
+                return Err(("Error: Unsigned dyn integer bit size of integer type must be bigger than the bit size of the package".to_owned(), lexer.span())),
+            Token::IntDyn((m,_)) if (m & 3) != 0 =>
+                return Err(("Error: Unsigned dyn integer bit size of integer type must be a multiple of 8".to_owned(), lexer.span())),
+            Token::IntDyn((m,s)) => {
+                attr_type = SimpleType::IntDyn((m,s)); break;
+            },
             //Token::String => { attr_type = SimpleType::String; break; },
             Token::Float => { attr_type = SimpleType::Float; break; },
             Token::Double => { attr_type = SimpleType::Double; break; },

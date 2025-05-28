@@ -66,6 +66,10 @@ pub trait BiserdiTrait: Sized {
     fn bit_deserialize(version_id: u16, bides: &mut Bides) -> Option<(Self, u64)>;
 }
 
+pub struct BiserSizes {
+    pub total_bits: u64,
+    pub total_bytes: u64
+}
 #[allow(dead_code)]
 impl Biseri {
     pub fn new() -> Biseri {
@@ -126,7 +130,7 @@ impl Biseri {
         // self.add_data(&data.data_cache, ((data.data_cache.len() << 3) +
         //     data.sub_byte_counter as usize) as u64)
     }
-    pub fn finish_add_data(&mut self) -> Option<(u64, u64)> {
+    pub fn finish_add_data(&mut self) -> Option<BiserSizes> {
         if self.final_total_bits > 0 {
             None
         }
@@ -138,7 +142,7 @@ impl Biseri {
             }
 
             self.final_total_bits = total_bits;
-            Some((total_bits, self.data_cache.len() as u64))
+            Some(BiserSizes{total_bits, total_bytes: self.data_cache.len() as u64})
         }
     }
 }
@@ -448,6 +452,7 @@ impl<T: Display + Sized + Copy + BiserdiTraitVarBitSize + AddAssign + Shl<Output
 
         (val_work != 0).bit_serialize(biseri);
         while val_work > 0 {
+            // todo only serialize up to bitsize of T 
             val_work.bit_serialize(u64::from(Self::DYN_SIZE), biseri)?;
             val_work >>= Self::DYN_SIZE;
             bit_size += (Self::DYN_SIZE + 1) as u64;
@@ -600,7 +605,7 @@ mod bitis_base_serialization_deserialization {
         assert_eq!(b.sub_byte_counter, 0);
 
         let r = b.finish_add_data().unwrap();
-        assert_eq!(r, (8, 1));
+        assert_eq!((r.total_bits, r.total_bytes), (8, 1));
     }
 
     #[rstest]
@@ -619,7 +624,7 @@ mod bitis_base_serialization_deserialization {
         }
 
         let r = b.finish_add_data().unwrap();
-        assert_eq!(r, (final_bitsize, num_bytes));
+        assert_eq!((r.total_bits, r.total_bytes), (final_bitsize, num_bytes));
     }
 
     #[rstest]
@@ -682,7 +687,7 @@ mod bitis_base_serialization_deserialization {
         assert_eq!(val_out, ddv);
     }
 
-    fn add_two_u16_fixed(ser: &mut Biseri, bits: u64) -> (u64, u64) {
+    fn add_two_u16_fixed(ser: &mut Biseri, bits: u64) -> BiserSizes {
         let d: u16 = 3;
 
         ser.add_data(&d.to_le_bytes().to_vec(), bits);
@@ -693,8 +698,9 @@ mod bitis_base_serialization_deserialization {
     fn serialize_u16_fixed_full() {
         let mut ser = Biseri::new();
 
-        let (lbits, lbytes) = add_two_u16_fixed(&mut ser, 16);
-
+        let r = add_two_u16_fixed(&mut ser, 16);
+        let (lbits, lbytes) = (r.total_bits, r.total_bytes);
+        
         assert_eq!(ser.data_cache.len(), 4);
         assert_eq!(lbytes, 4);
         assert_eq!(lbits, 2 * 16);
@@ -709,7 +715,8 @@ mod bitis_base_serialization_deserialization {
     fn serialize_u16_fixed_12b() {
         let mut ser = Biseri::new();
 
-        let (lbits, lbytes) = add_two_u16_fixed(&mut ser, 12);
+        let r = add_two_u16_fixed(&mut ser, 12);
+        let (lbits, lbytes) = (r.total_bits, r.total_bytes);
 
         assert_eq!(ser.data_cache.len(), 3);
         assert_eq!(lbytes, 3);
@@ -727,7 +734,7 @@ mod bitis_base_serialization_deserialization {
     fn ser_and_deserialize_u16_fixed(#[case] bits: u64) {
         let mut ser = Biseri::new();
 
-        let (_lbits, _lbytes) = add_two_u16_fixed(&mut ser, bits);
+        let _ = add_two_u16_fixed(&mut ser, bits);
 
         let mut des = Bides::from_biseri(&ser);
 
@@ -754,7 +761,9 @@ mod bitis_base_serialization_deserialization {
         let v: i8 = -11;
         v.bit_serialize(5, &mut ser);
 
-        let (bits, bytes) = ser.finish_add_data().unwrap();
+        let r = ser.finish_add_data().unwrap();
+        let (bits, bytes) = (r.total_bits, r.total_bytes);
+
         println!("bits: {}, bytes: {}", bits, bytes);
 
         let mut des = Bides::from_biseri(&ser);
@@ -782,7 +791,9 @@ mod bitis_base_serialization_deserialization {
         let v3: u32 = 55;
         v3.bit_serialize(22, &mut ser);
         // ser.add_data_u32(&v3, 30);
-        let (bits, bytes) = ser.finish_add_data().unwrap();
+        let r = ser.finish_add_data().unwrap();
+        let (bits, bytes) = (r.total_bits, r.total_bytes);
+
         println!("bits: {}, bytes: {}", bits, bytes);
 
         // // ***********************************************************
@@ -825,7 +836,8 @@ mod bitis_base_serialization_deserialization {
         // ser.add_data_bool(&v4);
         v1.bit_serialize(&mut ser);
         // ser.add_data_f32(&v1);
-        let (bits, bytes) = ser.finish_add_data().unwrap();
+        let r = ser.finish_add_data().unwrap();
+        let (bits, bytes) = (r.total_bits, r.total_bytes);
 
         println!("bits: {}, bytes: {}", bits, bytes);
 
@@ -867,7 +879,9 @@ mod bitis_base_serialization_deserialization {
 
         let v: FixedArray<VarWithGivenBitSize<u16, 5>, 4> = [11.into(), 12.into(), 22.into(), 23.into()].into();
         v.bit_serialize(&mut ser);
-        let (bits, bytes) = ser.finish_add_data().unwrap();
+        let r = ser.finish_add_data().unwrap();
+        let (bits, bytes) = (r.total_bits, r.total_bytes);
+
         println!("bits: {}, bytes: {}", bits, bytes);
 
         let mut des = Bides::from_biseri(&ser);
@@ -888,7 +902,8 @@ mod bitis_base_serialization_deserialization {
 
         let v= FixedArray::from([true, true, false, true]);
         v.bit_serialize(&mut ser);
-        let (bits, bytes) = ser.finish_add_data().unwrap();
+        let r = ser.finish_add_data().unwrap();
+        let (bits, bytes) = (r.total_bits, r.total_bytes);
         println!("bits: {}, bytes: {}", bits, bytes);
 
         let mut des = Bides::from_biseri(&ser);
@@ -908,7 +923,8 @@ mod bitis_base_serialization_deserialization {
 
         let v = FixedArray::from([1.1, 1.2, 22.34, 123456.78]);
         v.bit_serialize(&mut ser);
-        let (bits, bytes) = ser.finish_add_data().unwrap();
+        let r = ser.finish_add_data().unwrap();
+        let (bits, bytes) = (r.total_bits, r.total_bytes);
         println!("bits: {}, bytes: {}", bits, bytes);
 
         let mut des = Bides::from_biseri(&ser);
@@ -938,7 +954,8 @@ mod bitis_base_serialization_deserialization {
 
         let v = DynInteger::<u32, 3>::new(val);
         v.bit_serialize(&mut ser);
-        let (bits, bytes) = ser.finish_add_data().unwrap();
+        let r = ser.finish_add_data().unwrap();
+        let (bits, bytes) = (r.total_bits, r.total_bytes);
         println!("bits: {}, bytes: {}", bits, bytes);
 
         assert_eq!(bits, ex_bits);
@@ -960,7 +977,8 @@ mod bitis_base_serialization_deserialization {
 
         let v = DynInteger::<i32, 3>::new(val);
         v.bit_serialize(&mut ser);
-        let (bits, bytes) = ser.finish_add_data().unwrap();
+        let r = ser.finish_add_data().unwrap();
+        let (bits, bytes) = (r.total_bits, r.total_bytes);
         println!("bits: {}, bytes: {}", bits, bytes);
 
         assert_eq!(bits, ex_bits);
@@ -982,7 +1000,8 @@ mod bitis_base_serialization_deserialization {
 
         let v = DynInteger::<i32, 3>::new(val);
         v.bit_serialize(&mut ser);
-        let (bits, bytes) = ser.finish_add_data().unwrap();
+        let r = ser.finish_add_data().unwrap();
+        let (bits, bytes) = (r.total_bits, r.total_bytes);
         println!("bits: {}, bytes: {}", bits, bytes);
 
         let mut der = Bides::from_biseri(&ser);
@@ -1001,7 +1020,8 @@ mod bitis_base_serialization_deserialization {
         let v = VarWithGivenBitSize::<u32, 20>::new(1111);
         v.bit_serialize(&mut ser);
 
-        let (bits, bytes) = ser.finish_add_data().unwrap();
+        let r = ser.finish_add_data().unwrap();
+        let (bits, bytes) = (r.total_bits, r.total_bytes);
         println!("bits: {}, bytes: {}", bits, bytes);
 
         let mut der = Bides::from_biseri(&ser);
@@ -1021,7 +1041,8 @@ mod bitis_base_serialization_deserialization {
         let v = VarWithGivenBitSize::<u32, 20>::new(1111);
         v.bit_serialize(&mut ser);
 
-        let (bits, bytes) = ser.finish_add_data().unwrap();
+        let r = ser.finish_add_data().unwrap();
+        let (bits, bytes) = (r.total_bits, r.total_bytes);
         println!("bits: {}, bytes: {}", bits, bytes);
 
         let mut der = Bides::from_biseri(&ser);
@@ -1039,7 +1060,8 @@ mod bitis_base_serialization_deserialization {
         let v = FixPrecisionMinMax::<20, -50, 50>::new(12.3456);
         v.bit_serialize(&mut ser);
 
-        let (bits, bytes) = ser.finish_add_data().unwrap();
+        let r = ser.finish_add_data().unwrap();
+        let (bits, bytes) = (r.total_bits, r.total_bytes);
         println!("bits: {}, bytes: {}", bits, bytes);
 
         let mut der = Bides::from_biseri(&ser);
@@ -1067,7 +1089,8 @@ mod bitis_base_serialization_deserialization {
         let v = FixPrecisionMinMax::<20, -50, 50>::new(-12.3456);
         v.bit_serialize(&mut ser);
 
-        let (bits, bytes) = ser.finish_add_data().unwrap();
+        let r = ser.finish_add_data().unwrap();
+        let (bits, bytes) = (r.total_bits, r.total_bytes);
         println!("bits: {}, bytes: {}", bits, bytes);
 
         let mut der = Bides::from_biseri(&ser);
@@ -1095,7 +1118,8 @@ mod bitis_base_serialization_deserialization {
         let v = FixPrecisionMinMax::<10, -50, 50>::new(-60.0);
         v.bit_serialize(&mut ser);
 
-        let (bits, bytes) = ser.finish_add_data().unwrap();
+        let r = ser.finish_add_data().unwrap();
+        let (bits, bytes) = (r.total_bits, r.total_bytes);
         println!("bits: {}, bytes: {}", bits, bytes);
 
         let mut der = Bides::from_biseri(&ser);
@@ -1117,7 +1141,8 @@ mod bitis_base_serialization_deserialization {
         let v = FixPrecisionMinMax::<10, -50, 50>::new(60.0);
         v.bit_serialize(&mut ser);
 
-        let (bits, bytes) = ser.finish_add_data().unwrap();
+        let r = ser.finish_add_data().unwrap();
+        let (bits, bytes) = (r.total_bits, r.total_bytes);
         println!("bits: {}, bytes: {}", bits, bytes);
 
         let mut der = Bides::from_biseri(&ser);

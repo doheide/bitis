@@ -16,7 +16,7 @@ pub fn serialize<T: BiserdiTrait>(data: &T) -> Vec<u8>{
     let mut ser = Biseri::new();
 
     data.bit_serialize(&mut ser);
-    let (_bits, _bytes) = ser.finish_add_data().unwrap();
+    ser.finish_add_data().unwrap();
     // println!("bits: {}, bytes: {}", _bits, _bytes);
 
     ser.get_data().to_owned()
@@ -34,6 +34,8 @@ pub enum MessageManagerError {
     InvalidMessage,
 }
 pub trait MessageWithHeaderTrait : Default {
+    fn serialize_header(&mut self, payload_size: usize, biseri: &mut Biseri) -> Option<u64>;
+    fn serialize_payload(&self, biseri: &mut Biseri) -> Option<u64>;
     fn deserialize_header(&mut self, data: &mut Bides) -> Result<Option<(usize, usize)>, MessageManagerError>;
     fn deserialize_payload(&mut self, data: &mut Bides) -> Option<usize>;
 }
@@ -51,6 +53,22 @@ impl<MWH: MessageWithHeaderTrait + Default> MessageManager<MWH> {
     fn create() -> Self {
         Self{bides: Bides::new(), data_unused: Vec::new(), header_successfully_read: false,
             payload_size: 0, msg_with_header: Default::default(), }
+    }
+
+    fn bit_serialize(&mut self) -> Vec<u8> {
+        let mut biseri_payload =  Biseri::new();
+        self.msg_with_header.serialize_payload(&mut biseri_payload);
+        let rp = biseri_payload.finish_add_data().unwrap();
+        self.payload_size = rp.total_bytes as usize;
+        
+        let mut biseri_header =  Biseri::new();
+        self.msg_with_header.serialize_header(rp.total_bytes as usize, &mut biseri_header);
+        biseri_header.finish_add_data().unwrap();
+        
+        let mut data = biseri_header.get_data();
+        data.extend(biseri_payload.get_data());
+
+        data
     }
 
     fn append_data_and_try_deserialize(&mut self, data: &Vec<u8>) -> Result<Option<usize>, MessageManagerError> {
@@ -75,7 +93,7 @@ impl<MWH: MessageWithHeaderTrait + Default> MessageManager<MWH> {
             }
 
             match self.msg_with_header.deserialize_payload(&mut self.bides) {
-                Some(s) => Ok(Some(s)), None => Ok(None) 
+                Some(s) => Ok(Some(s)), None => Ok(None)
             }
         }
         else { Ok(None) }
@@ -84,7 +102,7 @@ impl<MWH: MessageWithHeaderTrait + Default> MessageManager<MWH> {
 
 
 #[cfg(test)]
-mod msg_header {
+mod msg_manager_test {
     use rstest::rstest;
     use super::*;
 
@@ -113,6 +131,22 @@ mod msg_header {
         payload: MsgLalaBase,
     }
     impl MessageWithHeaderTrait for MsgWH {
+        fn serialize_header(&mut self, payload_size: usize, biseri: &mut Biseri) -> Option<u64> {
+            let payload_size_high = (payload_size>>6) as u8;
+            self.header = MsgHeader{
+                size_low: ((payload_size & ((1<<6)-1)) as u8).into(),
+                must_be_one: 1.into(),
+                byte_two: if payload_size_high > 0 {
+                    Some(MsgHeaderByteTwo{size_high: payload_size_high.into(), must_be_one: 1.into() }) }
+                else { None }
+            };
+            self.header.bit_serialize(biseri)
+        }
+
+        fn serialize_payload(&self, biseri: &mut Biseri) -> Option<u64> {
+            self.payload.bit_serialize(biseri)
+        }
+
         fn deserialize_header(&mut self, bides: &mut Bides) -> Result<Option<(usize, usize)>, MessageManagerError> {
             let bit_size = match MsgHeader::bit_deserialize(0, bides) {
                 None => {
@@ -149,7 +183,7 @@ mod msg_header {
         }
     }
     #[test]
-    fn msg_manager_test() {
+    fn msg_manager_simple() {
         let payload = MsgLalaBase{ a1: 1234.into(), b1: false, b2: true, f: 12.34 };
         let mut s1 = Biseri::new();
         payload.bit_serialize(&mut s1);
@@ -179,10 +213,34 @@ mod msg_header {
         assert!(r.is_ok());
         let r = r.unwrap();
         assert!(r.is_some());
-        
+
         println!("{:#?}", mm);
         assert_eq!(mm.msg_with_header.header, header);
         assert_eq!(mm.msg_with_header.payload, payload);
+    }
+    #[test]
+    fn msg_manager_full() {
+        let mut mm_ser = MessageManager::<MsgWH>::create();
+
+        mm_ser.msg_with_header.payload = MsgLalaBase{ a1: 1234.into(), b1: false, b2: true, f: 12.34 };
+        let data = mm_ser.bit_serialize();
+        println!("{:#?}", mm_ser);
+        println!("data len: {}", data.len());
+        
+        let mut mm_des = MessageManager::<MsgWH>::create();
+        let r = mm_des.append_data_and_try_deserialize(&vec![data[0]]);
+        assert!(r.is_ok());
+        let r = r.unwrap();
+        assert!(r.is_none());
+
+        let r = mm_des.append_data_and_try_deserialize(&data[1..].to_vec());
+        assert!(r.is_ok());
+        let r = r.unwrap();
+        assert!(r.is_some());
+
+        println!("{:#?}", mm_des);
+        assert_eq!(mm_des.msg_with_header.header, mm_ser.msg_with_header.header);
+        assert_eq!(mm_des.msg_with_header.payload, mm_ser.msg_with_header.payload);
     }
 }
 
@@ -215,7 +273,8 @@ mod msg_deserialization {
         println!("m: {:?}", m);
 
         m.bit_serialize(&mut ser);
-        let (bits, bytes) = ser.finish_add_data().unwrap();
+        let r = ser.finish_add_data().unwrap();
+        let (bits, bytes) = (r.total_bits, r.total_bytes);
         println!("bits: {}, bytes: {}", bits, bytes);
 
         // ***
@@ -242,7 +301,8 @@ mod msg_deserialization {
         println!("m: {:?}", m);
 
         m.bit_serialize(&mut ser);
-        let (bits, bytes) = ser.finish_add_data().unwrap();
+        let r = ser.finish_add_data().unwrap();
+        let (bits, bytes) = (r.total_bits, r.total_bytes);
         println!("bits: {}, bytes: {}", bits, bytes);
 
         // ***
@@ -272,7 +332,8 @@ mod msg_deserialization {
         let mut ser = Biseri::new();
 
         m.bit_serialize(&mut ser);
-        let (bits, bytes) = ser.finish_add_data().unwrap();
+        let r = ser.finish_add_data().unwrap();
+        let (bits, bytes) = (r.total_bits, r.total_bytes);
         println!("bits: {}, bytes: {}", bits, bytes);
 
         // ***
@@ -331,7 +392,8 @@ mod msg_deserialization {
             b2: false,
         };
         msg.bit_serialize(&mut ser);
-        let (bits, bytes) = ser.finish_add_data().unwrap();
+        let r = ser.finish_add_data().unwrap();
+        let (bits, bytes) = (r.total_bits, r.total_bytes);
         println!("bits: {}, bytes: {}", bits, bytes);
 
         // ***
@@ -435,7 +497,8 @@ mod msg_deserialization_ver {
         m.bit_serialize(&mut ser);
         println!("m: {:?}", m);
 
-        let (bits, bytes) = ser.finish_add_data().unwrap();
+        let r = ser.finish_add_data().unwrap();
+        let (bits, bytes) = (r.total_bits, r.total_bytes);
         println!("bits: {}, bytes: {}", bits, bytes);
 
         // ***
@@ -477,7 +540,8 @@ mod msg_deserialization_ver {
         m.bit_serialize(&mut ser);
         println!("m: {:?}", m);
 
-        let (bits, bytes) = ser.finish_add_data().unwrap();
+        let r = ser.finish_add_data().unwrap();
+        let (bits, bytes) = (r.total_bits, r.total_bytes);
         println!("bits: {}, bytes: {}", bits, bytes);
 
         // ***
@@ -539,7 +603,8 @@ mod msg_deserialization_ver {
         m.bit_serialize(&mut ser);
         println!("m: {:?}", m);
 
-        let (bits, bytes) = ser.finish_add_data().unwrap();
+        let r = ser.finish_add_data().unwrap();
+        let (bits, bytes) = (r.total_bits, r.total_bytes);
         println!("bits: {}, bytes: {}", bits, bytes);
 
         // ***

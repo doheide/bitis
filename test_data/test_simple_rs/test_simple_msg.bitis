@@ -8,11 +8,15 @@ msg Inner {
 }
 
 msg ParamTestWithInner {
-  uint_4 param_1;
+  // Comment for param_1
+  uint_8d4 param_1;
   bool param_2;
   oneof action(4) {
     Inner inner;
     uint_3 val;
   }
+  fp_10[1,2] fp_val;
+  optional uint_3 val_opt;
+  repeated_fixed_6 uint_3 val_fixed_array;
 }
 
