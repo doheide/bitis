@@ -1,6 +1,4 @@
 use bitis_lib::*;
-use bitis_lib::VarWithGivenBitSize;
-
 
 // Enums
 #[derive(BiserdiEnum, Debug, Clone, PartialEq)]

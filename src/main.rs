@@ -11,7 +11,7 @@ use bitis_lib::*;
 // use std::env;
 use std::process::{abort, exit, Command, Stdio};
 
-use clap::{Parser, Subcommand, ValueEnum};
+use clap::{crate_version, Parser, Subcommand, ValueEnum};
 use regex::Regex;
 use toml_edit::{value, DocumentMut};
 use utils::*;
@@ -77,6 +77,8 @@ enum Commands {
 fn main() {
     let cli = Cli::parse();
 
+    println!("BitisVersion: {}", crate_version!());
+    
     // let content = fs::read_to_string("test.bitis").expect("File not found");
     let input_file_path = Path::new(&cli.input_file);
     if !input_file_path.exists() {
@@ -225,6 +227,31 @@ fn main() {
                     let py_type_hints = rdo.render().unwrap();
                     write_file(&output_path, format!("{}/bitis_msgs.pyi", lib_name).as_str(), py_type_hints.as_str(), cli.debug > 0);
 
+                    // *************************************
+                    {
+                        let toml_file = output_path.join("Cargo.toml");
+                        if toml_file.exists() {
+                            if cli.debug > 0 { println!("- Found toml file and setting bitis-dependency"); }
+
+                            let cct_content = match fs::read(toml_file.clone()) {
+                                Ok(content) => String::from_utf8(content).unwrap(),
+                                Err(e) => { print_error(format!("Could not read lock file '{}': {:?}", toml_file.display(), e)); }
+                            };
+                            let mut toml_doc = match cct_content.parse::<DocumentMut>() {
+                                Ok(v) => v, Err(e) => {
+                                    print_error(format!("Could not parse toml from lock file '{}': {:?}", toml_file.display(), e)); }
+                            };
+
+                            toml_doc["dependencies"]["bitis"] = value(crate_version!());
+
+                            if let Err(e) = write(toml_file.clone(), toml_doc.to_string()) {
+                                print_error(format!("Failed to write to lock '{}': {}", toml_file.display(), e));
+                            }
+                        }
+                        else { print_warn("There was no toml file found in the base directory.".into()) }
+                    }
+
+                    // ********************************************
                     let r = match Command::new("maturin").args(["develop"]).current_dir(output_path.clone())
                         .stdout(Stdio::piped()).spawn() {
                         Ok(v) => v, Err(_) => { println!("Could not execute 'maturin develop'"); exit(-1) }
@@ -238,26 +265,6 @@ fn main() {
                     }
                     else { println!("\n🎉 * Bitis compile and python lib build was successfully executed!\n"); }
 
-                    {
-                        let toml_file = output_path.join("Cargo.toml");
-                        if toml_file.exists() {
-                            let cct_content = match fs::read(toml_file.clone()) {
-                                Ok(content) => String::from_utf8(content).unwrap(),
-                                Err(e) => { print_error(format!("Could not read lock file '{}': {:?}", toml_file.display(), e)); }
-                            };
-                            let mut toml_doc = match cct_content.parse::<DocumentMut>() {
-                                Ok(v) => v, Err(e) => {
-                                    print_error(format!("Could not parse toml from lock file '{}': {:?}", toml_file.display(), e)); }
-                            };
-
-                            toml_doc["dependencies"]["bitis"] = value(env!("CARGO_PKG_VERSION"));
-
-                            if let Err(e) = write(toml_file.clone(), toml_doc.to_string()) {
-                                print_error(format!("Failed to write to lock '{}': {}", toml_file.display(), e));
-                            }
-                        }
-                        else { print_warn("There was no toml file found in the base directory.".into()) }
-                    }
                 }
                 Language::Cpp => {
                     let output_file = if let Some(output_file_opt_set) = output_file_opt {

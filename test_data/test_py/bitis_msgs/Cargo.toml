@@ -8,6 +8,8 @@ edition = "2021"
 name = "bitis_msgs"
 crate-type = ["cdylib"]
 
+
+
 [dependencies]
 pyo3 = "0.24.0"
-bitis = "0.6.3"
+bitis = "0.6.4"
