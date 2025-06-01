@@ -5,10 +5,6 @@ from __future__ import annotations
 # Enums
 
 class Numbers(Enum):
-  """
-   Test comment for Enum
-
-  """
   One = 1
   Two = 2
   Three = 3
@@ -30,11 +26,6 @@ class OO_ParamTestWithInner_Action:
 # *** Messages
 
 class Inner:
-  """
-   Test comment for Inner
-
-  """
-
   def __init__(self, val: int, num: Numbers,) -> None: ...
 
   def serialize(self) -> bytes:
@@ -64,7 +55,7 @@ class Inner:
 
 
 class ParamTestWithInner:
-  def __init__(self, param_1: int, param_2: bool, action: OO_ParamTestWithInner_Action,) -> None: ...
+  def __init__(self, param_1: int, param_2: bool, action: OO_ParamTestWithInner_Action, opt_val: int,) -> None: ...
 
   def serialize(self) -> bytes:
     """
@@ -99,39 +90,10 @@ class ParamTestWithInner:
   def action_val(self) -> None | int: ...
   @action_val.setter
   def action_val(self, val: int) -> None: ...
-
-
-
-class TestMsg:
-  def __init__(self, large_number: int, lala: bool, lili: bool,) -> None: ...
-
-  def serialize(self) -> bytes:
-    """
-    Serialized the class instance to binary data
-
-    :return: bytes representing the serialized class instance
-    """
-  @classmethod
-  def deserialize(cls, data: bytes) -> TestMsg:
-    """
-    Deserializes bytes to a python object
-
-    :param data: binary data
-    :return: An instance of the class with attributes set from the byte data
-    """
-
   @property
-  def large_number(self) -> int: ...
-  @large_number.setter
-  def large_number(self, v: int) -> None: ...
-  @property
-  def lala(self) -> bool: ...
-  @lala.setter
-  def lala(self, v: bool) -> None: ...
-  @property
-  def lili(self) -> bool: ...
-  @lili.setter
-  def lili(self, v: bool) -> None: ...
+  def opt_val(self) -> int: ...
+  @opt_val.setter
+  def opt_val(self, v: int) -> None: ...
 
 
 

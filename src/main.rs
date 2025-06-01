@@ -47,7 +47,7 @@ enum System {
 #[derive(Subcommand)]
 enum Commands {
     /// Test bitis data objects file
-    Test {},
+    // Test {},
     /// Compile bitis data objects file
     Compile {
         /// compile language
@@ -58,11 +58,11 @@ enum Commands {
         output_file_or_path: Option<PathBuf>,
     },
     /// Compare bitis data objects file
-    Compare {
-        /// file to compare to input_file
-        #[arg(short, long)]
-        compare_file: PathBuf,
-    },
+    // Compare {
+    //     /// file to compare to input_file
+    //     #[arg(short, long)]
+    //     compare_file: PathBuf,
+    // },
     /// Setup directory and file structures
     Setup {
         /// system to set up
@@ -131,8 +131,8 @@ fn main() {
 
     // ******
     match cli.command {
-        Commands::Test {} => {
-        }
+        // Commands::Test {} => {
+        // }
         Commands::Compile { lang, output_file_or_path: output_file_opt } => {
             match lang {
                 Language::Rust => {
@@ -163,10 +163,18 @@ fn main() {
                         println!("Error: Output path has to be set for python language compiler.");
                         exit(-1);
                     }
-                    let output_path = output_file_opt.unwrap();
+                    let output_path = match fs::canonicalize(&output_file_opt.unwrap())  {
+                        Ok(v) => v, Err(e) => {
+                            println!("Error: Output path could not be converted to an absolute path: {:?}", e);
+                            exit(-1);
+                        }
+                    };
+                    println!("path: '{}'", output_path.to_str().unwrap());
+
                     if !output_path.is_dir() {
                         println!("Error: Output path has to be a directory for python language compiler.")
                     }
+
                     let lib_name = match output_path.file_name() {
                         Some(v) => v.to_str().unwrap(), None => {
                             println!("Error: Output path has to consist of the lib-name."); exit(-1); }
@@ -175,7 +183,7 @@ fn main() {
                     if cli.debug > 0 { println!("* Lib-name: {}\n", lib_name); }
 
                     if !{ let mut t = output_path.clone(); t.push(lib_name); t }.is_dir() {
-                        println!("The python lib seems not to be setup correctly: Expected subdir '{}' in output path ({})",
+                        println!("The python lib seems not to be setup correctly: Expected subdir '{}' in output path ({}) -> There has to be a subdir with the same name as the selected directory.",
                                  lib_name, output_path.to_str().unwrap());
                         exit(-1);
                     }
@@ -190,28 +198,32 @@ fn main() {
                         oos: to_rust_oneofs(&processed_bitis.oo_enums, &processed_bitis.msgs)
                     };
 
-                    fn write_file(base_path: &PathBuf, file: &str, content: &str) {
+                    fn write_file(base_path: &PathBuf, file: &str, content: &str, show_debug: bool) {
                         let mut cp = base_path.clone();
                         cp.push(file);
-                        if fs::write(cp.clone(), content).is_err(){
+                        if fs::write(cp.clone(), content).is_err() {
                             println!("Could not write file '{}'", cp.to_str().unwrap());
+                        } else {
+                            if show_debug {
+                                println!("Wrote file '{}'", cp.to_str().unwrap());
+                            }
                         }
                     }
                     let rdo = RustDataObjects{ d: d.clone() };
                     let rendered_rust = rdo.render().unwrap();
-                    write_file(&output_path, "src/messages.rs", rendered_rust.as_str());
+                    write_file(&output_path, "src/messages.rs", rendered_rust.as_str(), cli.debug > 0);
 
                     let rdo = RustPyDataObjects{ d: d.clone() };
-                    let rendered_rust = rdo.render().unwrap();
-                    write_file(&output_path, "src/pyrust.rs", rendered_rust.as_str());
+                    let rendered_py_rust_itfc = rdo.render().unwrap();
+                    write_file(&output_path, "src/pyrust.rs", rendered_py_rust_itfc.as_str(), cli.debug > 0);
 
                     let rdo = RustPyLib{ d: d.clone(), lib_name: String::from(lib_name) };
-                    let rendered_rust = rdo.render().unwrap();
-                    write_file(&output_path, "src/lib.rs", rendered_rust.as_str());
+                    let pyrust_lib = rdo.render().unwrap();
+                    write_file(&output_path, "src/lib.rs", pyrust_lib.as_str(), cli.debug > 0);
 
                     let rdo = PyTypeHints{ d };
-                    let rendered_rust = rdo.render().unwrap();
-                    write_file(&output_path, format!("{}/bitis_msgs.pyi", lib_name).as_str(), rendered_rust.as_str());
+                    let py_type_hints = rdo.render().unwrap();
+                    write_file(&output_path, format!("{}/bitis_msgs.pyi", lib_name).as_str(), py_type_hints.as_str(), cli.debug > 0);
 
                     let r = match Command::new("maturin").args(["develop"]).current_dir(output_path.clone())
                         .stdout(Stdio::piped()).spawn() {
@@ -262,22 +274,22 @@ fn main() {
                         pb.push(format!("{}.h", input_file_wo_ext.to_str().unwrap()).as_str());
                         pb
                     };
-                    
+
                     let jd = JinjaData{enums: processed_bitis.enums,
                         msgs: to_cpp_messages(&processed_bitis.msgs),
                         oos: to_cpp_oneofs(&processed_bitis.oo_enums, &processed_bitis.msgs) };
                     let object_order = dependencies_process(jd.clone());
                     let rdo = CppDataObjects{ d: jd, object_order };
-                    
+
                     let rendered = rdo.render().unwrap();
                     // println!("{}", rendered);
                     fs::write(output_file.clone(), rendered).expect("Unable to write file");
                     println!("Written to {}", output_file.to_str().unwrap());
                 }
         } },
-        Commands::Compare{ compare_file: _compare_file } => {
-            println!("\n*** Compare not implemented yet\n");
-        },
+        // Commands::Compare{ compare_file: _compare_file } => {
+        //     println!("\n*** Compare not implemented yet\n");
+        // },
         Commands::Setup{system, output_path} => {
             match system {
                 System::Maturin => {

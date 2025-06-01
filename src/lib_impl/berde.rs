@@ -260,6 +260,7 @@ macro_rules! impl_biserdi {
     };
 }
 
+// ****************************************************************************
 impl BiserdiTrait for bool {
     fn bit_serialize(self: &Self, biseri: &mut Biseri) -> Option<u64> {
         let val = if *self { 1_u8 } else { 0_u8 };
@@ -282,10 +283,16 @@ impl_biserdi_var_bitsize_trait!(i64, i64::BITS>>3);
 impl_biserdi!(f32, 32);
 impl_biserdi!(f64, 64);
 
-impl<T> BiserdiTrait for Option<T> where T: BiserdiTrait + Default {
+
+// ****************************************************************************
+#[derive(Clone, Debug, PartialEq)]
+pub struct BitisOption<T> {
+    pub val: Option<T>
+}
+impl<T> BiserdiTrait for BitisOption<T> where T: BiserdiTrait + Default {
     fn bit_serialize(self: &Self, biseri: &mut Biseri) -> Option<u64> {
         let mut size = 1;
-        match self {
+        match &self.val {
             None => { false.bit_serialize(biseri)?; },
             Some(v) => {
                 true.bit_serialize(biseri)?;
@@ -305,10 +312,38 @@ impl<T> BiserdiTrait for Option<T> where T: BiserdiTrait + Default {
         }
         else { None };
 
-        Some((v, size))
+        Some((BitisOption{val: v}, size))
     }
 }
+impl<T, TT> From<Option<TT>> for BitisOption<T> where T: BiserdiTrait + Default, TT: Into<T> {
+    fn from(value: Option<TT>) -> Self {
+        match value {
+            Some(v) => Self { val: Some(v.into()) },
+            None => Self { val: None }
+        }
+    }
+}
+impl<T> From<T> for BitisOption<T> where T: BiserdiTrait + Default {
+    fn from(val: T) -> Self {
+        Self{ val: Some(val) }
+    } }
+// impl<T, TT> Into<Option<TT>> for BitisOption<T> where T: BiserdiTrait + Default, TT: From<T>  {
+//     fn into(val: BitisOption<T>) -> Option<TT> {
+//         match val.val { Some(v) => Some(v.into()), None => None }
+//     }
+// }
+impl<T> std::fmt::Display for BitisOption<T> where T: BiserdiTrait + Default + Display {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match &self.val {
+            None => { write!(f, "None [opt]") },
+            Some(v) => { write!(f, "{} [opt]", v) }
+        }
+    } }
+impl<T> Default for BitisOption<T> where T: BiserdiTrait + Default {
+    fn default() -> Self { Self{val: None} }
+}
 
+// ****************************************************************************
 #[derive(Debug, Clone, PartialEq, Eq, Copy)]
 pub struct FixedArray<T: Default, const N: usize> { pub val: [T; N] }
 impl<T, const N: usize> BiserdiTrait for FixedArray<T, N> where T: BiserdiTrait + Default + Copy {
@@ -355,6 +390,7 @@ impl<T: Sized + Copy + BiserdiTrait + Default, const N: usize> Default for Fixed
     }
 }
 
+// ****************************************************************************
 pub struct DynArray<T, const DYNSIZEBITS: u8> { pub val: Vec<T> }
 impl<T, const DYNSIZEBITS: u8> BiserdiTrait for DynArray<T, DYNSIZEBITS> where T: BiserdiTrait + Default + Copy {
     fn bit_serialize(self: &Self, biseri: &mut Biseri) -> Option<u64> {
@@ -395,7 +431,7 @@ impl<T: Sized + Copy + BiserdiTraitVarBitSize, const DYNSIZEBITS: u8> Default fo
     }
 }
 
-
+// ****************************************************************************
 #[derive(Debug, Clone, PartialEq, Eq, Default, Copy)]
 pub struct VarWithGivenBitSize<T: Sized + Copy + BiserdiTraitVarBitSize + Default, const NUM_BITS: u64> {
     pub val: T
@@ -452,7 +488,7 @@ impl<T: Display + Sized + Copy + BiserdiTraitVarBitSize + AddAssign + Shl<Output
 
         (val_work != 0).bit_serialize(biseri);
         while val_work > 0 {
-            // todo only serialize up to bitsize of T 
+            // todo only serialize up to bitsize of T
             val_work.bit_serialize(u64::from(Self::DYN_SIZE), biseri)?;
             val_work >>= Self::DYN_SIZE;
             bit_size += (Self::DYN_SIZE + 1) as u64;
@@ -700,7 +736,7 @@ mod bitis_base_serialization_deserialization {
 
         let r = add_two_u16_fixed(&mut ser, 16);
         let (lbits, lbytes) = (r.total_bits, r.total_bytes);
-        
+
         assert_eq!(ser.data_cache.len(), 4);
         assert_eq!(lbytes, 4);
         assert_eq!(lbits, 2 * 16);

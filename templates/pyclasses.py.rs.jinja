@@ -133,7 +133,7 @@ pub struct {{cm.name|pascal_case}} {
 impl {{cm.name|pascal_case}} {
   #[new]
   pub fn __new__(
-{%- for ca in cm.attributes +%} {{ca.base.name}}: {%+ if ca.is_msg || ca.is_oo -%}Py<{%- endif -%}{{ca.base_type_str}}{%- if ca.is_msg || ca.is_oo -%}>{%- endif -%},{%- endfor -%}) -> Self {
+{%- for ca in cm.attributes +%} {{ca.base.name}}: {%~ if ca.base.is_optional -%}Option<{%- endif -%}{%+ if ca.is_msg || ca.is_oo -%}Py<{%- endif -%}{{ca.base_type_str}}{%- if ca.is_msg || ca.is_oo -%}>{%- endif -%}{%~ if ca.base.is_optional -%}>{%- endif -%},{%- endfor -%}) -> Self {
     Self{ {%- for ca in cm.attributes +%} {{ca.base.name}}: {{ca.base.name}}.into(),{%- endfor +%} }
   }
   pub fn serialize(&self, py: Python) -> PyObject {
@@ -186,10 +186,10 @@ impl {{cm.name|pascal_case}} {
     })
   }
   pub fn from_rust_obj(d: messages::{{cm.name|pascal_case}}) -> PyResult<Self> {
-    let r = Python::with_gil(|_py| { Self{ {%- for ca in cm.attributes +%} {{ca.base.name}}: {%~ if ca.is_msg || ca.is_oo -%}
+    let r = Python::with_gil(|_py| { Self{ {%- for ca in cm.attributes +%} {{ca.base.name}}: {%~ if ca.base.is_optional -%} match {% endif -%} {%~ if ca.is_msg || ca.is_oo -%}
         Py::new(_py, {{ ca.rust_type_str }}::from_rust_obj(d.{{ca.base.name}}).unwrap()).unwrap()
         {%- else -%} {%- if ca.is_enum -%} {{ ca.rust_type_str }}_rust_to_py(d.{{ca.base.name}})
-        {%- else -%} d.{{ca.base.name}}{%- if ca.add_val -%}.val{%- endif -%} {%- endif -%}{%- endif -%}, {%- endfor -%}} });
+        {%- else -%} d.{{ca.base.name}}{%- if ca.add_val -%}.val{%- endif -%} {%- endif -%}{%- endif -%}{%- if ca.base.is_optional +%} { Some(v) => Some(v.val), None => None }{% endif -%}, {%- endfor -%}} });
     Ok(r)
   }
 }
@@ -197,7 +197,8 @@ impl std::fmt::Display for {{cm.name|pascal_case}} {
   fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
     Python::with_gil(|_py| {
       write!(f, "{{cm.name|pascal_case}}({%- for ca in cm.attributes -%}{{ca.base.name}}: ({}), {%+ endfor -%})",
-        {%- for ca in cm.attributes +%} self.{{ca.base.name}}{%- if ca.is_msg || ca.is_oo -%}.borrow(_py).__repr__(){%- endif -%}, {%- endfor -%})
+        {%- for ca in cm.attributes +%} {%~ if ca.base.is_optional -%}match {% endif -%} self.{{ca.base.name}}{%~ if ca.base.is_optional +%} { Some(v) => format!("{}", v{% endif -%}
+          {%- if ca.is_msg || ca.is_oo -%}.borrow(_py).__repr__(){%- endif -%}{%~ if ca.base.is_optional -%}), None=> "None".to_string()}{%- endif -%}, {%- endfor -%})
     })
   }
 }

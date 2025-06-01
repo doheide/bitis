@@ -6,7 +6,7 @@ def main():
     inner.val = 1
     oo = bitis_msgs.OO_ParamTestWithInner_Action.new_inner(inner)
     print(oo)
-    msg = bitis_msgs.ParamTestWithInner(11, True, oo)
+    msg = bitis_msgs.ParamTestWithInner(11, True, oo, None)
     print(msg)
     msg.param_2 = False
     print(msg)

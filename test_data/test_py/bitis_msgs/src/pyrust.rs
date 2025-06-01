@@ -22,29 +22,29 @@ pub enum Numbers {
 impl std::fmt::Display for Numbers {
   fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
     match self {
-      Numbers::One => { write!(f, "Numbers::One") },
-      Numbers::Two => { write!(f, "Numbers::Two") },
-      Numbers::Three => { write!(f, "Numbers::Three") },
-      Numbers::Four => { write!(f, "Numbers::Four") },
+      Numbers::One => { write!(f, "Numbers::One") }, 
+      Numbers::Two => { write!(f, "Numbers::Two") }, 
+      Numbers::Three => { write!(f, "Numbers::Three") }, 
+      Numbers::Four => { write!(f, "Numbers::Four") }, 
     }
-  } }
+} }
 #[allow(nonstandard_style)]
 fn Numbers_rust_to_py(v: messages::Numbers) -> Numbers {
-  match v {
-    messages::Numbers::One => Numbers::One,
-    messages::Numbers::Two => Numbers::Two,
-    messages::Numbers::Three => Numbers::Three,
-    messages::Numbers::Four => Numbers::Four,
-  }
+    match v {
+      messages::Numbers::One => Numbers::One, 
+      messages::Numbers::Two => Numbers::Two, 
+      messages::Numbers::Three => Numbers::Three, 
+      messages::Numbers::Four => Numbers::Four, 
+    }
 }
 #[allow(nonstandard_style)]
 fn Numbers_py_to_rust(v: Numbers) -> messages::Numbers {
-  match v {
-    Numbers::One => messages::Numbers::One,
-    Numbers::Two => messages::Numbers::Two,
-    Numbers::Three => messages::Numbers::Three,
-    Numbers::Four => messages::Numbers::Four,
-  }
+    match v {
+      Numbers::One => messages::Numbers::One, 
+      Numbers::Two => messages::Numbers::Two, 
+      Numbers::Three => messages::Numbers::Three, 
+      Numbers::Four => messages::Numbers::Four, 
+    }
 }
 
 
@@ -55,7 +55,7 @@ fn Numbers_py_to_rust(v: Numbers) -> messages::Numbers {
 #[allow(nonstandard_style)]
 pub enum OO_ParamTestWithInner_Action {
   Inner(Py<Inner>),
-  Val(u8),
+  Val(i8),
 }
 #[pyclass]
 #[derive(Debug, PartialEq)]
@@ -71,7 +71,7 @@ impl OO_ParamTestWithInner_Action {
     Ok(Python::with_gil(|_py| { Py::new(_py, Self::Inner(inner)) })?)
   }
   #[staticmethod]
-  fn new_val(val: u8) -> PyResult<Py<Self>> {
+  fn new_val(val: i8) -> PyResult<Py<Self>> {
     Ok(Python::with_gil(|_py| { Py::new(_py, Self::Val(val)) })?)
   }
   fn __repr__(&self) -> String { format!("{}", self) }
@@ -130,12 +130,10 @@ impl Inner {
   }
   #[staticmethod]
   pub fn deserialize(_py: Python, data: Bound<'_, PyBytes>) -> PyResult<Self> {
-    println!("rust: {:?}", data);
     let dv: Vec<u8> = data.extract()?;
     let v = match deserialize::<messages::Inner>(&dv) {
       Some(v) => v, None => return Err(PyErr::new::<PyException, _>("Error when deserializing Inner"))
     };
-    println!("{:?}", v);
     Self::from_rust_obj(v.0)
   }
   pub fn __repr__(&self) -> String {
@@ -170,12 +168,14 @@ pub struct ParamTestWithInner {
   #[pyo3(get, set)]
   pub param_2: bool,
   pub action: Py<OO_ParamTestWithInner_Action>,
+  #[pyo3(get, set)]
+  pub opt_val: Option<u8>,
 }
 #[pymethods]
 impl ParamTestWithInner {
   #[new]
-  pub fn __new__( param_1: u8, param_2: bool, action: Py<OO_ParamTestWithInner_Action>,) -> Self {
-    Self{ param_1: param_1.into(), param_2: param_2.into(), action: action.into(), }
+  pub fn __new__( param_1: u8, param_2: bool, action: Py<OO_ParamTestWithInner_Action>, opt_val: Option<u8>,) -> Self {
+    Self{ param_1: param_1.into(), param_2: param_2.into(), action: action.into(), opt_val: opt_val.into(), }
   }
   pub fn serialize(&self, py: Python) -> PyObject {
     let msg = self.to_rust();
@@ -183,12 +183,10 @@ impl ParamTestWithInner {
   }
   #[staticmethod]
   pub fn deserialize(_py: Python, data: Bound<'_, PyBytes>) -> PyResult<Self> {
-    println!("rust: {:?}", data);
     let dv: Vec<u8> = data.extract()?;
     let v = match deserialize::<messages::ParamTestWithInner>(&dv) {
       Some(v) => v, None => return Err(PyErr::new::<PyException, _>("Error when deserializing ParamTestWithInner"))
     };
-    println!("{:?}", v);
     Self::from_rust_obj(v.0)
   }
   pub fn __repr__(&self) -> String {
@@ -200,12 +198,12 @@ impl ParamTestWithInner {
     match self.action.get() {
       OO_ParamTestWithInner_Action::Inner(_) => OO_ParamTestWithInner_ActionEnum::Inner,
       OO_ParamTestWithInner_Action::Val(_) => OO_ParamTestWithInner_ActionEnum::Val,
-    } }
+  } }
   #[getter(action_inner)]
   fn action_get_inner(&self) -> Option<&Py<Inner>> {
     match self.action.get() {
       OO_ParamTestWithInner_Action::Inner(v) => Some(v), _ => None
-    } }
+  } }
   #[setter(action_inner)]
   fn action_set_inner(&mut self, v:Py<Inner>) -> PyResult<()> {
     Python::with_gil(|py| {
@@ -214,12 +212,12 @@ impl ParamTestWithInner {
     })
   }
   #[getter(action_val)]
-  fn action_get_val(&self) -> Option<&u8> {
+  fn action_get_val(&self) -> Option<&i8> {
     match self.action.get() {
       OO_ParamTestWithInner_Action::Val(v) => Some(v), _ => None
-    } }
+  } }
   #[setter(action_val)]
-  fn action_set_val(&mut self, v:u8) -> PyResult<()> {
+  fn action_set_val(&mut self, v:i8) -> PyResult<()> {
     Python::with_gil(|py| {
       self.action = Py::new(py, OO_ParamTestWithInner_Action::Val(v))?;
       Ok(())
@@ -229,18 +227,18 @@ impl ParamTestWithInner {
 impl ParamTestWithInner {
   pub fn to_rust(&self) -> messages::ParamTestWithInner {
     Python::with_gil(|_py| {
-      messages::ParamTestWithInner{ param_1: self.param_1.clone().into(), param_2: self.param_2.clone().into(), action: self.action.borrow(_py).to_rust(),}
+      messages::ParamTestWithInner{ param_1: self.param_1.clone().into(), param_2: self.param_2.clone().into(), action: self.action.borrow(_py).to_rust(), opt_val: self.opt_val.clone().into(),}
     })
   }
   pub fn from_rust_obj(d: messages::ParamTestWithInner) -> PyResult<Self> {
-    let r = Python::with_gil(|_py| { Self{ param_1: d.param_1.val, param_2: d.param_2, action: Py::new(_py, OO_ParamTestWithInner_Action::from_rust_obj(d.action).unwrap()).unwrap(),} });
+    let r = Python::with_gil(|_py| { Self{ param_1: d.param_1.val, param_2: d.param_2, action: Py::new(_py, OO_ParamTestWithInner_Action::from_rust_obj(d.action).unwrap()).unwrap(), opt_val: match d.opt_val.val { Some(v) => Some(v.val), None => None },} });
     Ok(r)
   }
 }
 impl std::fmt::Display for ParamTestWithInner {
   fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
     Python::with_gil(|_py| {
-      write!(f, "ParamTestWithInner(param_1: ({}), param_2: ({}), action: ({}), )", self.param_1, self.param_2, self.action.borrow(_py).__repr__(),)
+      write!(f, "ParamTestWithInner(param_1: ({}), param_2: ({}), action: ({}), opt_val: ({}), )", self.param_1, self.param_2, self.action.borrow(_py).__repr__(), match self.opt_val { Some(v) => format!("{}", v), None=> "None".to_string()},)
     })
   }
 }

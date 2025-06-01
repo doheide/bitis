@@ -115,7 +115,7 @@ mod msg_manager_test {
     struct MsgHeader {
         size_low: VarWithGivenBitSize<u8, 6>,
         must_be_one: VarWithGivenBitSize<u8, 1>,
-        byte_two: Option<MsgHeaderByteTwo>
+        byte_two: BitisOption<MsgHeaderByteTwo>
     }
     #[derive(BiserdiMsg, Debug, Clone, PartialEq, Default)]
     struct MsgLalaBase {
@@ -137,8 +137,8 @@ mod msg_manager_test {
                 size_low: ((payload_size & ((1<<6)-1)) as u8).into(),
                 must_be_one: 1.into(),
                 byte_two: if payload_size_high > 0 {
-                    Some(MsgHeaderByteTwo{size_high: payload_size_high.into(), must_be_one: 1.into() }) }
-                else { None }
+                    Some(MsgHeaderByteTwo{size_high: payload_size_high.into(), must_be_one: 1.into() }).into() }
+                else { BitisOption::<MsgHeaderByteTwo>{val: None} }
             };
             self.header.bit_serialize(biseri)
         }
@@ -159,13 +159,13 @@ mod msg_manager_test {
                 }
             };
             if self.header.must_be_one.val != 1 { return Err(MessageManagerError::InvalidMessage) }
-            if let Some(v) = self.header.byte_two.clone() {
+            if let Some(v) = self.header.byte_two.clone().val {
                 if v.must_be_one.val != 1 { return Err(MessageManagerError::InvalidMessage) }
             }
             Ok(Some(
                 (
                     (self.header.size_low.val as usize) +
-                        if let Some(bt) = self.header.byte_two.clone()
+                        if let Some(bt) = self.header.byte_two.clone().val
                         { (bt.size_high.val as usize) << 6 } else { 0 },
                     (bit_size >> 3) as usize
                 )
@@ -194,8 +194,8 @@ mod msg_manager_test {
             size_low: ((s & ((1<<6)-1)) as u8).into(),
             must_be_one: 1.into(),
             byte_two: if (s>>6) > 0 {
-                Some(MsgHeaderByteTwo{size_high: ((s>>6) as u8).into(), must_be_one: 1.into() }) }
-            else { None }
+                Some(MsgHeaderByteTwo{size_high: ((s>>6) as u8).into(), must_be_one: 1.into() }).into() }
+            else { BitisOption::<MsgHeaderByteTwo>{val: None} }
         };
         let mut s2 = Biseri::new();
         header.bit_serialize(&mut s2);

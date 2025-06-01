@@ -16,7 +16,7 @@ fn {{lib_name}}(m: &Bound<'_, PyModule>) -> PyResult<()> {
 {% for cm in d.msgs +%}
     m.add_class::<{{cm.name}}>()?;
 {%- endfor +%}
-{%+ for (_, coo) in d.oos -%}
+{%+ for (_, coo) in d.oos +%}
     m.add_class::<{{coo.name}}>()?;
 {%- endfor +%}
 

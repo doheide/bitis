@@ -14,5 +14,6 @@ msg ParamTestWithInner {
     Inner inner;
     int_3 val;
   }
+  optional uint_6 opt_val;
 }
 

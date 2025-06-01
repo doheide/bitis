@@ -1,7 +1,7 @@
 {%- if let Some(comment_impl) = ca.base.comment -%}
 //{{comment_impl}}
 {%- endif -%}
-pub {{ca.base.name}}: {%~ if ca.base.is_optional -%}Option<{%- endif -%}
+pub {{ca.base.name}}: {%~ if ca.base.is_optional -%}BitisOption<{%- endif -%}
 {%- if let Some(repeated_type) = ca.base.is_repeated_and_size -%}
 {%- match repeated_type -%}
 {%- when DynOrFixedType::Dyn(_) ~%}Vec<
