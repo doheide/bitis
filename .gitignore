@@ -31,4 +31,6 @@ Cargo.lock
 
 **/cmake-build-debug/
 
+**/__pycache__
+
 
