@@ -6,8 +6,6 @@ cd bitis_msgs
 
 cargo clean
 
-../../..
-
-maturin develop
+../../../target/debug/bitis -i ../test_simple_msg.bitis -d compile -o . -l python
 
 cd -

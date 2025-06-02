@@ -3,22 +3,6 @@
 
 
 
-// ****** Numbers *****
-namespace NumbersEnum {
-    ENUM_INSTANCE(One);
-    ENUM_INSTANCE(Two);
-    ENUM_INSTANCE(Three);
-    ENUM_INSTANCE(Four);
-}
-typedef BitisEnum<bitis_helper::Collector<
-    NumbersEnum::One, 
-    NumbersEnum::Two, 
-    NumbersEnum::Three, 
-    NumbersEnum::Four
->, 4> Numbers;
-
-
-
 // ****** Inner *****
 
 
@@ -56,6 +40,62 @@ struct Inner {
     bool operator!=(const Inner &other) const { return !is_equal(other); }
 };
 const char *Inner::msg_attr[] = {"val", "opt_bool"};
+
+// ****** Numbers *****
+namespace NumbersEnum {
+    ENUM_INSTANCE(One);
+    ENUM_INSTANCE(Two);
+    ENUM_INSTANCE(Three);
+    ENUM_INSTANCE(Four);
+}
+typedef BitisEnum<bitis_helper::Collector<
+    NumbersEnum::One, 
+    NumbersEnum::Two, 
+    NumbersEnum::Three, 
+    NumbersEnum::Four
+>, 4> Numbers;
+
+
+
+// ****** InnerWithEnum *****
+
+
+struct InnerWithEnum {
+    static const char *msg_attr[];
+    typedef IntgralWithGivenBitSize<uint8_t, 3> Val_T;
+    typedef Numbers Num_T;
+    typedef BitisOptional<BitisBool> OptBool_T;
+
+    typedef message_helper::MessageT<
+        Val_T, Num_T, OptBool_T
+    > MsgT;
+
+    Val_T val;
+    Num_T num;
+    OptBool_T opt_bool;
+
+    std::size_t serialize(BitisSerializer &ser) const {
+        return message_helper::msg_serialize(this, ser);
+    }
+    static bitis_helper::BitiaDeserializerHelper<InnerWithEnum> deserialize(BitisDeserializer &des) {
+        return message_helper::msg_deserialize<InnerWithEnum>(des);
+    }
+
+    void print(int16_t indent=0) {
+        printf("InnerWithEnum{ ");
+        if (indent>=0) printf("\n");
+        message_helper::msg_print(this, (indent>=0) ? (2 + indent) : indent, msg_attr);
+        print_indent(indent); printf("}");
+        // if (indent>=0) printf("\n");
+    }
+
+    bool is_equal(const InnerWithEnum &other) const {
+        return val==other.val && num==other.num && opt_bool==other.opt_bool;
+   }
+    bool operator==(const InnerWithEnum &other) const { return is_equal(other); }
+    bool operator!=(const InnerWithEnum &other) const { return !is_equal(other); }
+};
+const char *InnerWithEnum::msg_attr[] = {"val", "num", "opt_bool"};
 
 // ****** ParamTestWithInner *****
 
@@ -119,21 +159,21 @@ struct OO_ParamTestWithOo_Action  {
 
     template<typename OOT>
     OO_ParamTestWithOo_Action set_oo(typename OOT::OOType v) {
-        static_assert(oneof_helper::ContainsType<OOT, OOEnum::EnumCollector>::value);
+        static_assert(oneof_helper::ContainsType<OOT, T_OOEnum::EnumCollector>::value);
         oo_selector.set_enum<OOT>();
         oo_value.set(v);
         return *this;
     }
     template<typename OOT>
     typename OOT::OOType *get_oo() const {
-        static_assert(oneof_helper::ContainsType<OOT, OOEnum::EnumCollector>::value);
+        static_assert(oneof_helper::ContainsType<OOT, T_OOEnum::EnumCollector>::value);
         if(oo_selector.is_enum<OOT>())
             return oo_value.get<typename OOT::OOType>();
         return nullptr;
     }
     template<typename OOT>
     bool is_oo_value() const {
-        static_assert(oneof_helper::ContainsType<OOT, OOEnum::EnumCollector>::value);
+        static_assert(oneof_helper::ContainsType<OOT, T_OOEnum::EnumCollector>::value);
         if(oo_selector.is_enum<OOT>())
             return true;
         return false;
@@ -160,61 +200,19 @@ struct OO_ParamTestWithOo_Action  {
 };
 
 
-// ****** InnerWithEnum *****
-
-
-struct InnerWithEnum {
-    static const char *msg_attr[];
-    typedef IntgralWithGivenBitSize<uint8_t, 3> Val_T;
-    typedef BitisOptional<BitisBool> OptBool_T;
-    typedef Numbers Num_T;
-
-    typedef message_helper::MessageT<
-        Val_T, OptBool_T, Num_T
-    > MsgT;
-
-    Val_T val;
-    OptBool_T opt_bool;
-    Num_T num;
-
-    std::size_t serialize(BitisSerializer &ser) const {
-        return message_helper::msg_serialize(this, ser);
-    }
-    static bitis_helper::BitiaDeserializerHelper<InnerWithEnum> deserialize(BitisDeserializer &des) {
-        return message_helper::msg_deserialize<InnerWithEnum>(des);
-    }
-
-    void print(int16_t indent=0) {
-        printf("InnerWithEnum{ ");
-        if (indent>=0) printf("\n");
-        message_helper::msg_print(this, (indent>=0) ? (2 + indent) : indent, msg_attr);
-        print_indent(indent); printf("}");
-        // if (indent>=0) printf("\n");
-    }
-
-    bool is_equal(const InnerWithEnum &other) const {
-        return val==other.val && opt_bool==other.opt_bool && num==other.num;
-   }
-    bool operator==(const InnerWithEnum &other) const { return is_equal(other); }
-    bool operator!=(const InnerWithEnum &other) const { return !is_equal(other); }
-};
-const char *InnerWithEnum::msg_attr[] = {"val", "opt_bool", "num"};
-
-// ****** ParamTestWithOO *****
+// ****** ParamTestWithOo *****
 
 
 struct ParamTestWithOo {
     static const char *msg_attr[];
-    typedef UNKNOWN Size_T;
     typedef IntgralWithGivenBitSize<uint8_t, 4> Param1_T;
     typedef OO_ParamTestWithOo_Action Action_T;
     typedef Numbers Num_T;
 
     typedef message_helper::MessageT<
-        Size_T, Param1_T, Action_T, Num_T
+        Param1_T, Action_T, Num_T
     > MsgT;
 
-    Size_T size;
     Param1_T param_1;
     Action_T action;
     Num_T num;
@@ -235,9 +233,9 @@ struct ParamTestWithOo {
     }
 
     bool is_equal(const ParamTestWithOo &other) const {
-        return size==other.size && param_1==other.param_1 && action==other.action && num==other.num;
+        return param_1==other.param_1 && action==other.action && num==other.num;
    }
     bool operator==(const ParamTestWithOo &other) const { return is_equal(other); }
     bool operator!=(const ParamTestWithOo &other) const { return !is_equal(other); }
 };
-const char *ParamTestWithOo::msg_attr[] = {"size", "param_1", "action", "num"};
+const char *ParamTestWithOo::msg_attr[] = {"param_1", "action", "num"};

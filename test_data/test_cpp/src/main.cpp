@@ -22,8 +22,8 @@ int main() {
     // ***
     auto data_inner_enum = InnerWithEnum{
         .val = Inner::Val_T(2),
+        .num = InnerWithEnum::Num_T::create_enum<NumbersEnum::Three>(),
         .opt_bool = Inner::OptBool_T::create_none(),
-        .num = InnerWithEnum::Num_T::create_enum<NumbersEnum::Three>()
     };
     printf("* Inner enum:\n"); data_inner_enum.print(0); printf("\n\n");
 

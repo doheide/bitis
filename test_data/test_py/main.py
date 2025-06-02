@@ -9,6 +9,7 @@ def main():
     msg = bitis_msgs.ParamTestWithInner(11, True, oo, None)
     print(msg)
     msg.param_2 = False
+    msg.opt_val = 4
     print(msg)
     msg.param_1 = 1
     a = msg.param_2

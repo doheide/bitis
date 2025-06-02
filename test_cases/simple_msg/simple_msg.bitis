@@ -1,6 +1,16 @@
 // Simple test message
-msg MsgSimpleTest {
-  uint_4 param_1;
+msg MsgSimpleTestBase {
+  uint_11 param_1;
   bool param_2;
   int_5 param_3;
+  fp_10[-1,1] param_4;
 }
+
+msg MsgSimpleOpt {
+  uint_11 param_1;
+  optional bool param_2;
+  optional uint_11 param_3;
+  optional fp_10[-1,1] param_4;
+}
+
+
