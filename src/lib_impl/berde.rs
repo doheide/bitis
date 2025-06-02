@@ -583,6 +583,12 @@ impl<const NUM_BITS: u8, const MIN_IVALUE: i64, const MAX_IVALUE: i64> Display f
             FixPrecisionVal::Value(v) => write!(f, "{} |dynbits:{}", v, NUM_BITS)
         }
     } }
+impl<const NUM_BITS: u8, const MIN_IVALUE: i64, const MAX_IVALUE: i64> From<f32> for FixPrecisionMinMax<NUM_BITS, MIN_IVALUE, MAX_IVALUE> {
+    fn from(value: f32) -> Self { Self::new(value.into()) }
+}
+impl<const NUM_BITS: u8, const MIN_IVALUE: i64, const MAX_IVALUE: i64> From<f64> for FixPrecisionMinMax<NUM_BITS, MIN_IVALUE, MAX_IVALUE> {
+    fn from(value: f64) -> Self { Self::new(value.into()) }
+}
 
 // *****
 #[derive(Debug, Clone, PartialEq)]
