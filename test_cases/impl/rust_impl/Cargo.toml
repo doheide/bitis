@@ -1,11 +1,13 @@
 [package]
-name = "tc_simple_msg"
+name = "test_simple"
 version = "0.6.5"
 edition = "2024"
 
 [[bin]]
-name = "tc_simple_msg"
+name = "rust_impl"
 path = "src/main.rs"
 
+
 [dependencies]
-bitis = { path = "../../.." }
+# bitis = "0.6.4"
+bitis = {path = "../../../"}
