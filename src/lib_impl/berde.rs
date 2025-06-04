@@ -289,6 +289,10 @@ impl_biserdi!(f64, 64);
 pub struct BitisOption<T> {
     pub val: Option<T>
 }
+impl<T> BitisOption<T> where T: BiserdiTrait + Default {
+    pub fn new_some(val: T) -> BitisOption<T> { BitisOption { val: Some(val) } }
+    pub fn new_none() -> BitisOption<T> { BitisOption { val: None } }
+}
 impl<T> BiserdiTrait for BitisOption<T> where T: BiserdiTrait + Default {
     fn bit_serialize(self: &Self, biseri: &mut Biseri) -> Option<u64> {
         let mut size = 1;
@@ -563,7 +567,7 @@ impl<const NUM_BITS: u8, const MIN_IVALUE: i64, const MAX_IVALUE: i64> FixPrecis
         let vu = match v {
             // i = (v-Min) / (Max-Min) * 253 + 1
             FixPrecisionVal::Value(v) => {
-                let vv= (v - Self::MIN_VALUE) / Self::RANGE_VALUE * Self::MAX_VALUE_FOR_BITS + 1.0; 
+                let vv= (v - Self::MIN_VALUE) / Self::RANGE_VALUE * Self::MAX_VALUE_FOR_BITS + 1.0;
                 vv.round() as u64
             },
             FixPrecisionVal::Underflow => 0,
