@@ -9,5 +9,5 @@ path = "src/main.rs"
 
 
 [dependencies]
-# bitis = "0.6.4"
+#bitis = { version = "0.6.5" }
 bitis = {path = "../../../"}

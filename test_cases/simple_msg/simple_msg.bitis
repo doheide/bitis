@@ -1,9 +1,25 @@
 // Simple test message
+msg MsgSimpleBaseOneInt {
+  uint_11 param_1;
+}
+// Simple test message
+msg MsgSimpleBaseThreeInt {
+  uint_11 param_1;
+  uint_6 param_2;
+  uint_11 param_3;
+}
+
+// Simple test message
 msg MsgSimpleTestBase {
   uint_11 param_1;
   bool param_2;
   int_5 param_3;
-  fp_10[-1,1] param_4;
+}
+
+//
+msg MsgSimpleTestFP {
+  bool param_1;
+  fp_10[-1,1] fp;
 }
 
 msg MsgSimpleOpt {
