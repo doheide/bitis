@@ -3,7 +3,6 @@
 //
 
 #pragma once
-
 #include <cfloat>
 #include "inttypes.h"
 #include <type_traits>
@@ -14,18 +13,19 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <inttypes.h>
 
 inline void print_indent(const int16_t indent) {
     for(int i=0; i < indent; i++) { printf(" "); }
 }
 
 template<typename T>
-T calc_bitmask(T bits) {
+uint64_t calc_bitmask(T bits) {
     static_assert(std::is_integral<T>::value, "calc_bitmask(): T must be an integral type");
 
-    T val = 1;
+    uint64_t val = 1;
     if (bits == 0) return 0;
-    for (T i = 1; i < bits; i++) {
+    for (T i = 1; i < bits; ++i) {
         val = (val << 1) + 1;
     }
     return val;
@@ -505,40 +505,63 @@ template <uint8_t BITS, int64_t MIN_IVALUE, int64_t MAX_IVALUE>
 struct FixPrecisionMinMax {
     static_assert(BITS > 2);
 
-    FixPrecisionMinMax() : value(), state(Ok) { }
-    explicit FixPrecisionMinMax(const double &v) : value(0) { // NOLINT(*-pro-type-member-init)
+    FixPrecisionMinMax() : value(0.), state(Overflow) { }
+    explicit FixPrecisionMinMax(const double &v) { // NOLINT(*-pro-type-member-init)
         set(v);
     }
 
     void set(const double &v) {
-        value = 0;
-        state = Ok;
+        value = 0; state = Ok;
 
-        if (v < MIN_IVALUE) {
-            state = Underflow;
-        }
-        else if (v > MAX_IVALUE) {
-            state = Overflow;
-        }
-        else {
-            value = v;
-        }
+        if (v < MIN_IVALUE) { state = Underflow; }
+        else if (v > MAX_IVALUE) { state = Overflow; }
+        else { value = v; }
+        FixPrecisionMinMax::u64_to_val(val_to_u64(value, state), this->value, this->state);
     }
     double get_value() const { return value; }
     FixPrecisionMinMaxEnum get_state() const { return state; }
+
+    static uint64_t val_to_u64(double value, FixPrecisionMinMaxEnum state) {
+        const auto max_value = calc_bitmask(BITS);
+        uint64_t v;
+        if (state == Underflow) { v = 0; }
+        else if (state == Overflow) { v = max_value; }
+        else {
+            auto of = (value - ((double)MIN_IVALUE));
+            auto diff = (double)(MAX_IVALUE - MIN_IVALUE);
+            auto mv = (double)max_value - 2.;
+            v = lround(of / diff * mv) + 1;
+
+            // v = (uint64_t) ((value - ((double)MIN_IVALUE))
+            //     / ((double)(MAX_IVALUE - MIN_IVALUE))
+            //     * (double)(max_value - 2)) + 1;
+        }
+        return v;
+    }
+    static void u64_to_val(uint64_t vu, double &value, FixPrecisionMinMaxEnum &state) {
+        const auto max_value = calc_bitmask(BITS);
+
+        if(vu == 0) { state = Underflow; }
+        else if(vu == max_value) { state = Overflow; }
+        else {
+            state = Ok;
+            value = (((double)vu-1.) / ((double)(max_value-2)) *
+                ((double)(MAX_IVALUE-MIN_IVALUE))) + (double)MIN_IVALUE;
+        }
+    }
 
     uint8_t serialize(BitisSerializer &ser) const {
         uint8_t num_bits = 0;
         auto max_value = calc_bitmask(BITS);
 
-        uint64_t v;
-        if (state == Underflow) { v = 0; }
+        uint64_t v = FixPrecisionMinMax::val_to_u64(value, state);
+/*        if (state == Underflow) { v = 0; }
         else if (state == Overflow) { v = max_value; }
         else {
             v = lround((value - ((double)MIN_IVALUE))
                 / ((double)(MAX_IVALUE - MIN_IVALUE))
                 * (double)(max_value - 2)) + 1;
-        }
+        }*/
         auto t = IntgralWithGivenBitSize<uint64_t, BITS>{v};
         printf("t: "); t.print(-1); printf("\n");
         num_bits += t.serialize(ser);
@@ -549,7 +572,10 @@ struct FixPrecisionMinMax {
 
         auto d = FixPrecisionMinMax(0.0);
         auto data_u64 = IntgralWithGivenBitSize<uint64_t, BITS>::deserialize(des);
-        if(data_u64.data.value == 0) {
+        printf("data_u64: %" PRIu64, data_u64.data.value);
+        FixPrecisionMinMax::u64_to_val(data_u64.data.value, d.value, d.state);
+
+/*        if(data_u64.data.value == 0) {
             d.state = Underflow;
         } else if(data_u64.data.value == max_value) {
             d.state = Overflow;
@@ -557,7 +583,8 @@ struct FixPrecisionMinMax {
             d.state = Ok;
             d.value = (((double)data_u64.data.value-1.) / (static_cast<double>(max_value-2)) *
                 ((double)(MAX_IVALUE-MIN_IVALUE))) + (double)MIN_IVALUE;
-        }
+        }*/
+
         return bitis_helper::BitiaDeserializerHelper<FixPrecisionMinMax>{.bits = BITS, .data = d };
     }
     void print(int16_t indent=0) {
@@ -570,7 +597,7 @@ struct FixPrecisionMinMax {
         else {
             printf("%f", value);
         }
-        printf(" [FP%ld-%ld]", MIN_IVALUE, MAX_IVALUE);
+        printf(" [FP[%ld,%ld]]", MIN_IVALUE, MAX_IVALUE);
     }
 
     bool is_equal(const FixPrecisionMinMax &other) const {
@@ -1019,8 +1046,22 @@ namespace oneof_helper {
         OneOfT_ImplStart<typename remove_const<OOTS>::type,typename OOTS::T_OOEnum::EnumCollector> inner;
         return inner.is_equal(self, other);
     }
-
 }
 
 
+template<typename T>
+std::vector<uint8_t> serialize(T & msg) {
+    auto ser = BitisSerializer();
+    // auto r = serialize(a, ser);
+    msg.serialize(ser);
+    auto r = ser.finalize();
+    return ser.data_cache;
+}
+
+template<typename T>
+T deserialize(const std::vector<uint8_t>& data) {
+    auto des = BitisDeserializer(data);
+    auto dd = T::deserialize(des);
+    return dd.data;
+}
 

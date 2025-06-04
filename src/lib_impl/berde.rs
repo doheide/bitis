@@ -528,14 +528,14 @@ impl<T: Display + Sized + Copy + BiserdiTraitVarBitSize + AddAssign + Shl<Output
 
 
 // ***
-#[derive(Debug, Clone, PartialEq, Default)]
+#[derive(Debug, Clone, Default)]
 pub enum FixPrecisionVal {
     #[default]
     Overflow,
     Value(f64),
     Underflow
 }
-#[derive(Debug, Clone, PartialEq, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct FixPrecisionMinMax<const NUM_BITS: u8, const MIN_IVALUE: i64, const MAX_IVALUE: i64> {
     pub val: FixPrecisionVal
 }
@@ -544,34 +544,53 @@ impl<const NUM_BITS: u8, const MIN_IVALUE: i64, const MAX_IVALUE: i64> FixPrecis
     const MAX_VALUE: f64 = MAX_IVALUE as f64;
     const RANGE_VALUE: f64 = Self::MAX_VALUE - Self::MIN_VALUE;
     const MAX_INT_VALUE_FOR_BITS: u64 = (1_u64<<NUM_BITS) - 1_u64;
-    const MAX_VALUE_FOR_BITS: f64 = (Self::MAX_INT_VALUE_FOR_BITS - 1_u64) as f64;
+    const MAX_VALUE_FOR_BITS: f64 = (Self::MAX_INT_VALUE_FOR_BITS - 2_u64) as f64;
 
     pub fn new(val: f64) -> Self {
-        if val > Self::MAX_VALUE { FixPrecisionMinMax { val: FixPrecisionVal::Overflow } }
-        else if val < Self::MIN_VALUE { FixPrecisionMinMax { val: FixPrecisionVal::Underflow } }
-        else { FixPrecisionMinMax { val: FixPrecisionVal::Value(val) } }
+        let mut obj = Self{val: FixPrecisionVal::Underflow};
+        obj.set(val);
+        obj
+    }
+    pub fn set(&mut self, val: f64) {
+        self.val = Self::u64_to_val(Self::val_to_u64(&Self::val_to_enum(val)));
+    }
+    fn val_to_enum(val: f64) -> FixPrecisionVal {
+        if val > Self::MAX_VALUE { FixPrecisionVal::Overflow }
+        else if val < Self::MIN_VALUE { FixPrecisionVal::Underflow }
+        else { FixPrecisionVal::Value(val) }
+    }
+    fn val_to_u64(v: &FixPrecisionVal) -> u64 {
+        let vu = match v {
+            // i = (v-Min) / (Max-Min) * 253 + 1
+            FixPrecisionVal::Value(v) => {
+                let vv= (v - Self::MIN_VALUE) / Self::RANGE_VALUE * Self::MAX_VALUE_FOR_BITS + 1.0; 
+                vv.round() as u64
+            },
+            FixPrecisionVal::Underflow => 0,
+            FixPrecisionVal::Overflow => Self::MAX_INT_VALUE_FOR_BITS
+        };
+        // println!("vu: {}", vu);
+        vu
+    }
+    fn u64_to_val(v: u64) -> FixPrecisionVal {
+        if v == 0 { FixPrecisionVal::Underflow }
+        else if v == Self::MAX_INT_VALUE_FOR_BITS { FixPrecisionVal::Overflow }
+        else {
+            FixPrecisionVal::Value(((v-1) as f64) / Self::MAX_VALUE_FOR_BITS
+                * Self::RANGE_VALUE + Self::MIN_VALUE)
+        }
     }
 }
 impl<const NUM_BITS: u8, const MIN_IVALUE: i64, const MAX_IVALUE: i64> BiserdiTrait for FixPrecisionMinMax<NUM_BITS, MIN_IVALUE, MAX_IVALUE> {
     fn bit_serialize(self: &Self, biseri: &mut Biseri) -> Option<u64> {
-        let v = match self.val {
-            // i = (v-Min) / (Max-Min) * 253 + 1
-            FixPrecisionVal::Value(v) =>
-                ((v - Self::MIN_VALUE) / Self::RANGE_VALUE * Self::MAX_VALUE_FOR_BITS + 1.0) as u64,
-            FixPrecisionVal::Underflow => 0,
-            FixPrecisionVal::Overflow => Self::MAX_INT_VALUE_FOR_BITS
-        };
+        let v = Self::val_to_u64(&self.val);
+        println!("t: {}", v);
         v.bit_serialize(NUM_BITS as u64, biseri)
     }
     fn bit_deserialize(version_id: u16, bides: &mut Bides) -> Option<(Self, u64)> {
         // v = (i-1)/253 * (Max-Min) + Min
         let (v, bits) = u64::bit_deserialize(version_id, NUM_BITS as u64, bides)?;
-        let vv = if v == 0 { FixPrecisionVal::Underflow }
-        else if v == Self::MAX_INT_VALUE_FOR_BITS { FixPrecisionVal::Overflow }
-        else {
-            FixPrecisionVal::Value(((v-1) as f64) / Self::MAX_VALUE_FOR_BITS
-                * Self::RANGE_VALUE + Self::MIN_VALUE)
-        };
+        let vv = Self::u64_to_val(v);
         Some((Self{val: vv}, bits))
     }
 }
@@ -588,6 +607,12 @@ impl<const NUM_BITS: u8, const MIN_IVALUE: i64, const MAX_IVALUE: i64> From<f32>
 }
 impl<const NUM_BITS: u8, const MIN_IVALUE: i64, const MAX_IVALUE: i64> From<f64> for FixPrecisionMinMax<NUM_BITS, MIN_IVALUE, MAX_IVALUE> {
     fn from(value: f64) -> Self { Self::new(value.into()) }
+}
+impl<const NUM_BITS: u8, const MIN_IVALUE: i64, const MAX_IVALUE: i64> PartialEq for FixPrecisionMinMax<NUM_BITS, MIN_IVALUE, MAX_IVALUE> {
+    fn eq(&self, other: &Self) -> bool {
+        Self::val_to_u64(&self.val) == Self::val_to_u64(&other.val)
+    }
+    fn ne(&self, other: &Self) -> bool { !self.eq(other) }
 }
 
 // *****
@@ -634,6 +659,7 @@ impl<const N: u8> std::fmt::Display for Binary< N> {
 mod bitis_base_serialization_deserialization {
     use rstest::rstest;
     use crate::lib_impl::berde::{Bides, Biseri};
+    use crate::{deserialize, serialize};
     use super::*;
 
     #[rstest]
@@ -1197,6 +1223,36 @@ mod bitis_base_serialization_deserialization {
         match vv.val {
             FixPrecisionVal::Overflow => assert!(true),
             _ => assert!(false)
+        }
+    }
+
+    #[rstest]
+    fn ser_and_deserialize_fixed_precision_vals() {
+        type ValT = FixPrecisionMinMax<3, 1, 2>;
+
+        {
+            let v = ValT::new(1.);
+            let vv = deserialize::<ValT>(&serialize(&v));
+            println!("v: {:?}, vv: {:?}", v, vv);
+            assert!(vv.is_some());
+            let vv = vv.unwrap().0;
+            assert!(v==vv);
+        }
+        {
+            let v = ValT::new(1.2);
+            let vv = deserialize::<ValT>(&serialize(&v));
+            println!("v: {:?}, vv: {:?}", v, vv);
+            assert!(vv.is_some());
+            let vv = vv.unwrap().0;
+            assert!(v==vv);
+        }
+        {
+            let v = ValT::new(1.21);
+            let vv = deserialize::<ValT>(&serialize(&v));
+            println!("v: {:?}, vv: {:?}", v, vv);
+            assert!(vv.is_some());
+            let vv = vv.unwrap().0;
+            assert!(v==vv);
         }
     }
 }

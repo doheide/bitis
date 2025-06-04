@@ -114,7 +114,7 @@ namespace test_serializer {
         // step in FP is 0.2 so 1.05 -> 1, 1.2 -> 1.2, 1.25 -> 1.3
         auto data1 = FixPrecisionMinMax<3, 1, 2>(1.05);
         printf("data1: "); data1.print(-1); printf("\n");
-        auto data2 = FixPrecisionMinMax<3, 1, 2>(1.2);
+        auto data2 = FixPrecisionMinMax<3, 1, 2>(1.21);
         printf("data2: "); data2.print(-1); printf("\n");
         auto data3 = FixPrecisionMinMax<3, 1, 2>(1.31);
         printf("data3: "); data3.print(-1); printf("\n");
@@ -505,8 +505,8 @@ namespace test_oneof {
         typedef BitisEnum<bitis_helper::Collector<
             OO_Inner,
             OO_Val
-        >, 4> OOEnum;
-        OOEnum oo_selector;
+        >, 4> T_OOEnum;
+        T_OOEnum oo_selector;
 
         typedef oneof_helper::UnionT<
             OO_Inner::OOType, OO_Val::OOType
@@ -517,21 +517,21 @@ namespace test_oneof {
 
         template<typename OOT>
         OO_ParamTestWithOo_Action set_oo(typename OOT::OOType v) {
-            static_assert(oneof_helper::ContainsType<OOT, OOEnum::EnumCollector>::value);
+            static_assert(oneof_helper::ContainsType<OOT, T_OOEnum::EnumCollector>::value);
             oo_selector.set_enum<OOT>();
             oo_value.set(v);
             return *this;
         }
         template<typename OOT>
         typename OOT::OOType *get_oo() const {
-            static_assert(oneof_helper::ContainsType<OOT, OOEnum::EnumCollector>::value);
+            static_assert(oneof_helper::ContainsType<OOT, T_OOEnum::EnumCollector>::value);
             if(oo_selector.is_enum<OOT>())
                 return oo_value.get<typename OOT::OOType>();
             return nullptr;
         }
         template<typename OOT>
         bool is_oo_value() const {
-            static_assert(oneof_helper::ContainsType<OOT, OOEnum::EnumCollector>::value);
+            static_assert(oneof_helper::ContainsType<OOT, T_OOEnum::EnumCollector>::value);
             if(oo_selector.is_enum<OOT>())
                 return true;
             return false;
