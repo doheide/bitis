@@ -262,10 +262,12 @@ struct BitisFloatingPoint {
 // ***************************************************************
 template <typename T>
 struct BitisOptional {
+    typedef T ValT;
     T value;
     bool is_none;
 
     BitisOptional() : value(), is_none(true) {}
+    BitisOptional(T val) : value(val), is_none(false) {}
     explicit BitisOptional(T value, bool _is_none) : value(value), is_none(_is_none) {}
     static BitisOptional create_none() { return BitisOptional(T(), true); }
     static BitisOptional create_val(T v) { return BitisOptional(v, false); }
