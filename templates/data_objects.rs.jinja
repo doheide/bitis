@@ -5,11 +5,12 @@ use bitis_lib::*;
 {%- if let Some(comment_impl) = ce.comment -%}
 ///{{comment_impl}}
 {%- endif -%}
-#[derive(BiserdiEnum, Debug, Clone, PartialEq)]
+#[derive(BiserdiEnum, Debug, Clone, PartialEq, Default)]
 #[biserdi_enum_id_dynbits({{ce.bit_size}})]
 #[allow(nonstandard_style)]
 pub enum {{ ce.name }} {
 {%- for cv in ce.values +%}
+  {% if *cv == ce.default -%} #[default] {% endif -%}
   {{ cv|pascal_case }},
 {%- endfor %}
 }

@@ -366,6 +366,7 @@ pub struct Enum {
     pub comment: Option<String>,
     pub bit_size: u8,
     pub values: Vec<String>,
+    pub default: String
 }
 
 pub fn get_suffix_number(lex: &mut Lexer<Token>) -> Option<u8> {
@@ -431,6 +432,7 @@ pub enum Token{
     #[token(":")] Colon,
     #[token(";")] SemiColon,
     #[token(",")] Comma,
+    #[token("*")] Star,
     // #[token("fixed", priority=20)] FixedFlag,
     // #[token("dyn", priority=20)] DynFlag,
     #[regex(r"\[ *base +use +starting +with +v[0-9]+ *\]", get_version, priority=35)] MsgBaseInfoToken(u16),
@@ -762,18 +764,33 @@ pub fn parse_enum(lexer: &mut Lexer<'_, Token>, comment: Option<String>) -> Resu
     parse_one_token!(Token::CBraceOpen, lexer, Some(format!("Expected open curly bracket for enum '{name}'")))?.unwrap();
 
     let mut values = Vec::new();
+    let (mut value_found, mut is_default) = (false, false);
+    let mut default_val = None;
     loop {
         if let Some(token) = lexer.next() {
             match token {
                 Ok(Token::CBraceClose) => break,
-                Ok(Token::StringVal(s)) => values.push(s),
-                Ok(Token::Comma) | Ok(Token::Comment)=> (),
-                _ => { return Err((format!("Error: Unexpected text found for enum '{name}'.").into(), lexer.span())) },
+                Ok(Token::StringVal(s)) => {
+                    values.push(s.clone()); value_found=true;
+                    if is_default { default_val = Some(s); }
+                    is_default = false;
+                },
+                Ok(Token::Comma) => {
+                    if !value_found { return Err(("Error: found comma but no enum value.".to_string(), lexer.span())) }
+                    value_found=false },
+                Ok(Token::Comment) => (),
+                Ok(Token::Star) => {
+                    if default_val.is_some() || value_found {
+                        return Err(("Error: found default value marker (*) but default already set or marker not preceding value.".to_string(), lexer.span()))}
+                    is_default = true;
+                }
+                _ => { return Err((format!("Error: Unexpected text found for enum '{name}'."), lexer.span())) },
             }
         } else { return Err(("Unexpected end of file".into(), lexer.span())); }
     }
+    if default_val.is_none() { return Err(("Error: missing default value marker.".to_string(), lexer.span())); }
 
-    Ok(Value::Enum(Enum{name, /*version_info,*/ comment, bit_size, values}))
+    Ok(Value::Enum(Enum{name, comment, bit_size, values, default: default_val.unwrap() }))
 }
 
 
