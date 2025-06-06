@@ -5,6 +5,10 @@ This library/compiler is currently in an early **alpha version**!
 Key Features
 
 * Bitwise Serialization & Deserialization: Encodes data structures into a compact bitstream representation.
+* Space efficient encoding:
+  * Optional values not set require 1 bit
+  * Dynamic arrays with no elements require 1 bit
+  * Dynamic integers with a value of zero requires 1 bit
 * Supports Messages & Enums: Allows encoding structured messages and discriminated unions (enums).
   * Variety of Numeric Types:
     * Any size of fixed-size integers, e.g. 3 bit wide, based on standard integers (u8, u16, u32, u64, i8, i16, etc.).
