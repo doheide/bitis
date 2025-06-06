@@ -3,198 +3,160 @@
 
 
 
-// ****** MsgSimpleTestBase *****
+// ****** ExampleEnum *****
+namespace ExampleEnumEnum {
+    ENUM_INSTANCE(E1);
+    ENUM_INSTANCE(E2);
+    ENUM_INSTANCE(E3);
+    ENUM_INSTANCE(E4);
+    ENUM_INSTANCE(E5);
+    ENUM_INSTANCE(E6);
+    ENUM_INSTANCE(E7);
+    ENUM_INSTANCE(E8);
+    ENUM_INSTANCE(E9);
+}
+
+typedef BitisEnum<bitis_helper::Collector<
+    ExampleEnumEnum::E1, 
+    ExampleEnumEnum::E2, 
+    ExampleEnumEnum::E3, 
+    ExampleEnumEnum::E4, 
+    ExampleEnumEnum::E5, 
+    ExampleEnumEnum::E6, 
+    ExampleEnumEnum::E7, 
+    ExampleEnumEnum::E8, 
+    ExampleEnumEnum::E9
+>, ExampleEnumEnum::E3, 2> ExampleEnum;
 
 
-struct MsgSimpleTestBase {
+
+// ****** SensorSource *****
+namespace SensorSourceEnum {
+    ENUM_INSTANCE(TemperaturSensor);
+    ENUM_INSTANCE(MovementSensor);
+}
+
+typedef BitisEnum<bitis_helper::Collector<
+    SensorSourceEnum::TemperaturSensor, 
+    SensorSourceEnum::MovementSensor
+>, SensorSourceEnum::TemperaturSensor, 3> SensorSource;
+
+
+
+// ****** MsgEnumOpt *****
+
+
+struct MsgEnumOpt {
     static const char *msg_attr[];
-    typedef IntgralWithGivenBitSize<uint16_t, 11> Param1_T;
-    typedef BitisBool Param2_T;
-    typedef IntgralWithGivenBitSize<int8_t, 5> Param3_T;
+    typedef IntgralWithGivenBitSize<uint8_t, 3> Val_T;
+    typedef SensorSource Param1_T;
+    typedef BitisOptional<ExampleEnum> Param2_T;
 
     typedef message_helper::MessageT<
-        Param1_T, Param2_T, Param3_T
+        Val_T, Param1_T, Param2_T
     > MsgT;
 
+    Val_T val;
     Param1_T param_1;
     Param2_T param_2;
-    Param3_T param_3;
 
     std::size_t serialize(BitisSerializer &ser) const {
         return message_helper::msg_serialize(this, ser);
     }
-    static bitis_helper::BitiaDeserializerHelper<MsgSimpleTestBase> deserialize(BitisDeserializer &des) {
-        return message_helper::msg_deserialize<MsgSimpleTestBase>(des);
+    static bitis_helper::BitiaDeserializerHelper<MsgEnumOpt> deserialize(BitisDeserializer &des) {
+        return message_helper::msg_deserialize<MsgEnumOpt>(des);
     }
 
     void print(int16_t indent=0) {
-        printf("MsgSimpleTestBase{ ");
+        printf("MsgEnumOpt{ ");
         if (indent>=0) printf("\n");
         message_helper::msg_print(this, (indent>=0) ? (2 + indent) : indent, msg_attr);
         print_indent(indent); printf("}");
         // if (indent>=0) printf("\n");
     }
 
-    bool is_equal(const MsgSimpleTestBase &other) const {
-        return param_1==other.param_1 && param_2==other.param_2 && param_3==other.param_3;
+    bool is_equal(const MsgEnumOpt &other) const {
+        return val==other.val && param_1==other.param_1 && param_2==other.param_2;
    }
-    bool operator==(const MsgSimpleTestBase &other) const { return is_equal(other); }
-    bool operator!=(const MsgSimpleTestBase &other) const { return !is_equal(other); }
+    bool operator==(const MsgEnumOpt &other) const { return is_equal(other); }
+    bool operator!=(const MsgEnumOpt &other) const { return !is_equal(other); }
 };
-const char *MsgSimpleTestBase::msg_attr[] = {"param_1", "param_2", "param_3"};
+const char *MsgEnumOpt::msg_attr[] = {"val", "param_1", "param_2"};
 
-// ****** MsgSimpleBaseThreeInt *****
+// ****** MsgWithInner *****
 
 
-struct MsgSimpleBaseThreeInt {
+struct MsgWithInner {
     static const char *msg_attr[];
-    typedef IntgralWithGivenBitSize<uint16_t, 11> Param1_T;
-    typedef IntgralWithGivenBitSize<uint8_t, 6> Param2_T;
-    typedef IntgralWithGivenBitSize<uint16_t, 11> Param3_T;
+    typedef IntgralWithGivenBitSize<uint8_t, 3> Val_T;
+    typedef MsgEnumOpt Imsg_T;
 
     typedef message_helper::MessageT<
-        Param1_T, Param2_T, Param3_T
+        Val_T, Imsg_T
     > MsgT;
 
-    Param1_T param_1;
-    Param2_T param_2;
-    Param3_T param_3;
+    Val_T val;
+    Imsg_T imsg;
 
     std::size_t serialize(BitisSerializer &ser) const {
         return message_helper::msg_serialize(this, ser);
     }
-    static bitis_helper::BitiaDeserializerHelper<MsgSimpleBaseThreeInt> deserialize(BitisDeserializer &des) {
-        return message_helper::msg_deserialize<MsgSimpleBaseThreeInt>(des);
+    static bitis_helper::BitiaDeserializerHelper<MsgWithInner> deserialize(BitisDeserializer &des) {
+        return message_helper::msg_deserialize<MsgWithInner>(des);
     }
 
     void print(int16_t indent=0) {
-        printf("MsgSimpleBaseThreeInt{ ");
+        printf("MsgWithInner{ ");
         if (indent>=0) printf("\n");
         message_helper::msg_print(this, (indent>=0) ? (2 + indent) : indent, msg_attr);
         print_indent(indent); printf("}");
         // if (indent>=0) printf("\n");
     }
 
-    bool is_equal(const MsgSimpleBaseThreeInt &other) const {
-        return param_1==other.param_1 && param_2==other.param_2 && param_3==other.param_3;
+    bool is_equal(const MsgWithInner &other) const {
+        return val==other.val && imsg==other.imsg;
    }
-    bool operator==(const MsgSimpleBaseThreeInt &other) const { return is_equal(other); }
-    bool operator!=(const MsgSimpleBaseThreeInt &other) const { return !is_equal(other); }
+    bool operator==(const MsgWithInner &other) const { return is_equal(other); }
+    bool operator!=(const MsgWithInner &other) const { return !is_equal(other); }
 };
-const char *MsgSimpleBaseThreeInt::msg_attr[] = {"param_1", "param_2", "param_3"};
+const char *MsgWithInner::msg_attr[] = {"val", "imsg"};
 
-// ****** MsgSimpleTestFP *****
+// ****** MsgWithTwoInner *****
 
 
-struct MsgSimpleTestFp {
+struct MsgWithTwoInner {
     static const char *msg_attr[];
-    typedef BitisBool Param1_T;
-    typedef FixPrecisionMinMax<10, -1, 1> Fp_T;
+    typedef IntgralWithGivenBitSize<uint8_t, 3> Val_T;
+    typedef MsgWithInner Imsg_T;
+    typedef BitisOptional<MsgEnumOpt> Oimsg_T;
 
     typedef message_helper::MessageT<
-        Param1_T, Fp_T
+        Val_T, Imsg_T, Oimsg_T
     > MsgT;
 
-    Param1_T param_1;
-    Fp_T fp;
+    Val_T val;
+    Imsg_T imsg;
+    Oimsg_T oimsg;
 
     std::size_t serialize(BitisSerializer &ser) const {
         return message_helper::msg_serialize(this, ser);
     }
-    static bitis_helper::BitiaDeserializerHelper<MsgSimpleTestFp> deserialize(BitisDeserializer &des) {
-        return message_helper::msg_deserialize<MsgSimpleTestFp>(des);
+    static bitis_helper::BitiaDeserializerHelper<MsgWithTwoInner> deserialize(BitisDeserializer &des) {
+        return message_helper::msg_deserialize<MsgWithTwoInner>(des);
     }
 
     void print(int16_t indent=0) {
-        printf("MsgSimpleTestFp{ ");
+        printf("MsgWithTwoInner{ ");
         if (indent>=0) printf("\n");
         message_helper::msg_print(this, (indent>=0) ? (2 + indent) : indent, msg_attr);
         print_indent(indent); printf("}");
         // if (indent>=0) printf("\n");
     }
 
-    bool is_equal(const MsgSimpleTestFp &other) const {
-        return param_1==other.param_1 && fp==other.fp;
+    bool is_equal(const MsgWithTwoInner &other) const {
+        return val==other.val && imsg==other.imsg && oimsg==other.oimsg;
    }
-    bool operator==(const MsgSimpleTestFp &other) const { return is_equal(other); }
-    bool operator!=(const MsgSimpleTestFp &other) const { return !is_equal(other); }
+    bool operator==(const MsgWithTwoInner &other) const { return is_equal(other); }
+    bool operator!=(const MsgWithTwoInner &other) const { return !is_equal(other); }
 };
-const char *MsgSimpleTestFp::msg_attr[] = {"param_1", "fp"};
-
-// ****** MsgSimpleOpt *****
-
-
-struct MsgSimpleOpt {
-    static const char *msg_attr[];
-    typedef IntgralWithGivenBitSize<uint16_t, 11> Param1_T;
-    typedef BitisOptional<BitisBool> Param2_T;
-    typedef BitisOptional<IntgralWithGivenBitSize<uint16_t, 11>> Param3_T;
-    typedef BitisOptional<FixPrecisionMinMax<10, -1, 1>> Param4_T;
-
-    typedef message_helper::MessageT<
-        Param1_T, Param2_T, Param3_T, Param4_T
-    > MsgT;
-
-    Param1_T param_1;
-    Param2_T param_2;
-    Param3_T param_3;
-    Param4_T param_4;
-
-    std::size_t serialize(BitisSerializer &ser) const {
-        return message_helper::msg_serialize(this, ser);
-    }
-    static bitis_helper::BitiaDeserializerHelper<MsgSimpleOpt> deserialize(BitisDeserializer &des) {
-        return message_helper::msg_deserialize<MsgSimpleOpt>(des);
-    }
-
-    void print(int16_t indent=0) {
-        printf("MsgSimpleOpt{ ");
-        if (indent>=0) printf("\n");
-        message_helper::msg_print(this, (indent>=0) ? (2 + indent) : indent, msg_attr);
-        print_indent(indent); printf("}");
-        // if (indent>=0) printf("\n");
-    }
-
-    bool is_equal(const MsgSimpleOpt &other) const {
-        return param_1==other.param_1 && param_2==other.param_2 && param_3==other.param_3 && param_4==other.param_4;
-   }
-    bool operator==(const MsgSimpleOpt &other) const { return is_equal(other); }
-    bool operator!=(const MsgSimpleOpt &other) const { return !is_equal(other); }
-};
-const char *MsgSimpleOpt::msg_attr[] = {"param_1", "param_2", "param_3", "param_4"};
-
-// ****** MsgSimpleBaseOneInt *****
-
-
-struct MsgSimpleBaseOneInt {
-    static const char *msg_attr[];
-    typedef IntgralWithGivenBitSize<uint16_t, 11> Param1_T;
-
-    typedef message_helper::MessageT<
-        Param1_T
-    > MsgT;
-
-    Param1_T param_1;
-
-    std::size_t serialize(BitisSerializer &ser) const {
-        return message_helper::msg_serialize(this, ser);
-    }
-    static bitis_helper::BitiaDeserializerHelper<MsgSimpleBaseOneInt> deserialize(BitisDeserializer &des) {
-        return message_helper::msg_deserialize<MsgSimpleBaseOneInt>(des);
-    }
-
-    void print(int16_t indent=0) {
-        printf("MsgSimpleBaseOneInt{ ");
-        if (indent>=0) printf("\n");
-        message_helper::msg_print(this, (indent>=0) ? (2 + indent) : indent, msg_attr);
-        print_indent(indent); printf("}");
-        // if (indent>=0) printf("\n");
-    }
-
-    bool is_equal(const MsgSimpleBaseOneInt &other) const {
-        return param_1==other.param_1;
-   }
-    bool operator==(const MsgSimpleBaseOneInt &other) const { return is_equal(other); }
-    bool operator!=(const MsgSimpleBaseOneInt &other) const { return !is_equal(other); }
-};
-const char *MsgSimpleBaseOneInt::msg_attr[] = {"param_1"};
+const char *MsgWithTwoInner::msg_attr[] = {"val", "imsg", "oimsg"};

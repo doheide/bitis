@@ -1,0 +1,25 @@
+enum SensorSource(3) {
+  *TEMPERATUR_SENSOR, MOVEMENT_SENSOR
+}
+
+enum ExampleEnum(2) {
+  E1, E2, *E3, E4, E5, E6, E7, E8, E9
+}
+
+// ****
+msg MsgEnumOpt {
+  uint_3 val;
+  SensorSource param_1;
+  optional ExampleEnum param_2;
+}
+
+msg MsgWithInner {
+  uint_3 val;
+  MsgEnumOpt imsg;
+}
+
+msg MsgWithTwoInner {
+  uint_3 val;
+  MsgWithInner imsg;
+  optional MsgEnumOpt oimsg;
+}

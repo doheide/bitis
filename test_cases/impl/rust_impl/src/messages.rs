@@ -1,42 +1,48 @@
 use bitis_lib::*;
 
 // Enums
-
+#[derive(BiserdiEnum, Debug, Clone, PartialEq, Default)]
+#[biserdi_enum_id_dynbits(3)]
+#[allow(nonstandard_style)]
+pub enum SensorSource {
+  #[default] TemperaturSensor,
+  MovementSensor,
+}#[derive(BiserdiEnum, Debug, Clone, PartialEq, Default)]
+#[biserdi_enum_id_dynbits(2)]
+#[allow(nonstandard_style)]
+pub enum ExampleEnum {
+  E1,
+  E2,
+  #[default] E3,
+  E4,
+  E5,
+  E6,
+  E7,
+  E8,
+  E9,
+}
 
 // Enums for oneof
 
 
 // Messages
-#[derive(BiserdiMsg, Debug, Clone, PartialEq)]
+#[derive(BiserdiMsg, Debug, Clone, PartialEq, Default)]
 #[allow(nonstandard_style)]
-pub struct MsgSimpleBaseOneInt {
-  pub param_1: VarWithGivenBitSize<u16, 11>,
+pub struct MsgEnumOpt {
+  pub val: VarWithGivenBitSize<u8, 3>,
+  pub param_1: SensorSource,
+  pub param_2: BitisOption<ExampleEnum>,
 }
-#[derive(BiserdiMsg, Debug, Clone, PartialEq)]
+#[derive(BiserdiMsg, Debug, Clone, PartialEq, Default)]
 #[allow(nonstandard_style)]
-pub struct MsgSimpleBaseThreeInt {
-  pub param_1: VarWithGivenBitSize<u16, 11>,
-  pub param_2: VarWithGivenBitSize<u8, 6>,
-  pub param_3: VarWithGivenBitSize<u16, 11>,
+pub struct MsgWithInner {
+  pub val: VarWithGivenBitSize<u8, 3>,
+  pub imsg: MsgEnumOpt,
 }
-#[derive(BiserdiMsg, Debug, Clone, PartialEq)]
+#[derive(BiserdiMsg, Debug, Clone, PartialEq, Default)]
 #[allow(nonstandard_style)]
-pub struct MsgSimpleTestBase {
-  pub param_1: VarWithGivenBitSize<u16, 11>,
-  pub param_2: bool,
-  pub param_3: VarWithGivenBitSize<i8, 5>,
-}
-#[derive(BiserdiMsg, Debug, Clone, PartialEq)]
-#[allow(nonstandard_style)]
-pub struct MsgSimpleTestFp {
-  pub param_1: bool,
-  pub fp: FixPrecisionMinMax<10, -1, 1>,
-}
-#[derive(BiserdiMsg, Debug, Clone, PartialEq)]
-#[allow(nonstandard_style)]
-pub struct MsgSimpleOpt {
-  pub param_1: VarWithGivenBitSize<u16, 11>,
-  pub param_2: BitisOption<bool>,
-  pub param_3: BitisOption<VarWithGivenBitSize<u16, 11>>,
-  pub param_4: BitisOption<FixPrecisionMinMax<10, -1, 1>>,
+pub struct MsgWithTwoInner {
+  pub val: VarWithGivenBitSize<u8, 3>,
+  pub imsg: MsgWithInner,
+  pub oimsg: BitisOption<MsgEnumOpt>,
 }
