@@ -37,7 +37,7 @@ pub enum {{ coo.name }} {
 {%- if let Some(comment_impl) = cm.comment -%}
 ///{{comment_impl}}
 {%- endif -%}
-#[derive(BiserdiMsg, Debug, Clone, PartialEq)]
+#[derive(BiserdiMsg, Debug, Clone, PartialEq, Default)]
 #[allow(nonstandard_style)]
 pub struct {{cm.name|pascal_case}} {
 {%- if let Some(p) = cm.parent -%}// parent: {{ p }}{%- endif -%}

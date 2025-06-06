@@ -730,14 +730,16 @@ namespace bitis_enum_helper {
 
 
 // template<typename ...> struct BitisEnum;
-template<typename ES_COLLECTOR, uint8_t DYN_BITS>
+template<typename ES_COLLECTOR, typename DEFAULT_ENUM, uint8_t DYN_BITS>
 struct BitisEnum {
     DynInteger<uint32_t, DYN_BITS> value;
 
     typedef ES_COLLECTOR EnumCollector;
     typedef typename bitis_helper::EnumeratedListCollector<ES_COLLECTOR>::type EnumeratedEnumCollector;
 
-    explicit BitisEnum() : value(0) {}
+    static_assert(bitis_helper::ContainsType<DEFAULT_ENUM, EnumCollector>::value);
+
+    explicit BitisEnum() : value(bitis_enum_helper::get_id<DEFAULT_ENUM, EnumeratedEnumCollector>()) {}
 
 private:
     explicit BitisEnum(uint32_t enum_id) : value(enum_id) {}

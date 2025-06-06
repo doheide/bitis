@@ -1478,7 +1478,7 @@ mod bitis_compile {
         };
         render(d);
     }
-    #[test]
+    #[rstest]
     fn oneof_nested_and_enum_rust_py() {
         let bitis_str = [
             "//| Test comment for Enum\nenum Numbers(4) { one, two, three, four }\n\n//| Test comment for Inner\nmsg Inner { uint_3 val; Numbers num; }\n",

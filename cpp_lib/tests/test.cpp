@@ -195,7 +195,8 @@ namespace test_serializer {
 
         auto ser = BitisSerializer();
 
-        typedef BitisEnum<bitis_helper::Collector<AssetStatesEnum::Off, AssetStatesEnum::On, AssetStatesEnum::SomewhereInBetween>, 4> ValType;
+        typedef BitisEnum<bitis_helper::Collector<AssetStatesEnum::Off, AssetStatesEnum::On, AssetStatesEnum::SomewhereInBetween>,
+            AssetStatesEnum::SomewhereInBetween, 4> ValType;
         auto data = ValType::create_enum<AssetStatesEnum::On>();
         printf("org data: "); data.print(-1); printf("\n");
 
@@ -215,9 +216,8 @@ namespace test_serializer {
 
         auto ser = BitisSerializer();
 
-        typedef BitisEnum<bitis_helper::Collector<
-            AssetStatesEnum::Off, AssetStatesEnum::On,
-            AssetStatesEnum::SomewhereInBetween>, 3> ValType;
+        typedef BitisEnum<bitis_helper::Collector<AssetStatesEnum::Off, AssetStatesEnum::On, AssetStatesEnum::SomewhereInBetween>,
+            AssetStatesEnum::SomewhereInBetween, 3> ValType;
         auto data = FixedArray<ValType, 2>({ValType::create_enum<AssetStatesEnum::On>(), ValType::create_enum<AssetStatesEnum::Off>()});
         printf("org data: "); data.print(-1); printf("\n");
 
@@ -239,7 +239,7 @@ namespace test_serializer {
 
         typedef BitisEnum<bitis_helper::Collector<
             AssetStatesEnum::Off, AssetStatesEnum::On,
-            AssetStatesEnum::SomewhereInBetween>, 3> ValType;
+            AssetStatesEnum::SomewhereInBetween>, AssetStatesEnum::SomewhereInBetween, 3> ValType;
         auto data = DynArray<ValType, 4>({ValType::create_enum<AssetStatesEnum::On>(), ValType::create_enum<AssetStatesEnum::Off>()});
         printf("org data: "); data.print(-1); printf("\n");
 
@@ -412,7 +412,8 @@ namespace test_msg {
         ENUM_INSTANCE(SomewhereInBetween);
         ENUM_INSTANCE(la);
     }
-    typedef BitisEnum<bitis_helper::Collector<AssetStatesEnum::Off, AssetStatesEnum::On, AssetStatesEnum::SomewhereInBetween>, 4> EnumType;
+    typedef BitisEnum<bitis_helper::Collector<AssetStatesEnum::Off, AssetStatesEnum::On, AssetStatesEnum::SomewhereInBetween>,
+        AssetStatesEnum::SomewhereInBetween, 4> EnumType;
 
     struct MsgD {
         static const char *msg_attr[];
@@ -505,7 +506,7 @@ namespace test_oneof {
         typedef BitisEnum<bitis_helper::Collector<
             OO_Inner,
             OO_Val
-        >, 4> T_OOEnum;
+        >, OO_Inner, 4> T_OOEnum;
         T_OOEnum oo_selector;
 
         typedef oneof_helper::UnionT<

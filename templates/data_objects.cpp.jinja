@@ -15,9 +15,10 @@ namespace {{ ce.name }}Enum {
     ENUM_INSTANCE({{ cv|pascal_case }});
 {%- endfor %}
 }
+{% set def_enum="!!DEFAULT_UNDEFINED!!" %}
 typedef BitisEnum<bitis_helper::Collector<{%- for cv in ce.values %}
     {{ ce.name }}Enum::{{ cv|pascal_case }}{% if !loop.last %}, {% endif %}{%- endfor %}
->, {{ce.bit_size}}> {{ ce.name }};
+>, {{ ce.name }}Enum::{{ ce.default|pascal_case }}, {{ce.bit_size}}> {{ ce.name }};
 {%- endif -%}{%- endfor -%}
 
 {#- *****************************************************************#}

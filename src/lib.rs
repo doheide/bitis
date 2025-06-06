@@ -182,7 +182,7 @@ mod msg_manager_test {
             }
         }
     }
-    #[test]
+    #[rstest]
     fn msg_manager_simple() {
         let payload = MsgLalaBase{ a1: 1234.into(), b1: false, b2: true, f: 12.34 };
         let mut s1 = Biseri::new();
@@ -218,7 +218,7 @@ mod msg_manager_test {
         assert_eq!(mm.msg_with_header.header, header);
         assert_eq!(mm.msg_with_header.payload, payload);
     }
-    #[test]
+    #[rstest]
     fn msg_manager_full() {
         let mut mm_ser = MessageManager::<MsgWH>::create();
 
