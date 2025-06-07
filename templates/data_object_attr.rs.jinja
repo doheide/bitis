@@ -4,14 +4,14 @@
 pub {{ca.base.name}}: {%~ if ca.base.is_optional -%}BitisOption<{%- endif -%}
 {%- if let Some(repeated_type) = ca.base.is_repeated_and_size -%}
 {%- match repeated_type -%}
-{%- when DynOrFixedType::Dyn(_) ~%}Vec<
+{%- when DynOrFixedType::Dyn(_) ~%}DynArray<
 {%- when DynOrFixedType::Fixed with (s) ~%}FixedArray<
 {%- endmatch -%}
 {%- endif -%}
 {{ ca.rust_type_str|safe }}
 {%- if let Some(repeated_type) = ca.base.is_repeated_and_size -%}
 {%- match repeated_type -%}
-{%- when DynOrFixedType::Dyn(_) -%}>
+{%- when DynOrFixedType::Dyn with (s) -%},{{s}}>
 {%- when DynOrFixedType::Fixed with (s) -%},{{s}}>
 {%- endmatch -%}
 {%- endif -%}

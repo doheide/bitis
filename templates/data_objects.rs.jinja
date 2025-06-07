@@ -5,7 +5,7 @@ use bitis_lib::*;
 {%- if let Some(comment_impl) = ce.comment -%}
 ///{{comment_impl}}
 {%- endif -%}
-#[derive(BiserdiEnum, Debug, Clone, PartialEq, Default)]
+#[derive(BiserdiEnum, Debug, Clone, PartialEq, Copy, Default)]
 #[biserdi_enum_id_dynbits({{ce.bit_size}})]
 #[allow(nonstandard_style)]
 pub enum {{ ce.name }} {
@@ -20,7 +20,7 @@ pub enum {{ ce.name }} {
 {# *****************************************************************#}
 // Enums for oneof
 {%+ for (_, coo) in d.oos -%}
-#[derive(BiserdiOneOf, Debug, Clone, PartialEq)]
+#[derive(BiserdiOneOf, Debug, Clone, Copy, PartialEq)]
 #[biserdi_enum_id_dynbits({{coo.dyn_bits}})]
 #[allow(nonstandard_style)]
 pub enum {{ coo.name }} {
@@ -28,7 +28,10 @@ pub enum {{ coo.name }} {
 {%- include "data_oo_attr.rs.jinja" %}
 {%- endfor %}
 }
-{%- endfor -%}
+impl std::fmt::Display for ExampleEnum {
+  fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result { write!(f, "{:?}", self) }
+}
+{% endfor -%}
 
 {# *****************************************************************#}
 {# *****************************************************************#}

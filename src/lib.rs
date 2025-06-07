@@ -12,6 +12,7 @@ pub use bitis_macros::{BiserdiMsg, BiserdiOneOf, BiserdiEnum};
 pub use std::result;
 
 
+
 pub fn serialize<T: BiserdiTrait>(data: &T) -> Vec<u8>{
     let mut ser = Biseri::new();
 
