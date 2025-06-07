@@ -3,6 +3,19 @@
 
 
 
+// ****** SensorSource *****
+namespace SensorSourceEnum {
+    ENUM_INSTANCE(TemperaturSensor);
+    ENUM_INSTANCE(MovementSensor);
+}
+
+typedef BitisEnum<bitis_helper::Collector<
+    SensorSourceEnum::TemperaturSensor, 
+    SensorSourceEnum::MovementSensor
+>, SensorSourceEnum::TemperaturSensor, 3> SensorSource;
+
+
+
 // ****** ExampleEnum *****
 namespace ExampleEnumEnum {
     ENUM_INSTANCE(E1);
@@ -30,133 +43,102 @@ typedef BitisEnum<bitis_helper::Collector<
 
 
 
-// ****** SensorSource *****
-namespace SensorSourceEnum {
-    ENUM_INSTANCE(TemperaturSensor);
-    ENUM_INSTANCE(MovementSensor);
-}
-
-typedef BitisEnum<bitis_helper::Collector<
-    SensorSourceEnum::TemperaturSensor, 
-    SensorSourceEnum::MovementSensor
->, SensorSourceEnum::TemperaturSensor, 3> SensorSource;
+// ****** MsgFixedBaseArray *****
 
 
-
-// ****** MsgEnumOpt *****
-
-
-struct MsgEnumOpt {
+struct MsgFixedBaseArray {
     static const char *msg_attr[];
-    typedef IntgralWithGivenBitSize<uint8_t, 3> Val_T;
     typedef SensorSource Param1_T;
-    typedef BitisOptional<ExampleEnum> Param2_T;
+    typedef FixedArray<IntgralWithGivenBitSize<uint8_t, 3>,3> Val1_T;
+    typedef FixedArray<IntgralWithGivenBitSize<int8_t, 3>,3> Val2_T;
+    typedef FixedArray<BitisBool,3> Val3_T;
+    typedef FixedArray<DynInteger<int8_t, 3>,3> Val4_T;
+    typedef FixedArray<double,3> Val5_T;
+    typedef FixedArray<FixPrecisionMinMax<10, -2, 3>,3> Val6_T;
+    typedef FixedArray<SensorSource,3> Val7_T;
 
     typedef message_helper::MessageT<
-        Val_T, Param1_T, Param2_T
+        Param1_T, Val1_T, Val2_T, Val3_T, Val4_T, Val5_T, Val6_T, Val7_T
     > MsgT;
 
-    Val_T val;
     Param1_T param_1;
-    Param2_T param_2;
+    Val1_T val1;
+    Val2_T val2;
+    Val3_T val3;
+    Val4_T val4;
+    Val5_T val5;
+    Val6_T val6;
+    Val7_T val7;
 
     std::size_t serialize(BitisSerializer &ser) const {
         return message_helper::msg_serialize(this, ser);
     }
-    static bitis_helper::BitiaDeserializerHelper<MsgEnumOpt> deserialize(BitisDeserializer &des) {
-        return message_helper::msg_deserialize<MsgEnumOpt>(des);
+    static bitis_helper::BitiaDeserializerHelper<MsgFixedBaseArray> deserialize(BitisDeserializer &des) {
+        return message_helper::msg_deserialize<MsgFixedBaseArray>(des);
     }
 
     void print(int16_t indent=0) {
-        printf("MsgEnumOpt{ ");
+        printf("MsgFixedBaseArray{ ");
         if (indent>=0) printf("\n");
         message_helper::msg_print(this, (indent>=0) ? (2 + indent) : indent, msg_attr);
         print_indent(indent); printf("}");
         // if (indent>=0) printf("\n");
     }
 
-    bool is_equal(const MsgEnumOpt &other) const {
-        return val==other.val && param_1==other.param_1 && param_2==other.param_2;
+    bool is_equal(const MsgFixedBaseArray &other) const {
+        return param_1==other.param_1 && val1==other.val1 && val2==other.val2 && val3==other.val3 && val4==other.val4 && val5==other.val5 && val6==other.val6 && val7==other.val7;
    }
-    bool operator==(const MsgEnumOpt &other) const { return is_equal(other); }
-    bool operator!=(const MsgEnumOpt &other) const { return !is_equal(other); }
+    bool operator==(const MsgFixedBaseArray &other) const { return is_equal(other); }
+    bool operator!=(const MsgFixedBaseArray &other) const { return !is_equal(other); }
 };
-const char *MsgEnumOpt::msg_attr[] = {"val", "param_1", "param_2"};
+const char *MsgFixedBaseArray::msg_attr[] = {"param_1", "val1", "val2", "val3", "val4", "val5", "val6", "val7"};
 
-// ****** MsgWithInner *****
+// ****** MsgDynBaseArray *****
 
 
-struct MsgWithInner {
+struct MsgDynBaseArray {
     static const char *msg_attr[];
-    typedef IntgralWithGivenBitSize<uint8_t, 3> Val_T;
-    typedef MsgEnumOpt Imsg_T;
+    typedef ExampleEnum Ee_T;
+    typedef DynArray<IntgralWithGivenBitSize<uint8_t, 3>,3> Val1_T;
+    typedef DynArray<IntgralWithGivenBitSize<int8_t, 3>,3> Val2_T;
+    typedef DynArray<BitisBool,3> Val3_T;
+    typedef DynArray<DynInteger<uint8_t, 3>,3> Val4_T;
+    typedef DynArray<double,3> Val5_T;
+    typedef DynArray<FixPrecisionMinMax<10, -2, 3>,3> Val6_T;
+    typedef DynArray<SensorSource,6> Val7_T;
 
     typedef message_helper::MessageT<
-        Val_T, Imsg_T
+        Ee_T, Val1_T, Val2_T, Val3_T, Val4_T, Val5_T, Val6_T, Val7_T
     > MsgT;
 
-    Val_T val;
-    Imsg_T imsg;
+    Ee_T ee;
+    Val1_T val1;
+    Val2_T val2;
+    Val3_T val3;
+    Val4_T val4;
+    Val5_T val5;
+    Val6_T val6;
+    Val7_T val7;
 
     std::size_t serialize(BitisSerializer &ser) const {
         return message_helper::msg_serialize(this, ser);
     }
-    static bitis_helper::BitiaDeserializerHelper<MsgWithInner> deserialize(BitisDeserializer &des) {
-        return message_helper::msg_deserialize<MsgWithInner>(des);
+    static bitis_helper::BitiaDeserializerHelper<MsgDynBaseArray> deserialize(BitisDeserializer &des) {
+        return message_helper::msg_deserialize<MsgDynBaseArray>(des);
     }
 
     void print(int16_t indent=0) {
-        printf("MsgWithInner{ ");
+        printf("MsgDynBaseArray{ ");
         if (indent>=0) printf("\n");
         message_helper::msg_print(this, (indent>=0) ? (2 + indent) : indent, msg_attr);
         print_indent(indent); printf("}");
         // if (indent>=0) printf("\n");
     }
 
-    bool is_equal(const MsgWithInner &other) const {
-        return val==other.val && imsg==other.imsg;
+    bool is_equal(const MsgDynBaseArray &other) const {
+        return ee==other.ee && val1==other.val1 && val2==other.val2 && val3==other.val3 && val4==other.val4 && val5==other.val5 && val6==other.val6 && val7==other.val7;
    }
-    bool operator==(const MsgWithInner &other) const { return is_equal(other); }
-    bool operator!=(const MsgWithInner &other) const { return !is_equal(other); }
+    bool operator==(const MsgDynBaseArray &other) const { return is_equal(other); }
+    bool operator!=(const MsgDynBaseArray &other) const { return !is_equal(other); }
 };
-const char *MsgWithInner::msg_attr[] = {"val", "imsg"};
-
-// ****** MsgWithTwoInner *****
-
-
-struct MsgWithTwoInner {
-    static const char *msg_attr[];
-    typedef IntgralWithGivenBitSize<uint8_t, 3> Val_T;
-    typedef MsgWithInner Imsg_T;
-    typedef BitisOptional<MsgEnumOpt> Oimsg_T;
-
-    typedef message_helper::MessageT<
-        Val_T, Imsg_T, Oimsg_T
-    > MsgT;
-
-    Val_T val;
-    Imsg_T imsg;
-    Oimsg_T oimsg;
-
-    std::size_t serialize(BitisSerializer &ser) const {
-        return message_helper::msg_serialize(this, ser);
-    }
-    static bitis_helper::BitiaDeserializerHelper<MsgWithTwoInner> deserialize(BitisDeserializer &des) {
-        return message_helper::msg_deserialize<MsgWithTwoInner>(des);
-    }
-
-    void print(int16_t indent=0) {
-        printf("MsgWithTwoInner{ ");
-        if (indent>=0) printf("\n");
-        message_helper::msg_print(this, (indent>=0) ? (2 + indent) : indent, msg_attr);
-        print_indent(indent); printf("}");
-        // if (indent>=0) printf("\n");
-    }
-
-    bool is_equal(const MsgWithTwoInner &other) const {
-        return val==other.val && imsg==other.imsg && oimsg==other.oimsg;
-   }
-    bool operator==(const MsgWithTwoInner &other) const { return is_equal(other); }
-    bool operator!=(const MsgWithTwoInner &other) const { return !is_equal(other); }
-};
-const char *MsgWithTwoInner::msg_attr[] = {"val", "imsg", "oimsg"};
+const char *MsgDynBaseArray::msg_attr[] = {"ee", "val1", "val2", "val3", "val4", "val5", "val6", "val7"};

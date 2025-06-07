@@ -1,5 +1,5 @@
 #!/bin/bash
-#set -e
+set -e
 
 # compile messages to code
 ../../target/debug/bitis -d -i enum_msg.bitis compile -o ../impl/rust_impl/src/messages.rs -l rust
@@ -48,6 +48,8 @@ cd $cpath
 rm -f *.dat
 
 # ****
+set +e
+
 ../impl/rust_impl/target/debug/rust_impl
 
 ../impl/cpp_impl/build/test_cpp

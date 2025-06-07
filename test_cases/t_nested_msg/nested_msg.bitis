@@ -19,7 +19,7 @@ msg MsgWithInner {
 }
 
 msg MsgWithTwoInner {
-  uint_3 val;
+  uint_7 val;
   MsgWithInner imsg;
   optional MsgEnumOpt oimsg;
 }

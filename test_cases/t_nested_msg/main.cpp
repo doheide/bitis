@@ -40,6 +40,28 @@ int main(int argc, char *argv[]){
         error_counter += write_or_test(fn_name, msg, arg);
     }
 
+    {
+        auto inner = MsgEnumOpt{
+            .val = MsgEnumOpt::Val_T(1),
+            .param_1 = MsgEnumOpt::Param1_T::create_enum<SensorSourceEnum::TemperaturSensor>(),
+            .param_2 = MsgEnumOpt::Param2_T::create_val(
+                MsgEnumOpt::Param2_T::ValT::create_enum<ExampleEnumEnum::E3>())
+        };
+        auto msgi = MsgWithInner{
+            .val = MsgWithInner::Val_T(2),
+            .imsg = inner,
+        };
+        auto msg = MsgWithTwoInner{
+            .val = MsgWithTwoInner::Val_T(47),
+            .imsg = msgi,
+            .oimsg = MsgWithTwoInner::Oimsg_T::create_none()
+        };
+        printf("\n"); msg.print(0); printf("\n");
+
+        auto fn_name = "val_nested_two_val1.cpp.dat";
+        error_counter += write_or_test(fn_name, msg, arg);
+    }
+
     printf("\nTotal_errors: %d\n", error_counter);
     return error_counter;
 }
