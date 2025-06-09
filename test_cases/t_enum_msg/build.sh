@@ -16,11 +16,9 @@ if [[ -e $src_path/$main_file ]]; then
     test -L $src_path/$main_file || (>&2 echo "$src_path/$main_file has to be a symbolic link "; exit 1 )
     rm -v $src_path/$main_file
 fi
-
 cpath=$(pwd)
 cd ../impl/rust_impl/src
 ln -s "$cpath/main.rs" main.rs
-cargo build
 cd -
 
 # ****
@@ -32,11 +30,20 @@ if [[ -e $src_path/$main_file ]]; then
     test -L $src_path/$main_file || (>&2 echo "$src_path/$main_file has to be a symbolic link "; exit 1 )
     rm -v $src_path/$main_file
 fi
-
 cpath=$(pwd)
 cd ../impl/cpp_impl/src
 ln -s "$cpath/main.cpp" main.cpp
-cd ..
+cd -
+
+# ****
+# build
+cpath=$(pwd)
+cd ../impl/rust_impl/src
+cargo build
+cd -
+
+cpath=$(pwd)
+cd ../impl/cpp_impl/
 
 rm -rf build
 cmake -S . -B build

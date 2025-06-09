@@ -24,6 +24,7 @@ int write_or_test(const char *fn_name, T &msg, const char *arg) {
         infile.seekg(0, infile.end);     //N is the total number of doubles
         auto file_size = infile.tellg();
         infile.seekg(0, infile.beg);
+        printf("  file_size: %d\n", static_cast<int>(file_size));
 
         std::vector<uint8_t> bin_data(file_size);
         infile.read(reinterpret_cast<char *>(bin_data.data()), file_size);

@@ -18,9 +18,9 @@ pub fn write_or_test<T: BiserdiTrait+Debug+PartialEq>(fn_name: &str, msg: &T, ar
             Some((r, _s)) => { r }
         };
         println!("org: {:?}", *msg);
-        println!("read: {:?}", msg_read);
-        if msg_read == *msg { println!("** ok"); 0 }
-        else { println!("** failed"); 1 }
+        println!("\nread: {:?}", msg_read);
+        if msg_read == *msg { println!("** ok\n"); 0 }
+        else { println!("** failed\n"); 1 }
     }
 }
 

@@ -2,9 +2,9 @@
 set -e
 
 # compile messages to code
-../../target/debug/bitis -d -i nested_msg.bitis compile -o ../impl/rust_impl/src/messages.rs -l rust
+../../target/debug/bitis -d -i opt_msg.bitis compile -o ../impl/rust_impl/src/messages.rs -l rust
 
-../../target/debug/bitis -d -i nested_msg.bitis compile -o ../impl/cpp_impl/src/messages.h -l cpp
+../../target/debug/bitis -d -i opt_msg.bitis compile -o ../impl/cpp_impl/src/messages.h -l cpp
 
 
 # ****
@@ -16,7 +16,6 @@ if [[ -e $src_path/$main_file ]]; then
     test -L $src_path/$main_file || (>&2 echo "$src_path/$main_file has to be a symbolic link "; exit 1 )
     rm -v $src_path/$main_file
 fi
-
 cpath=$(pwd)
 cd ../impl/rust_impl/src
 ln -s "$cpath/main.rs" main.rs
@@ -43,7 +42,6 @@ cd ../impl/rust_impl/src
 cargo build
 cd -
 
-
 cpath=$(pwd)
 cd ../impl/cpp_impl/
 
@@ -53,12 +51,12 @@ cmake --build build
 
 cd $cpath
 
+
 # ****
 rm -f *.dat
+set -e
 
 # ****
-set +e
-
 ../impl/rust_impl/target/debug/rust_impl
 
 ../impl/cpp_impl/build/test_cpp

@@ -11,3 +11,4 @@ path = "src/main.rs"
 [dependencies]
 #bitis = { version = "0.6.5" }
 bitis = {path = "../../../"}
+array-init = "2.1.0"

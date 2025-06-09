@@ -4,7 +4,7 @@ mod helper;
 use std::env;
 use std::process::ExitCode;
 use bitis_lib::BitisOption;
-use messages::{MsgSimpleTestBase, MsgSimpleBaseOneInt, MsgSimpleBaseThreeInt};
+use messages::*;
 use crate::messages::{MsgSimpleOpt, MsgSimpleTestFp};
 
 
