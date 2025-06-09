@@ -92,8 +92,6 @@ struct {{ coo.name }}  {
 ///{{comment_impl}}
 {%- endif -%}
 struct {{cm.name|pascal_case}} {
-    static const char *msg_attr[];
-
 {%- for ca in cm.attributes %}
     typedef {% include "data_object_attr_type.cpp.jinja" %} {{ca.base.name|pascal_case}}_T;
 {%- endfor %}
@@ -104,6 +102,8 @@ struct {{cm.name|pascal_case}} {
 {%+ for ca in cm.attributes -%}
     {% include "data_object_attr.cpp.jinja" -%}
 {%- endfor %}
+
+    static const char *msg_attr[];
 
     std::size_t serialize(BitisSerializer &ser) const {
         return message_helper::msg_serialize(this, ser);

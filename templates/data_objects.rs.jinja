@@ -14,7 +14,10 @@ pub enum {{ ce.name }} {
   {{ cv|pascal_case }},
 {%- endfor %}
 }
-{%- endfor -%}
+impl std::fmt::Display for {{ ce.name }} {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { write!(f, "{:?}", self) }
+}
+{% endfor -%}
 
 {# *****************************************************************#}
 {# *****************************************************************#}
@@ -28,8 +31,8 @@ pub enum {{ coo.name }} {
 {%- include "data_oo_attr.rs.jinja" %}
 {%- endfor %}
 }
-impl std::fmt::Display for ExampleEnum {
-  fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result { write!(f, "{:?}", self) }
+impl std::fmt::Display for {{ coo.name }} {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { write!(f, "{:?}", self) }
 }
 {% endfor -%}
 
