@@ -381,7 +381,8 @@ struct DynInteger {
         if (is_negative) {
             tval = -tval;
         }
-        return bitis_helper::BitiaDeserializerHelper<DynInteger>{.bits=bits_num, .data=DynInteger(static_cast<T>(tval))};
+        // ReSharper disable once CppCStyleCast
+        return bitis_helper::BitiaDeserializerHelper<DynInteger>{.bits=bits_num, .data=DynInteger((T)tval)};
     }
     void print(int16_t indent=0) {
         // ReSharper disable once CppCStyleCast
@@ -398,6 +399,7 @@ struct DynInteger {
 // ***************************************************************
 template <typename T, std::size_t ARRAY_SIZE>
 struct FixedArray {
+    typedef T ValT;
     // check that T is bitis type
     //T values[ARRAY_SIZE];
     std::array<T, ARRAY_SIZE> values;
@@ -407,8 +409,8 @@ struct FixedArray {
         // for (std::size_t i = 0; i < ARRAY_SIZE; i++) { values[i] = v[i]; }
     }
 
-    uint8_t serialize(BitisSerializer &ser) const {
-        uint8_t num_bits = 0;
+    std::size_t serialize(BitisSerializer &ser) const {
+        std::size_t num_bits = 0;
         for (std::size_t i=0; i < ARRAY_SIZE; i++) {
             num_bits += values[i].serialize(ser);
         }
@@ -430,10 +432,10 @@ struct FixedArray {
         // ReSharper disable once CppCStyleCast
         printf("[");
         for (std::size_t i=0; i < ARRAY_SIZE; i++) {
-            values[i].print(0);
+            values[i].print(indent);
             if (i != ARRAY_SIZE-1) printf(", ");
         }
-        printf("]{%zu},\n", ARRAY_SIZE);
+        printf("]{%zu}", ARRAY_SIZE);
     }
     bool is_equal(const FixedArray &other) const {
         for (int i = 0; i < ARRAY_SIZE; i++) {
@@ -452,12 +454,13 @@ struct FixedArray {
 template <typename T, uint8_t DYN_BITS>
 struct DynArray {
     std::vector<T> values;
+    typedef T ValT;
 
-    DynArray() : values() {}
-    explicit DynArray(const std::vector<T> &v) : values(v) {}
+    DynArray() : values(0) { }
+    explicit DynArray(const std::vector<T> &v) : values(v) { }
 
-    uint8_t serialize(BitisSerializer &ser) const {
-        uint8_t num_bits = 0;
+    std::size_t serialize(BitisSerializer &ser) const {
+        std::size_t num_bits = 0;
         auto data_size = DynInteger<uint32_t, DYN_BITS>(values.size());
         num_bits += data_size.serialize(ser);
         for (std::size_t i=0; i < values.size(); i++) {
@@ -475,7 +478,7 @@ struct DynArray {
         auto tvalues = std::vector<T>(rv_size.data.value);
         for (std::size_t i=0; i < rv_size.data.value; i++) {
             auto dr = T::deserialize(des);
-            tvalues[i]= dr.data;
+            tvalues[i] = dr.data;
             num_bits += dr.bits;
         }
         return bitis_helper::BitiaDeserializerHelper<DynArray>{.bits=num_bits, .data=DynArray(tvalues)};
@@ -484,10 +487,10 @@ struct DynArray {
         // ReSharper disable once CppCStyleCast
         printf("[");
         for (std::size_t i=0; i < values.size(); i++) {
-            values[i].print(0);
+            values[i].print(indent);
             if (i != values.size()-1) printf(", ");
         }
-        printf("]{dyn:%zu},\n", values.size());
+        printf("]{dyn:%zu}", values.size());
     }
     bool is_equal(const DynArray &other) const {
         if (values.size() != other.values.size()) { return false; }
@@ -552,8 +555,8 @@ struct FixPrecisionMinMax {
         }
     }
 
-    uint8_t serialize(BitisSerializer &ser) const {
-        uint8_t num_bits = 0;
+    std::size_t serialize(BitisSerializer &ser) const {
+        std::size_t num_bits = 0;
         auto max_value = calc_bitmask(BITS);
 
         uint64_t v = FixPrecisionMinMax::val_to_u64(value, state);
@@ -565,16 +568,15 @@ struct FixPrecisionMinMax {
                 * (double)(max_value - 2)) + 1;
         }*/
         auto t = IntgralWithGivenBitSize<uint64_t, BITS>{v};
-        printf("t: "); t.print(-1); printf("\n");
         num_bits += t.serialize(ser);
         return num_bits;
     }
     static bitis_helper::BitiaDeserializerHelper<FixPrecisionMinMax> deserialize(BitisDeserializer &des) {
-        auto max_value = calc_bitmask(BITS);
+        // auto max_value = calc_bitmask(BITS);
 
         auto d = FixPrecisionMinMax(0.0);
         auto data_u64 = IntgralWithGivenBitSize<uint64_t, BITS>::deserialize(des);
-        printf("data_u64: %" PRIu64, data_u64.data.value);
+        // printf("data_u64: %" PRIu64, data_u64.data.value);
         FixPrecisionMinMax::u64_to_val(data_u64.data.value, d.value, d.state);
 
 /*        if(data_u64.data.value == 0) {
@@ -829,9 +831,12 @@ namespace message_helper{
         }
         size_t deserialize(Msg_STRUCT *d, BitisDeserializer &des) {
             auto dd = static_cast<MessageAttribute<T>*>(d);
+
+            // auto dd = reinterpret_cast<MessageAttribute<T>*>(d);
             bitis_helper::BitiaDeserializerHelper<typename MessageAttribute<T>::type> r =
                 MessageAttribute<T>::type::deserialize(des);
             dd->value = r.data;
+
             MessageT_Impl<Msg_STRUCT, Collector<Ts ...>> inner;
             return r.bits + inner.deserialize(d, des);
         }
@@ -884,9 +889,9 @@ namespace message_helper{
     }
     template<typename Msg>
     static bitis_helper::BitiaDeserializerHelper<Msg> msg_deserialize(BitisDeserializer &des) {
-        char buffer[sizeof(Msg)];
+        Msg buffer;
         // ReSharper disable once CppCStyleCast
-        auto *dt = (typename Msg::MsgT*) buffer;
+        auto *dt = (typename Msg::MsgT*) &buffer;
 
         MessageT_ImplStart<typename Msg::MsgT> inner;
         auto r = inner.deserialize(dt, des);
