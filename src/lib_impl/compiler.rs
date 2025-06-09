@@ -161,11 +161,11 @@ fn to_cpp_attribute(attribute: &Attribute, msg_names: &Vec<String>) -> Attribute
                     SimpleType::Float => {
                         add_val = true;
                         let base = "float".to_string();
-                        (base.clone(), base)
+                        (format!("BitisFloatingPoint<{}>", base.clone()), base)
                     }
                     SimpleType::Double => {
                         let base = "double".to_string();
-                        (base.clone(), base) }
+                        (format!("BitisFloatingPoint<{}>", base.clone()), base) }
                     SimpleType::FixedPrecision(fpp) => {
                         add_val = true;
                         (format!("FixPrecisionMinMax<{}, {}, {}>", fpp.bits, fpp.min_val, fpp.max_val), "double".to_string())
