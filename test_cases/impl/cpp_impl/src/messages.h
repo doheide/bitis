@@ -3,228 +3,225 @@
 
 
 
-// ****** SensorSource *****
-namespace SensorSourceEnum {
-    ENUM_INSTANCE(TemperaturSensor);
-    ENUM_INSTANCE(MovementSensor);
-}
-
-typedef BitisEnum<bitis_helper::Collector<
-    SensorSourceEnum::TemperaturSensor, 
-    SensorSourceEnum::MovementSensor
->, SensorSourceEnum::TemperaturSensor, 3> SensorSource;
+// ****** OO_MsgKvoo_Value *****
 
 
+struct OO_MsgKvoo_Value  {
+    struct OO_StrVal {
+        static constexpr auto name = "StrVal"; typedef BitisString<4> OOType; };
+    struct OO_NumVal {
+        static constexpr auto name = "NumVal"; typedef BitisFloatingPoint<double> OOType; };
+    struct OO_BoolVal {
+        static constexpr auto name = "BoolVal"; typedef BitisBool OOType; };
+    struct OO_IntVal {
+        static constexpr auto name = "IntVal"; typedef DynInteger<int32_t, 7> OOType; };
 
-// ****** Inner *****
+    typedef BitisEnum<bitis_helper::Collector<
+        OO_StrVal, 
+        OO_NumVal, 
+        OO_BoolVal, 
+        OO_IntVal
+    >, OO_BoolVal, 2> T_OOEnum;
+    T_OOEnum oo_selector;
+
+    typedef oneof_helper::UnionT<
+        OO_StrVal::OOType, OO_NumVal::OOType, OO_BoolVal::OOType, OO_IntVal::OOType
+    > T_OOValue;
+    T_OOValue oo_value;
+
+    OO_MsgKvoo_Value() : oo_selector(), oo_value() {}
+
+    template<typename OOT>
+    OO_MsgKvoo_Value set_oo(typename OOT::OOType v) {
+        static_assert(oneof_helper::ContainsType<OOT, T_OOEnum::EnumCollector>::value);
+        oo_selector.set_enum<OOT>();
+        oo_value.set(v);
+        return *this;
+    }
+    template<typename OOT>
+    typename OOT::OOType *get_oo() const {
+        static_assert(oneof_helper::ContainsType<OOT, T_OOEnum::EnumCollector>::value);
+        if(oo_selector.is_enum<OOT>())
+            return oo_value.get<typename OOT::OOType>();
+        return nullptr;
+    }
+    template<typename OOT>
+    bool is_oo_value() const {
+        static_assert(oneof_helper::ContainsType<OOT, T_OOEnum::EnumCollector>::value);
+        if(oo_selector.is_enum<OOT>())
+            return true;
+        return false;
+    }
+
+    std::size_t serialize(BitisSerializer &ser) {
+        return oneof_helper::oneof_serialize(this, ser);
+    }
+    static bitis_helper::BitiaDeserializerHelper<OO_MsgKvoo_Value> deserialize(BitisDeserializer &des) {
+        return oneof_helper::oneof_deserialize<OO_MsgKvoo_Value>(des);
+    }
+
+    void print(const int16_t indent=0) {
+        printf("Oneof = ");
+        oneof_helper::oneof_print(this, (indent>=0) ? indent + 2 : indent);
+    }
+
+    bool is_equal(const OO_MsgKvoo_Value &other) const {
+        if (oo_selector != other.oo_selector) return false;
+        return oneof_helper::oneof_is_equal(this, &other);
+    }
+    bool operator==(const OO_MsgKvoo_Value &other) const { return is_equal(other); }
+    bool operator!=(const OO_MsgKvoo_Value &other) const { return !is_equal(other); }
+};
 
 
-struct Inner {
-    typedef IntgralWithGivenBitSize<int8_t, 3> Val2_T;
+// ****** MsgKVSimple *****
+
+
+struct MsgKVSimple {
+    typedef BitisString<4> Key_T;
+    typedef BitisString<4> Value_T;
 
     typedef message_helper::MessageT<
-        Val2_T
+        Key_T, Value_T
     > MsgT;
 
-    Val2_T val2;
+    Key_T key;
+    Value_T value;
 
     static const char *msg_attr[];
 
-    std::size_t serialize(BitisSerializer &ser) const {
+    std::size_t serialize(BitisSerializer &ser) {
         return message_helper::msg_serialize(this, ser);
     }
-    static bitis_helper::BitiaDeserializerHelper<Inner> deserialize(BitisDeserializer &des) {
-        return message_helper::msg_deserialize<Inner>(des);
+    static bitis_helper::BitiaDeserializerHelper<MsgKVSimple> deserialize(BitisDeserializer &des) {
+        return message_helper::msg_deserialize<MsgKVSimple>(des);
     }
 
     void print(int16_t indent=0) {
-        printf("Inner{ ");
+        printf("MsgKVSimple{ ");
         if (indent>=0) printf("\n");
         message_helper::msg_print(this, (indent>=0) ? (2 + indent) : indent, msg_attr);
         print_indent(indent); printf("}");
         // if (indent>=0) printf("\n");
     }
 
-    bool is_equal(const Inner &other) const {
-        return val2==other.val2;
+    bool is_equal(const MsgKVSimple &other) const {
+        return key==other.key && value==other.value;
    }
-    bool operator==(const Inner &other) const { return is_equal(other); }
-    bool operator!=(const Inner &other) const { return !is_equal(other); }
+    bool operator==(const MsgKVSimple &other) const { return is_equal(other); }
+    bool operator!=(const MsgKVSimple &other) const { return !is_equal(other); }
 };
-const char *Inner::msg_attr[] = {"val2"};
+const char *MsgKVSimple::msg_attr[] = {"key", "value"};
 
-// ****** ExampleEnum *****
-namespace ExampleEnumEnum {
-    ENUM_INSTANCE(E1);
-    ENUM_INSTANCE(E2);
-    ENUM_INSTANCE(E3);
-    ENUM_INSTANCE(E4);
-    ENUM_INSTANCE(E5);
-    ENUM_INSTANCE(E6);
-    ENUM_INSTANCE(E7);
-    ENUM_INSTANCE(E8);
-    ENUM_INSTANCE(E9);
-}
-
-typedef BitisEnum<bitis_helper::Collector<
-    ExampleEnumEnum::E1, 
-    ExampleEnumEnum::E2, 
-    ExampleEnumEnum::E3, 
-    ExampleEnumEnum::E4, 
-    ExampleEnumEnum::E5, 
-    ExampleEnumEnum::E6, 
-    ExampleEnumEnum::E7, 
-    ExampleEnumEnum::E8, 
-    ExampleEnumEnum::E9
->, ExampleEnumEnum::E3, 2> ExampleEnum;
+// ****** MsgKVOO *****
 
 
-
-// ****** MsgFixedBaseArray *****
-
-
-struct MsgFixedBaseArray {
-    typedef SensorSource Param1_T;
-    typedef FixedArray<IntgralWithGivenBitSize<uint8_t, 3>,3> Val1_T;
-    typedef FixedArray<IntgralWithGivenBitSize<int8_t, 3>,3> Val2_T;
-    typedef FixedArray<BitisBool,3> Val3_T;
-    typedef FixedArray<DynInteger<int8_t, 3>,3> Val4_T;
-    typedef FixedArray<BitisFloatingPoint<double>,3> Val5_T;
-    typedef FixedArray<FixPrecisionMinMax<10, -2, 3>,3> Val6_T;
-    typedef FixedArray<SensorSource,3> Val7_T;
-    typedef FixedArray<Inner,3> Val8_T;
+struct MsgKVOO {
+    typedef BitisString<4> Key_T;
+    typedef OO_MsgKvoo_Value Value_T;
 
     typedef message_helper::MessageT<
-        Param1_T, Val1_T, Val2_T, Val3_T, Val4_T, Val5_T, Val6_T, Val7_T, Val8_T
+        Key_T, Value_T
     > MsgT;
 
-    Param1_T param_1;
-    Val1_T val1;
-    Val2_T val2;
-    Val3_T val3;
-    Val4_T val4;
-    Val5_T val5;
-    Val6_T val6;
-    Val7_T val7;
-    Val8_T val8;
+    Key_T key;
+    Value_T value;
 
     static const char *msg_attr[];
 
-    std::size_t serialize(BitisSerializer &ser) const {
+    std::size_t serialize(BitisSerializer &ser) {
         return message_helper::msg_serialize(this, ser);
     }
-    static bitis_helper::BitiaDeserializerHelper<MsgFixedBaseArray> deserialize(BitisDeserializer &des) {
-        return message_helper::msg_deserialize<MsgFixedBaseArray>(des);
+    static bitis_helper::BitiaDeserializerHelper<MsgKVOO> deserialize(BitisDeserializer &des) {
+        return message_helper::msg_deserialize<MsgKVOO>(des);
     }
 
     void print(int16_t indent=0) {
-        printf("MsgFixedBaseArray{ ");
+        printf("MsgKVOO{ ");
         if (indent>=0) printf("\n");
         message_helper::msg_print(this, (indent>=0) ? (2 + indent) : indent, msg_attr);
         print_indent(indent); printf("}");
         // if (indent>=0) printf("\n");
     }
 
-    bool is_equal(const MsgFixedBaseArray &other) const {
-        return param_1==other.param_1 && val1==other.val1 && val2==other.val2 && val3==other.val3 && val4==other.val4 && val5==other.val5 && val6==other.val6 && val7==other.val7 && val8==other.val8;
+    bool is_equal(const MsgKVOO &other) const {
+        return key==other.key && value==other.value;
    }
-    bool operator==(const MsgFixedBaseArray &other) const { return is_equal(other); }
-    bool operator!=(const MsgFixedBaseArray &other) const { return !is_equal(other); }
+    bool operator==(const MsgKVOO &other) const { return is_equal(other); }
+    bool operator!=(const MsgKVOO &other) const { return !is_equal(other); }
 };
-const char *MsgFixedBaseArray::msg_attr[] = {"param_1", "val1", "val2", "val3", "val4", "val5", "val6", "val7", "val8"};
+const char *MsgKVOO::msg_attr[] = {"key", "value"};
 
-// ****** MsgDynBaseArray *****
+// ****** MsgKVMapSimple *****
 
 
-struct MsgDynBaseArray {
-    typedef ExampleEnum Ee_T;
-    typedef DynArray<IntgralWithGivenBitSize<uint8_t, 3>,3> Val1_T;
-    typedef DynArray<IntgralWithGivenBitSize<int8_t, 3>,3> Val2_T;
-    typedef DynArray<BitisBool,3> Val3_T;
-    typedef DynArray<DynInteger<int8_t, 3>,3> Val4_T;
-    typedef DynArray<BitisFloatingPoint<double>,3> Val5_T;
-    typedef DynArray<FixPrecisionMinMax<10, -2, 3>,3> Val6_T;
-    typedef DynArray<SensorSource,6> Val7_T;
-    typedef DynArray<Inner,3> Val8_T;
+struct MsgKVMapSimple {
+    typedef DynArray<MsgKVSimple,4> Entries_T;
 
     typedef message_helper::MessageT<
-        Ee_T, Val1_T, Val2_T, Val3_T, Val4_T, Val5_T, Val6_T, Val7_T, Val8_T
+        Entries_T
     > MsgT;
 
-    Ee_T ee;
-    Val1_T val1;
-    Val2_T val2;
-    Val3_T val3;
-    Val4_T val4;
-    Val5_T val5;
-    Val6_T val6;
-    Val7_T val7;
-    Val8_T val8;
+    Entries_T entries;
 
     static const char *msg_attr[];
 
-    std::size_t serialize(BitisSerializer &ser) const {
+    std::size_t serialize(BitisSerializer &ser) {
         return message_helper::msg_serialize(this, ser);
     }
-    static bitis_helper::BitiaDeserializerHelper<MsgDynBaseArray> deserialize(BitisDeserializer &des) {
-        return message_helper::msg_deserialize<MsgDynBaseArray>(des);
+    static bitis_helper::BitiaDeserializerHelper<MsgKVMapSimple> deserialize(BitisDeserializer &des) {
+        return message_helper::msg_deserialize<MsgKVMapSimple>(des);
     }
 
     void print(int16_t indent=0) {
-        printf("MsgDynBaseArray{ ");
+        printf("MsgKVMapSimple{ ");
         if (indent>=0) printf("\n");
         message_helper::msg_print(this, (indent>=0) ? (2 + indent) : indent, msg_attr);
         print_indent(indent); printf("}");
         // if (indent>=0) printf("\n");
     }
 
-    bool is_equal(const MsgDynBaseArray &other) const {
-        return ee==other.ee && val1==other.val1 && val2==other.val2 && val3==other.val3 && val4==other.val4 && val5==other.val5 && val6==other.val6 && val7==other.val7 && val8==other.val8;
+    bool is_equal(const MsgKVMapSimple &other) const {
+        return entries==other.entries;
    }
-    bool operator==(const MsgDynBaseArray &other) const { return is_equal(other); }
-    bool operator!=(const MsgDynBaseArray &other) const { return !is_equal(other); }
+    bool operator==(const MsgKVMapSimple &other) const { return is_equal(other); }
+    bool operator!=(const MsgKVMapSimple &other) const { return !is_equal(other); }
 };
-const char *MsgDynBaseArray::msg_attr[] = {"ee", "val1", "val2", "val3", "val4", "val5", "val6", "val7", "val8"};
+const char *MsgKVMapSimple::msg_attr[] = {"entries"};
 
-// ****** MsgLargeFixedArray *****
+// ****** MsgKVMapOO *****
 
 
-struct MsgLargeFixedArray {
-    typedef SensorSource Param1_T;
-    typedef FixedArray<IntgralWithGivenBitSize<uint8_t, 3>,100> Val1_T;
-    typedef FixedArray<IntgralWithGivenBitSize<int8_t, 3>,100> Val2_T;
-    typedef FixedArray<BitisBool,100> Val3_T;
+struct MsgKVMapOO {
+    typedef DynArray<MsgKVOO,2> Entries_T;
 
     typedef message_helper::MessageT<
-        Param1_T, Val1_T, Val2_T, Val3_T
+        Entries_T
     > MsgT;
 
-    Param1_T param_1;
-    Val1_T val1;
-    Val2_T val2;
-    Val3_T val3;
+    Entries_T entries;
 
     static const char *msg_attr[];
 
-    std::size_t serialize(BitisSerializer &ser) const {
+    std::size_t serialize(BitisSerializer &ser) {
         return message_helper::msg_serialize(this, ser);
     }
-    static bitis_helper::BitiaDeserializerHelper<MsgLargeFixedArray> deserialize(BitisDeserializer &des) {
-        return message_helper::msg_deserialize<MsgLargeFixedArray>(des);
+    static bitis_helper::BitiaDeserializerHelper<MsgKVMapOO> deserialize(BitisDeserializer &des) {
+        return message_helper::msg_deserialize<MsgKVMapOO>(des);
     }
 
     void print(int16_t indent=0) {
-        printf("MsgLargeFixedArray{ ");
+        printf("MsgKVMapOO{ ");
         if (indent>=0) printf("\n");
         message_helper::msg_print(this, (indent>=0) ? (2 + indent) : indent, msg_attr);
         print_indent(indent); printf("}");
         // if (indent>=0) printf("\n");
     }
 
-    bool is_equal(const MsgLargeFixedArray &other) const {
-        return param_1==other.param_1 && val1==other.val1 && val2==other.val2 && val3==other.val3;
+    bool is_equal(const MsgKVMapOO &other) const {
+        return entries==other.entries;
    }
-    bool operator==(const MsgLargeFixedArray &other) const { return is_equal(other); }
-    bool operator!=(const MsgLargeFixedArray &other) const { return !is_equal(other); }
+    bool operator==(const MsgKVMapOO &other) const { return is_equal(other); }
+    bool operator!=(const MsgKVMapOO &other) const { return !is_equal(other); }
 };
-const char *MsgLargeFixedArray::msg_attr[] = {"param_1", "val1", "val2", "val3"};
+const char *MsgKVMapOO::msg_attr[] = {"entries"};

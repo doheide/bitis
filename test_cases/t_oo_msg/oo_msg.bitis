@@ -1,0 +1,70 @@
+
+msg MsgOOSimpleBase {
+  uint_8 id;
+  oneof value(4) {
+    uint_8 int;
+    double number;
+    *bool true_false;
+  }
+}
+
+msg MsgSimpleBaseOneInt {
+  uint_11 param_1;
+}
+
+msg MsgOONestedBase {
+  uint_8 id;
+  oneof value(4) {
+    *MsgSimpleBaseOneInt inner;
+    double number;
+    bool true_false;
+  }
+}
+
+msg MsgOONestedArray {
+  repeated_dyn_2 MsgOONestedBase values;
+  bool lala;
+}
+
+msg MsgRepeatedFixedOOBase {
+  uint_8 id;
+  repeated_fixed_3 oneof value(4) {
+    uint_8 int;
+    *double number;
+    bool true_false;
+  }
+}
+
+msg MsgRepeatedDynOOBase {
+  uint_8 id;
+  repeated_dyn_2 oneof value(4) {
+    uint_8 int;
+    *double number;
+    bool true_false;
+  }
+}
+
+msg MsgOptionalOOBase {
+  uint_8 id;
+  optional oneof value(4) {
+    uint_8 int;
+    *double number;
+    bool true_false;
+  }
+}
+
+// *****
+msg MsgKeyValue {
+  string key;
+  oneof value(3) {
+    int_32d7 int_val;
+    double num;
+    *bool bool_val;
+    str_d4 str_val;
+  }
+}
+
+msg MsgMap {
+  repeated_dyn_4 MsgKeyValue entries;
+}
+

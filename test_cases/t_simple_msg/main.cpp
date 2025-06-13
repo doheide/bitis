@@ -42,6 +42,7 @@ int main(int argc, char *argv[]){
             .param_1 = MsgSimpleTestBase::Param1_T(),
             .param_2 = MsgSimpleTestBase::Param2_T(),
             .param_3 = MsgSimpleTestBase::Param3_T(),
+            .name = MsgSimpleTestBase::Name_T()
         };
         msg.print(0); printf("\n");
 
@@ -54,6 +55,7 @@ int main(int argc, char *argv[]){
             .param_1 = MsgSimpleTestBase::Param1_T(999),
             .param_2 = MsgSimpleTestBase::Param2_T(true),
             .param_3 = MsgSimpleTestBase::Param3_T(-13),
+            .name = MsgSimpleTestBase::Name_T("lalalililolo")
         };
         msg.print(0);printf("\n");
 
@@ -61,9 +63,9 @@ int main(int argc, char *argv[]){
         error_counter += write_or_test(fn_name, msg, arg);
     }
     {
-        auto msg = MsgSimpleTestFp{
-            .param_1 = MsgSimpleTestFp::Param1_T(true),
-            .fp = MsgSimpleTestFp::Fp_T(0.1),
+        auto msg = MsgSimpleTestFP{
+            .param_1 = MsgSimpleTestFP::Param1_T(true),
+            .fp = MsgSimpleTestFP::Fp_T(0.1),
         };
         msg.print(0);printf("\n");
 

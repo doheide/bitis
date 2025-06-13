@@ -14,6 +14,7 @@ msg MsgSimpleTestBase {
   uint_11 param_1;
   bool param_2;
   int_5 param_3;
+  astr_d4 name;
 }
 
 //

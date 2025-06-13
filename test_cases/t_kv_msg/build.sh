@@ -2,9 +2,9 @@
 set -e
 
 # compile messages to code
-../../target/debug/bitis -d -i simple_msg.bitis compile -o ../impl/rust_impl/src/messages.rs -l rust
+../../target/debug/bitis -d -i kv_msg.bitis compile -o ../impl/rust_impl/src/messages.rs -l rust
 
-../../target/debug/bitis -d -i simple_msg.bitis compile -o ../impl/cpp_impl/src/messages.h -l cpp
+../../target/debug/bitis -d -i kv_msg.bitis compile -o ../impl/cpp_impl/src/messages.h -l cpp
 
 # ****
 echo -e "\n******\nrust"
@@ -36,11 +36,13 @@ cd -
 
 # ****
 # build
+echo -e "\n******\nrust build"
 cpath=$(pwd)
 cd ../impl/rust_impl/
 cargo build
 cd -
 
+echo -e "\n******\ncpp build"
 cpath=$(pwd)
 cd ../impl/cpp_impl/
 

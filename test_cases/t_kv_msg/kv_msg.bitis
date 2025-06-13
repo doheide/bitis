@@ -1,0 +1,20 @@
+msg MsgKVSimple {
+  astr_d4 key;
+  astr_d4 value;
+}
+msg MsgKVMapSimple {
+  repeated_dyn_4 MsgKVSimple entries;
+}
+
+msg MsgKVOO {
+  astr_d4 key;
+  oneof value(2) {
+    astr_d4 str_val;
+    double num_val;
+    *bool bool_val;
+    int_32d7 int_val;
+  }
+}
+msg MsgKVMapOO {
+  repeated_dyn_2 MsgKVOO entries;
+}

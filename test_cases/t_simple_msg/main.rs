@@ -3,9 +3,8 @@ mod helper;
 
 use std::env;
 use std::process::ExitCode;
-use bitis_lib::BitisOption;
+use bitis_lib::{BitisOption, BitisString};
 use messages::*;
-use crate::messages::{MsgSimpleOpt, MsgSimpleTestFp};
 
 
 fn main() -> ExitCode {
@@ -33,11 +32,7 @@ fn main() -> ExitCode {
     error_counter += helper::write_or_test(fn_name, &msg, &args);
 
     // ***
-    let msg = MsgSimpleTestBase {
-        param_1: Default::default(),
-        param_2: false,
-        param_3: Default::default(),
-    };
+    let msg = MsgSimpleTestBase::default();
     let fn_name = "val_simple_default.rs.dat";
     error_counter += helper::write_or_test(fn_name, &msg, &args);
 
@@ -46,12 +41,13 @@ fn main() -> ExitCode {
         param_1: 999.into(),
         param_2: true.into(),
         param_3: (-13).into(),
+        name: BitisString::from_str(ascii::AsciiString::from_ascii("lalalililolo").unwrap(),),
     };
     let fn_name = "val_simple_param_set1.rs.dat";
     error_counter += helper::write_or_test(fn_name, &msg, &args);
 
     // ***
-    let msg = MsgSimpleTestFp {
+    let msg = MsgSimpleTestFP {
         param_1: true.into(),
         fp: 0.1.into(),
     };

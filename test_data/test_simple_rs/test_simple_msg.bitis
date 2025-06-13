@@ -1,19 +1,21 @@
 enum Numbers(4) {
-  one, two, three, four
+  one, *two, three, four
 }
 
 msg Inner {
+  astr_d4 name;
   uint_3 val;
   Numbers num;
 }
 
 msg ParamTestWithInner {
+  astr_d4 name;
   // Comment for param_1
   uint_8d4 param_1;
   bool param_2;
   oneof action(4) {
     Inner inner;
-    uint_3 val;
+    *uint_3 val;
   }
   fp_10[1,2] fp_val;
   optional uint_3 val_opt;
