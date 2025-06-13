@@ -28,6 +28,8 @@ console = "0.15.11"
 toml_edit = "0.22.24"
 bitis-macros = "0.5.3"
 array-init = "2.1"
+ascii = "1.1.0"
+
 
 [dependencies_when_dev]
 bitis-macros = { path = "./bitis-macros" }
