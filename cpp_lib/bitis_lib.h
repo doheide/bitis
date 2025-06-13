@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 #include <inttypes.h>
 
 inline void print_indent(const int16_t indent) {
@@ -147,10 +148,10 @@ struct BitisBool {
     bool value;
 
     BitisBool() : value(false) {}
-    explicit BitisBool(const bool value) : value(value) {}
+    BitisBool(const bool value) : value(value) {}
 
     // ReSharper disable once CppDFAConstantFunctionResult
-    std::size_t serialize(BitisSerializer &ser) const {
+    std::size_t serialize(BitisSerializer &ser) {
         const uint8_t data = value ? 1 : 0;
         return ser.add_data<uint8_t, 1>(&data);
     }
@@ -182,7 +183,7 @@ struct IntgralWithGivenBitSize {
     explicit IntgralWithGivenBitSize(T value) : value(value) {}
     // IntgralWithGivenBitSize(T &value) : value(value) {}
 
-    std::size_t serialize(BitisSerializer &ser) const {
+    std::size_t serialize(BitisSerializer &ser) {
         uint8_t num_bits = 0;
         T tval = value;
 
@@ -239,7 +240,7 @@ struct BitisFloatingPoint {
     BitisFloatingPoint() : value() {}
     explicit BitisFloatingPoint(T v) : value(v) { }
 
-    std::size_t serialize(BitisSerializer &ser) const {
+    std::size_t serialize(BitisSerializer &ser) {
         return ser.add_data<T, sizeof(T)*8>(&value) ;
     }
     static bitis_helper::BitiaDeserializerHelper<BitisFloatingPoint> deserialize(
@@ -272,7 +273,7 @@ struct BitisOptional {
     static BitisOptional create_none() { return BitisOptional(T(), true); }
     static BitisOptional create_val(T v) { return BitisOptional(v, false); }
 
-    std::size_t serialize(BitisSerializer &ser) const {
+    std::size_t serialize(BitisSerializer &ser) {
         std::size_t num_bits = 1;
         BitisBool(!is_none).serialize(ser);
         if (!is_none) {
@@ -320,7 +321,7 @@ struct DynInteger {
     DynInteger() : value() {}
     explicit DynInteger(T value) : value(value) {}
 
-    std::size_t serialize(BitisSerializer &ser) const {
+    std::size_t serialize(BitisSerializer &ser) {
         int num_bits = 1;
         uint8_t tdata;
         T tvalue = value;
@@ -338,7 +339,7 @@ struct DynInteger {
         // tvalue is a positive value here
 
         // first marker
-        {   const auto b = BitisBool(tvalue>0);
+        {   auto b = BitisBool(tvalue>0);
             b.serialize(ser);
         }
         //
@@ -349,7 +350,7 @@ struct DynInteger {
             tval >>= DYN_BITS;
             num_bits += DYN_BITS + 1;
 
-            const auto b = BitisBool(tval>0);
+            auto b = BitisBool(tval>0);
             b.serialize(ser);
         }
         return num_bits;
@@ -409,7 +410,7 @@ struct FixedArray {
         // for (std::size_t i = 0; i < ARRAY_SIZE; i++) { values[i] = v[i]; }
     }
 
-    std::size_t serialize(BitisSerializer &ser) const {
+    std::size_t serialize(BitisSerializer &ser) {
         std::size_t num_bits = 0;
         for (std::size_t i=0; i < ARRAY_SIZE; i++) {
             num_bits += values[i].serialize(ser);
@@ -456,10 +457,10 @@ struct DynArray {
     std::vector<T> values;
     typedef T ValT;
 
-    DynArray() : values(0) { }
+    DynArray() : values() { }
     explicit DynArray(const std::vector<T> &v) : values(v) { }
 
-    std::size_t serialize(BitisSerializer &ser) const {
+    std::size_t serialize(BitisSerializer &ser) {
         std::size_t num_bits = 0;
         auto data_size = DynInteger<uint32_t, DYN_BITS>(values.size());
         num_bits += data_size.serialize(ser);
@@ -471,13 +472,14 @@ struct DynArray {
     }
     static bitis_helper::BitiaDeserializerHelper<DynArray> deserialize(BitisDeserializer &des) {
         std::size_t num_bits = 0;
-
+        auto tbits = sizeof(T)*8;
         auto rv_size = DynInteger<uint32_t, DYN_BITS>::deserialize(des);
         num_bits += rv_size.bits;
 
         auto tvalues = std::vector<T>(rv_size.data.value);
         for (std::size_t i=0; i < rv_size.data.value; i++) {
-            auto dr = T::deserialize(des);
+            //auto dr = T::deserialize(des);
+            auto dr = des.decode_data<T>(tbits);
             tvalues[i] = dr.data;
             num_bits += dr.bits;
         }
@@ -501,6 +503,116 @@ struct DynArray {
     }
     bool operator==(const DynArray& other) const { return is_equal(other); }
     bool operator!=(const DynArray& other) const { return !is_equal(other); }
+};
+
+// ***************************************************************
+template <uint8_t DYN_BITS>
+struct BinaryBase {
+    BinaryBase() : values() {}
+    explicit BinaryBase(const std::vector<uint8_t> &v) : values(v) {}
+
+    std::vector<uint8_t> *get_u8_vec() { return &this->values; }
+
+    std::size_t serialize(BitisSerializer &ser) {
+        std::size_t num_bits = 0;
+        auto data_size = DynInteger<uint32_t, DYN_BITS>(values.size());
+        num_bits += data_size.serialize(ser);
+
+        for (std::size_t i=0; i < values.size(); i++) {
+            auto cv = values[i];
+            num_bits += ser.add_data<uint8_t, 8>(&cv);
+        }
+        return num_bits;
+    }
+
+protected:
+    static bitis_helper::BitiaDeserializerHelper<BinaryBase> deserialize_base(BitisDeserializer &des) {
+        std::size_t num_bits = 0;
+        auto tbits = 8;
+        auto rv_size = DynInteger<uint32_t, DYN_BITS>::deserialize(des);
+        num_bits += rv_size.bits;
+
+        auto tvalues = std::vector<uint8_t>(rv_size.data.value);
+        for (std::size_t i=0; i < rv_size.data.value; i++) {
+            auto [bits, data] = des.decode_data<uint8_t>(tbits);
+            tvalues[i] = data;
+            num_bits += bits;
+        }
+        return bitis_helper::BitiaDeserializerHelper<BinaryBase>{.bits=num_bits, .data=BinaryBase(tvalues)};
+    }
+
+    std::vector<uint8_t> values;
+};
+
+// ***************************************************************
+template <uint8_t DYN_BITS>
+struct Binary : BinaryBase<DYN_BITS>{
+
+    Binary() : BinaryBase<DYN_BITS>() {}
+    explicit Binary(const std::vector<uint8_t> &v) : BinaryBase<DYN_BITS>() { }
+
+    void set(const std::vector<uint8_t> &v) {
+        this->values = v;
+    }
+
+    static bitis_helper::BitiaDeserializerHelper<Binary> deserialize(BitisDeserializer &des) {
+        auto v = BinaryBase<DYN_BITS>::deserialize_base(des);
+        return bitis_helper::BitiaDeserializerHelper<Binary>{.bits=v.bits, .data=Binary(*v.data.get_u8_vec())};
+    }
+
+    void print(int16_t indent=0) {
+        // ReSharper disable once CppCStyleCast
+        printf("'");
+        for (std::size_t i=0; i < this->value.values.size(); i++) {
+            printf("%c", this->value.values[i]);
+        }
+        printf("' {d%u}", DYN_BITS);
+    }
+
+    bool is_equal(const Binary &other) const {
+        return this->value == other.value;
+    }
+    bool operator==(const Binary& other) const { return is_equal(other); }
+    bool operator!=(const Binary& other) const { return !is_equal(other); }
+};
+
+template <uint8_t DYN_BITS>
+struct BitisString : BinaryBase<DYN_BITS>{
+
+    BitisString() : BinaryBase<DYN_BITS>() {}
+    explicit BitisString(const char* s) { set(s); }
+    explicit BitisString(const std::vector<uint8_t> &v) : BinaryBase<DYN_BITS>(v) { }
+
+    void set(const char* s) {
+        this->values.clear();
+        this->values.reserve(strlen(s));
+        for (int i = 0; s[i] != '\0'; i++) {
+            this->values.push_back(s[i]);
+        }
+    }
+    const char *get() {
+        // ReSharper disable once CppCStyleCast
+        return (const char *) this->values.data();
+    }
+
+    static bitis_helper::BitiaDeserializerHelper<BitisString> deserialize(BitisDeserializer &des) {
+        auto v = BinaryBase<DYN_BITS>::deserialize_base(des);
+        return bitis_helper::BitiaDeserializerHelper<BitisString>{.bits=v.bits, .data=BitisString(*v.data.get_u8_vec())};
+    }
+
+    void print(int16_t indent=0) {
+        // ReSharper disable once CppCStyleCast
+        printf("'");
+        for (std::size_t i=0; i < this->values.size(); i++) {
+            printf("%c", this->values[i]);
+        }
+        printf("' {d%u}", DYN_BITS);
+    }
+    bool is_equal(const BitisString &other) const {
+        return this->values == other.values;
+    }
+    bool operator==(const BitisString& other) const { return is_equal(other); }
+    bool operator!=(const BitisString& other) const { return !is_equal(other); }
 };
 
 // ***************************************************************
@@ -555,7 +667,7 @@ struct FixPrecisionMinMax {
         }
     }
 
-    std::size_t serialize(BitisSerializer &ser) const {
+    std::size_t serialize(BitisSerializer &ser) {
         std::size_t num_bits = 0;
         auto max_value = calc_bitmask(BITS);
 
@@ -622,21 +734,6 @@ struct FixPrecisionMinMax {
 private:
     double value;
     FixPrecisionMinMaxEnum state;
-};
-
-// ***************************************************************
-struct Binary : DynArray<uint8_t, 8> {
-    Binary() : DynArray<uint8_t, 8>() {}
-    explicit Binary(const std::vector<uint8_t> &v) : DynArray(v) {}
-    // void print(int16_t indent=0) {
-    //     // ReSharper disable once CppCStyleCast
-    //     printf("{%zu}[", ARRAY_SIZE);
-    //     for (std::size_t i=0; i < ARRAY_SIZE; i++) {
-    //         values[i].print(0);
-    //         if (i != ARRAY_SIZE-1) printf(", ");
-    //     }
-    //     printf("],\n");
-    // }
 };
 
 // ***************************************************************
@@ -765,7 +862,7 @@ public:
         return this->value.value == id_in;
     }
 
-    std::size_t serialize(BitisSerializer &ser) const {
+    std::size_t serialize(BitisSerializer &ser) {
         return value.serialize(ser);
     }
     static bitis_helper::BitiaDeserializerHelper<BitisEnum> deserialize(BitisDeserializer &des) {
@@ -948,7 +1045,7 @@ namespace oneof_helper {
             if (data_pointer) {
                 // ReSharper disable once CppCStyleCast
                 const std::size_t r = data_pointer->serialize(ser);
-                printf("inner bits: %lu\n", r);
+                //printf("inner bits: %lu\n", r);
                 return r;
             }
             OneOfT_Impl<OOT_STRUCT, Collector<Ts ...>> inner;
@@ -1000,7 +1097,8 @@ namespace oneof_helper {
         size_t serialize(OOT_STRUCT *d, BitisSerializer &ser) {
             // serialize enum for selected type
             auto bits_num = d->oo_selector.serialize(ser);
-            printf("oo_selector bits_num: %lu\n", bits_num);
+            //printf("oo_selector bits_num: %lu\n", bits_num);
+
             // serialize selected type
             OneOfT_Impl<OOT_STRUCT, Collector<Ts ...>> inner;
             return bits_num + inner.serialize(d, ser);

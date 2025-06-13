@@ -1,6 +1,7 @@
 use std::ops::{AddAssign, Neg, Shl, Shr};
 use std::convert::{TryFrom, From, TryInto};
-use std::fmt::Display;
+use std::fmt::{Debug, Display};
+use ascii::{AsciiString};
 
 // ***
 pub trait IntegerBaseFunctions {
@@ -404,11 +405,11 @@ impl<T, const DYNSIZEBITS: u8> BiserdiTrait for DynArray<T, DYNSIZEBITS> where T
 }
 impl<T: Sized + BiserdiTrait + Default + Clone, const DYNSIZEBITS: u8, const N: usize> From<[T; N]> for DynArray<T, DYNSIZEBITS> {
     fn from(val: [T;N]) -> Self {
-        DynArray{ val:Vec::from(val)}
+        DynArray{val: val.to_vec()}
     } }
 impl<T: Sized + BiserdiTrait + Default + Clone, const DYNSIZEBITS: u8> From<Vec<T>> for DynArray<T, DYNSIZEBITS> {
     fn from(val: Vec<T>) -> Self {
-        DynArray{ val: val.clone()}
+        DynArray{val: val}
     } }
 impl<T: Sized + BiserdiTrait + Display + Default + Clone, const DYNSIZEBITS: u8> std::fmt::Display for DynArray<T, DYNSIZEBITS> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -645,6 +646,57 @@ impl<const N: u8> std::fmt::Display for Binary< N> {
         let hex = self.val.iter().map(|b| format!("{:02x}", b).to_string()).collect::<Vec<String>>().join(" ");
         write!(f, "{:x?} |dynbits:{}", hex, N)
     }
+}
+impl<const N: u8> Default for Binary<N> {
+    fn default() -> Self { Self{val: Vec::new()} }
+}
+
+// *****
+#[derive(Clone, PartialEq)]
+pub struct BitisString<const DYNSIZEBITS: u8> {
+    val: Binary<DYNSIZEBITS>
+}
+impl<const DYNSIZEBITS: u8> BitisString<DYNSIZEBITS> {
+    pub fn from_str(data: AsciiString) -> Self {
+        Self{ val: Binary::new(data.as_bytes().into()) }
+    }
+    pub fn empty() -> Self {
+        Self{val: Binary::empty()}
+    }
+    pub fn set(&mut self, data: AsciiString) {
+        self.val = Binary::new(data.as_bytes().into())
+    }
+    pub fn get (&self) -> AsciiString {
+        AsciiString::from_ascii(self.val.val.clone()).unwrap()
+    }
+    pub fn get_string (&self) -> String {
+        AsciiString::from_ascii(self.val.val.clone()).unwrap().to_string()
+    }
+}
+impl<const DYNSIZEBITS: u8> BiserdiTrait for BitisString<DYNSIZEBITS> {
+    fn bit_serialize(self: &Self, biseri: &mut Biseri) -> Option<u64> {
+        self.val.bit_serialize(biseri)
+    }
+    fn bit_deserialize(version_id: u16, bides: &mut Bides) -> Option<(Self, u64)> {
+        let (v, s) = Binary::bit_deserialize(version_id, bides)?;
+        Some((BitisString{val: v}, s))
+    }
+}
+impl<const DYNSIZEBITS: u8> std::fmt::Display for BitisString<DYNSIZEBITS> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "'{}' |string:{}", self.get(), DYNSIZEBITS)
+    }
+}
+impl<const DYNSIZEBITS: u8> Debug for BitisString<DYNSIZEBITS> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "'{}'", self.get())
+    }
+}
+impl<const DYNSIZEBITS: u8> Default for BitisString<DYNSIZEBITS> {
+    fn default() -> Self { Self::empty() }
+}
+impl<const DYNSIZEBITS: u8> From<ascii::AsciiString> for BitisString<DYNSIZEBITS> {
+    fn from(data: ascii::AsciiString) -> Self { Self::from_str(data) }
 }
 
 #[cfg(test)]

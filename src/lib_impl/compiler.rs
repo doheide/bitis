@@ -41,6 +41,7 @@ pub struct OneOfInfoR {
     name: String,
     dyn_bits: u8,
     attributes: Vec<AttributeEx>,
+    default_attrib_name: String,
 }
 fn to_rust_attribute(attribute: &Attribute, msg_names: &Vec<String>) -> AttributeEx {
     let (rtype, base_type, is_py_wrapped, is_msg, is_enum, is_oo, add_val) = {
@@ -57,38 +58,41 @@ fn to_rust_attribute(attribute: &Attribute, msg_names: &Vec<String>) -> Attribut
                         println!("Unexpected unspecified attribute type");
                         abort()
                     },
-                    SimpleType::Bool => { ("bool".to_string(), "bool".to_string()) }
+                    SimpleType::Bool => { ("bool".to_string(), "bool".to_string()) },
                     SimpleType::UIntFixed(b) => {
                         add_val = true;
                         let base = format!("u{}", integer_bit_size(&b));
-                        (format!("VarWithGivenBitSize<{}, {}>", base.clone(), b), base) }
+                        (format!("VarWithGivenBitSize<{}, {}>", base.clone(), b), base) },
                     SimpleType::IntFixed(b) => {
                         add_val = true;
                         let base = format!("i{}", integer_bit_size(&b));
-                        (format!("VarWithGivenBitSize<{}, {}>", base.clone(), b), base) }
+                        (format!("VarWithGivenBitSize<{}, {}>", base.clone(), b), base) },
                     SimpleType::UIntDyn(b) => {
                         add_val = true;
                         let base = format!("u{}", integer_bit_size(&b.0));
-                        (format!("DynInteger<{}, {}>", base.clone(), b.1), base) }
+                        (format!("DynInteger<{}, {}>", base.clone(), b.1), base) },
                     SimpleType::IntDyn(b) => {
                         add_val = true;
                         let base = format!("i{}", integer_bit_size(&b.0));
-                        (format!("DynInteger<{}, {}>", base.clone(), b.1), base) }
+                        (format!("DynInteger<{}, {}>", base.clone(), b.1), base) },
                     SimpleType::Float => {
                         add_val = true;
                         let base = "f32".to_string();
                         (base.clone(), base)
-                    }
+                    },
                     SimpleType::Double => {
                         let base = "f64".to_string();
-                        (base.clone(), base) }
+                        (base.clone(), base) },
                     SimpleType::FixedPrecision(fpp) => {
                         add_val = true;
                         (format!("FixPrecisionMinMax<{}, {}, {}>", fpp.bits, fpp.min_val, fpp.max_val), "f64".to_string())
-                    }
+                    },
                     SimpleType::Binary(b) => {
                         add_val = true;
-                        (format!("Binary<{}>", b), "Vec<u8>".to_string()) }
+                        (format!("Binary<{}>", b), "Vec<u8>".to_string()) },
+                    SimpleType::AString(b) => {
+                        add_val = true;
+                        (format!("BitisString<{}>", b), "char *".to_string()) },
                 }
             }
             AttributeDetails::AttributeEnumOrMsg(em) => {
@@ -122,7 +126,8 @@ pub fn to_rust_oneofs(oos: &Vec<(String, OneOfInfo)>, msgs: &Vec<Message>) -> Ha
     oos.iter().map(|(msg_name, oo)| {
         let attrs_rust: Vec<_> = oo.attributes.iter().map(|attribute| {
             to_rust_attribute(attribute, &msgs_names) }).collect();
-        (oo.name.clone(), OneOfInfoR{msg_name: msg_name.clone(), name: oo.name.clone(), dyn_bits: oo.dyn_bits, attributes: attrs_rust})
+        (oo.name.clone(), OneOfInfoR{msg_name: msg_name.clone(), name: oo.name.clone(), dyn_bits: oo.dyn_bits,
+            attributes: attrs_rust, default_attrib_name: oo.default_attrib_name.clone()})
     }).collect()
 }
 
@@ -165,14 +170,17 @@ fn to_cpp_attribute(attribute: &Attribute, msg_names: &Vec<String>) -> Attribute
                     }
                     SimpleType::Double => {
                         let base = "double".to_string();
-                        (format!("BitisFloatingPoint<{}>", base.clone()), base) }
+                        (format!("BitisFloatingPoint<{}>", base.clone()), base) },
                     SimpleType::FixedPrecision(fpp) => {
                         add_val = true;
                         (format!("FixPrecisionMinMax<{}, {}, {}>", fpp.bits, fpp.min_val, fpp.max_val), "double".to_string())
-                    }
+                    },
                     SimpleType::Binary(b) => {
                         add_val = true;
-                        (format!("Binary<{}>", b), "Vec<u8>".to_string()) }
+                        (format!("Binary<{}>", b), "Vec<u8>".to_string()) },
+                    SimpleType::AString(b) => {
+                        add_val = true;
+                        (format!("BitisString<{}>", b), "char *".to_string()) },
                 }
             }
             AttributeDetails::AttributeEnumOrMsg(em) => {
@@ -205,7 +213,8 @@ pub fn to_cpp_oneofs(oos: &Vec<(String, OneOfInfo)>, msgs: &Vec<Message>) -> Has
     oos.iter().map(|(msg_name, oo)| {
         let attrs_cpp: Vec<_> = oo.attributes.iter().map(|attribute| {
             to_cpp_attribute(attribute, &msgs_names) }).collect();
-        (oo.name.clone(), OneOfInfoR{msg_name: msg_name.clone(), name: oo.name.clone(), dyn_bits: oo.dyn_bits, attributes: attrs_cpp })
+        (oo.name.clone(), OneOfInfoR{msg_name: msg_name.clone(), name: oo.name.clone(), dyn_bits: oo.dyn_bits.clone(),
+            attributes: attrs_cpp, default_attrib_name: oo.default_attrib_name.clone() })
     }).collect()
 }
 
@@ -292,6 +301,7 @@ pub enum SimpleType {
     Float, Double,
     FixedPrecision(FixedPrecisionProperties),
     Binary(u8),
+    AString(u8)
 }
 /*impl SimpleType {
     fn int_size(min_bits: u8) -> std::result::Result<u8, String> {
@@ -329,6 +339,7 @@ pub struct OneOfInfo {
     name: String,
     dyn_bits: u8,
     attributes: Vec<Attribute>,
+    default_attrib_name: String,
 }
 #[derive(Debug, Clone )]
 pub enum AttributeDetails {
@@ -449,9 +460,9 @@ pub enum Token{
     #[regex(r"int_[0-9]+d[0-9]+", get_d_suffix_numbers, priority=31)] IntDyn((u8,u8)),
     #[token("float", priority=30)] Float,
     #[token("double", priority=30)] Double,
+    #[regex(r"astr_d[0-9]+", get_suffix_number, priority=31)] AStr(u8),
     #[regex(r"fp_[0-9]+\[ *-?[0-9]+ *, *-?[0-9]+ *]", get_fp_properties_number, priority=30)] FixedPoint(FixedPrecisionProperties),
     // #[regex(r"ufp_[0-9]+\[ *-?[0-9]+ *, *-?[0-9]+ *]", get_fp_properties_number, priority=30)] UFixedPoint(FixedPrecisionProperties),
-    //#[token("str", priority=30)] String,
     #[token("binary_d[0-9]+", get_suffix_number, priority=30)] Binary(u8),
     #[regex(r"repeated_dyn_[0-9]+", get_suffix_number, priority=30)] RepeatedDyn(u8),
     #[regex(r"repeated_fixed_[0-9]+", get_suffix_number, priority=30)] RepeatedFixed(u8),
@@ -637,6 +648,8 @@ pub fn parse_attribute(last_token: Token, lexer: &mut Lexer<'_, Token>,
             Token::RepeatedDyn(b) => is_repeated_and_size = Some(DynOrFixedType::Dyn(b)),
             Token::RepeatedFixed(b) => is_repeated_and_size = Some(DynOrFixedType::Fixed(b)),
             Token::Bool => { attr_type = SimpleType::Bool; break; },
+            Token::AStr(s) => {
+                attr_type = SimpleType::AString(s); break; },
             Token::UIntFixed(s) => { attr_type = SimpleType::UIntFixed(s); break; },
             Token::UIntDyn((m,s)) if m < s =>
                 return Err(("Error: Unsigned dyn integer bit size of integer type must be bigger than the bit size of the package".to_owned(), lexer.span())),
@@ -719,24 +732,42 @@ pub fn parse_oneof(lexer: &mut Lexer<'_, Token>, parent_name: String, comment: O
     parse_one_token!(Token::CBraceOpen, lexer, Some("Error: Expected open curly bracket to enclose oneof elements"))?.unwrap();
 
     let mut oo_attribs = Vec::new();
+    let mut is_default = false; let mut default_name = None;
     loop {
         if let Some(token) = lexer.next() {
             match token {
                 Ok(Token::CBraceClose) => break,
+                Ok(Token::Star) => { is_default = true; },
                 Ok(last_token) => {
-                    match parse_attribute(last_token, lexer, oo_name.clone(), true) {
-                        Ok(o) => oo_attribs.push(o),
+                    let oo_attr = match parse_attribute(last_token, lexer, oo_name.clone(), true) {
+                        Ok(o) => o,
                         Err(s) => return Err(s),
+                    };
+                    oo_attribs.push(oo_attr.clone());
+
+                    if is_default {
+                        if default_name.is_some() {
+                            return Err((format!("Error: Multiple attributes of one-of '{}' (in '{}') are marked as default.",
+                                                oo_name, parent_name), lexer.span())); }
+                        default_name = Some(oo_attr.name); is_default = false;
                     }
                 }
                 Err(_) => { return Err((format!("Error: Unexpected text when decoding oneof ({token:?})").to_owned(), lexer.span())); },
             }
         }
     }
+
+    if default_name.is_none() {
+        return Err((format!("Error: No default name in oneof elements for '{}' in '{}'",
+                            oo_name, parent_name), lexer.span()));
+    }
+
     Ok(Attribute{name: oo_name.clone(), comment, is_repeated_and_size, is_optional,
         specific_details: AttributeDetails::AttributeOneOf(OneOfInfo{
             name: format!("OO_{}_{}", parent_name.to_pascal_case(), oo_name.to_pascal_case()),
-            dyn_bits: bit_size, attributes: oo_attribs})})
+            dyn_bits: bit_size, attributes: oo_attribs,
+            default_attrib_name: default_name.unwrap(),
+        })})
 }
 
 pub fn parse_enum(lexer: &mut Lexer<'_, Token>, comment: Option<String>) -> Result<Value> {
