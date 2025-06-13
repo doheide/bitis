@@ -25,6 +25,22 @@ Key Features
   * Python code uses Maturin and PyO3 to interface and compile python to rust code for given messages.
   * C++ code uses a header only library.
 
+<!-- TOC -->
+* [bitis](#bitis)
+  * [Example](#example)
+* [Description Language](#description-language)
+  * [Messages](#messages)
+  * [Base Types](#base-types)
+  * [Enumerated type](#enumerated-type-)
+  * [Container Modifier](#container-modifier)
+  * [OneOfs](#oneofs)
+  * [Comments](#comments)
+  * [Example messages](#example-messages)
+    * [Nested Messages](#nested-messages)
+    * [Key Value Map](#key-value-map)
+* [Bitis compiler](#bitis-compiler)
+<!-- TOC -->
+
 ## Example
 The following messages consists of 
 * A one bit wide boolean.
@@ -62,24 +78,21 @@ let msg = ExampleMessage{
 };
 
 // serialize
-let mut ser = Biseri::new();
-msg.bit_serialize(&mut ser);
-let r = ser.finish_add_data().unwrap();
-println!("bits: {}, bytes: {}", r.0, r.1);
-println!("data: {:?}", ser.get_data());
+let binary_data = serialize(msg);
+println!("data: {:?}", binary_data);
 
 // deserialize
-let mut der = Bides::from_biseri(&ser.clone());
-let data = ExampleMessage::bit_deserialize(0, &mut der);
-println!("data: {:?}", data);
+let deserilized_data: ExampleMessage = deserialize(binary_data);
+println!("deserilized_data: {:?}", deserilized_data);
 ```
-That produces the following output: 
+The serialization contains 20 bits or 3 bytes and the output is: 
 ```text
-bits: 20, bytes: 3
 data: [150, 136, 6]
-data: Some((ExampleMessage { is_active: false, value_one: VarWithGivenBitSize { val: 3 }, signed_value: Some(VarWithGivenBitSize { val: 2 }), array: [VarWithGivenBitSize { val: 1 }, VarWithGivenBitSize { val: 2 }, VarWithGivenBitSize { val: 3 }] }, 20))
+deserilized_data: Some((ExampleMessage { is_active: false, 
+    value_one: VarWithGivenBitSize { val: 3 }, signed_value: Some(VarWithGivenBitSize { val: 2 }), 
+    array: [VarWithGivenBitSize { val: 1 }, VarWithGivenBitSize { val: 2 }, 
+    VarWithGivenBitSize { val: 3 }] }, 20))
 ```
-As can be seen, the message consists of 20 bits in total.
 
 # Description Language
 
@@ -99,14 +112,16 @@ An example can be found at the end of this section.
 
 ## Base Types
 
-| Title                 | Bitis Type | Example | Description                                |
-|-----------------------|------------|---|--------------------------------------------|
-| Boolean               |  bool      |            | A value that has the values true or false. |
-| Fixed Integer         | int_X<br>uint_X | uint_3 | An sigened (int_X) or unsigned (uint_X) integer value with a fixed number of bits given by a number after the underscore. Signed values need an additional bit that denotes whether the value is negative. <br>Example details: uint_3 allows unsigned integer values with three bits, e.g. values from 0 to including 7. |
+| Title                 | Bitis Type | Example | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+|-----------------------|------------|---|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Boolean               |  bool      |            | A value that has the values true or false.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| Fixed Integer         | int_X<br>uint_X | uint_3 | An sigened (int_X) or unsigned (uint_X) integer value with a fixed number of bits given by a number after the underscore. Signed values need an additional bit that denotes whether the value is negative. <br>Example details: uint_3 allows unsigned integer values with three bits, e.g. values from 0 to including 7.                                                                                                                                                                                                                                                              |
 | Dynamic Integer       | int_XdY<br>uint_XdY | uint_8d3 | An sigened (int_XdY) or unsigned (uint_Xd>) integer value with a dynamic number of bits depending on the value. A value of zero requires one bit. Depending on the number of bits used in the value, packets of Y bits are serialized. For each packet an additional bit is required to mark wheter further packets are encoded.<br>Example details: a value of 10 for an uint_3d is encoded as follows:  bit0=1 (value bigger than zero), bit1-4=2 (lower three bits of the value), bit5=1 (futher bits are nonzero), bit6-9=1 (bit 3-6 of the value), bit10=0 (higher bits are zero) |
-| Floating point number | double<br>float | float   | A floating point variable with 64 bit (double) or 32 bit (float) with the number of bits for exponent and mantisse according to IEC-754 .|
-| Fixed point number    | fp_X[Y,Z]  | fp_10[-2,3] | A number with X bits equally spaced on the closed interval [Y, Z]. There is an indication for over- or under-flow condition<br>The example denotes the values between -2 and 3 with an 10 bit number. | 
-| Binary                | binary     |  |  | 
+| Floating point number | double<br>float | float   | A floating point variable with 64 bit (double) or 32 bit (float) with the number of bits for exponent and mantisse according to IEC-754 .                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| Fixed point number    | fp_X[Y,Z]  | fp_10[-2,3] | A number with X bits equally spaced on the closed interval [Y, Z]. There is an indication for over- or under-flow condition<br>The example denotes the values between -2 and 3 with an 10 bit number.                                                                                                                                                                                                                                                                                                                                                                                  | 
+| Binary                | binary     |  |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| String  | astr_dX | astr_d4 | Ascii string with a dynamic integer as string length with chunks of X bits.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+ 
 
 ## Enumerated type 
 Enumerated types are defined on the top level of a bitis definition file. The format is 
@@ -179,20 +194,114 @@ Comments are denoted by //
 
 ## Example messages
 
-Nested messages:
+### Nested Messages
+Bitis example definition for nested messages:
 ```
-msg Nested1 {
-  uint_3 value;
+enum SensorSource(3) {
+  *TEMPERATUR_SENSOR, MOVEMENT_SENSOR
 }
-msg Nested2 {
-  uint_3 value;
+
+enum ExampleEnum(2) {
+  E1, E2, *E3, E4, E5, E6, E7, E8, E9
 }
-msg MainMessage {
-  Nested1 first_nested_msg;
-  optional Nested2 other_nested_msg;
+
+msg MsgEnumOpt {
+  uint_3 val;
+  SensorSource param_1;
+  optional ExampleEnum param_2;
+}
+
+msg MsgWithInner {
+  uint_3 val;
+  MsgEnumOpt imsg;
+}
+
+```
+**Rust** code to set the values when initializing the message:
+```
+// initialize message
+let msg = MsgWithInner{
+    val: 2.into(),
+    imsg: MsgEnumOpt{
+        val: 1.into(),
+        param_1: SensorSource::TemperaturSensor.into(),
+        param_2: Some(ExampleEnum::E3).into(),
+    },
+};
+```
+To serialize the data, use the following code can be used:
+```
+let binary_data = serialize(msg);
+```
+Binary data can be deserialized with  
+```
+let deserialzed_message = deserialize::<MsgWithInner>(binary_data);
+```
+For **C++**, the code initialize, serialize and deserialize is
+```
+// Initialize message
+auto inner_msg = MsgEnumOpt{
+    .val = MsgEnumOpt::Val_T(1),
+    .param_1 = MsgEnumOpt::Param1_T::create_enum<SensorSourceEnum::TemperaturSensor>(),
+    .param_2 = MsgEnumOpt::Param2_T::create_val(
+        MsgEnumOpt::Param2_T::ValT::create_enum<ExampleEnumEnum::E3>())
+};
+auto msg = MsgWithInner{
+    .val = MsgWithInner::Val_T(2),
+    .imsg = inner_msg,
+};
+
+// seralize 
+auto bin_data = serialize(msg);
+
+// deserialize
+auto deserialized_msg = deserialize<MsgWithInner>(bin_data);
+```
+
+### Key Value Map
+There is no data type for key value pairs. Key value pair structures can be easily defined, even
+with different types for values:
+```
+msg MsgKVOO {
+  astr_d4 key;
+  oneof value(2) {
+    astr_d4 str_val;
+    double num_val;
+    *bool bool_val;
+    int_32d7 int_val;
+  }
+}
+msg MsgKVMapOO {
+  repeated_dyn_2 MsgKVOO entries;
 }
 ```
-...
+To set and serialize key value pairs in **rust**, the following code can be used:
+```
+let mut msg = MsgKVMapOO::default();
+msg.entries.val.push(MsgKVOO{
+  key: AsciiString::from_ascii("lala").unwrap().into(),
+  value: OO_MsgKvoo_Value::IntVal(312.into()),
+});
+msg.entries.val.push(MsgKVOO{
+  key: AsciiString::from_ascii("lili").unwrap().into(),
+  value: OO_MsgKvoo_Value::NumVal(0.56789.into()),
+});
+msg.entries.val.push(MsgKVOO{
+  key: AsciiString::from_ascii("lolo").unwrap().into(),
+  value: OO_MsgKvoo_Value::StrVal(AsciiString::from_ascii("val1").unwrap().into()),
+});
+```
+To deserialize and convert the message to a hash map, us ethe following code:
+```
+auto deserialized_msg = deserialize<MsgWithInner>(bin_data);
+
+let kv_map: HashMap<String, OO_MsgKvoo_Value> = msg.entries.val.iter().map(|v| {
+    (v.key.get_string(), v.value.clone())
+}).collect();
+
+println!("Hash map: {}", kv_map);
+```
+
 
 # Bitis compiler
 
