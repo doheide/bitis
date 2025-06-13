@@ -512,7 +512,7 @@ dependencies = [
 
 [[package]]
 name = "test_simple"
-version = "0.6.10"
+version = "0.6.11"
 dependencies = [
  "array-init",
  "ascii",
