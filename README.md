@@ -112,16 +112,18 @@ An example can be found at the end of this section.
 Enumerated types are defined on the top level of a bitis definition file. The format is 
 ```
 enum ENUM_NAME(Y) {
-  E1, E2, ...
+  E1, *E2, ...
 };
 ```
-where ENUM_NAME denotes the name of the enum type and E1, E2, ... the set of named elements. The value is encoded as dynamic integer with u32 packed into chuncks of Y bits.
-Emums can be used in messages like any other type.
+where ENUM_NAME denotes the name of the enum type and E1, E2, ... the set of named elements. 
+The value is encoded as dynamic integer with u32 packed into chuncks of Y bits.
+The default element of an Enum must be marked with a star in front of the value.
+Enums can be used in messages like any other type.
 
 Example:
 ```
 enum SENSOR_SOURCE(3) {
-  TEMPERATUR_SENSOR, MOVEMENT_SENSOR, PRESSURE_SENSOR
+  TEMPERATUR_SENSOR, MOVEMENT_SENSOR, *PRESSURE_SENSOR
 };
 ```
 
@@ -141,10 +143,11 @@ Messages can contain fields that can hold one of a list of different types:
 oneof ONEOF_NAME(X) {
   {type_1} {oneof_1};
   ...
-  {type_N} {oneof_N};
+  *{type_N} {oneof_N};
 }
 ```
 with ONEOF_NAME, the name of the field amd a list of alternatives with types {type_1} ... {type_N} and the respective oneof names {oneof_1}.
+The default oneof is marked by a leading star ('*').
 
 An example message could be
 ```
@@ -163,7 +166,7 @@ msg MainMessage {
   oneof command(4) {
     Command_Shutdown shutdown;
     Command_StartMeasurement start_measurement;
-    uint_3 some_number;
+    *uint_3 some_number;
   }
 }
 ```
