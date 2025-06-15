@@ -1,5 +1,10 @@
-#include "bitis_lib.h"
+#include "{{bitis_header_lib_file_name}}"
 #include <optional>
+
+//#define EXPECTED_BITIS_VERSION "{{bitis_version}}"
+//#if EXPECTED_BITIS_VERSION != BITIS_CPP_LIB_VERSION
+//#error "Unexpected bitis library version"
+//#endif
 
 {%+ for objo_name in object_order %}
 

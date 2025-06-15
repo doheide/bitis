@@ -56,6 +56,13 @@ enum Commands {
         /// output file
         #[arg(short, long)]
         output_file_or_path: Option<PathBuf>,
+
+        #[clap(long)]
+        /* Name of the bitis header lib that is included in the message file */
+        bitis_header_lib_file_name: Option<String>,
+        #[clap(long)]
+        /* switch if the header lib should be written */
+        prevent_write_bitis_header_lib: bool
     },
     /// Compare bitis data objects file
     // Compare {
@@ -135,7 +142,10 @@ fn main() {
     match cli.command {
         // Commands::Test {} => {
         // }
-        Commands::Compile { lang, output_file_or_path: output_file_opt } => {
+        Commands::Compile {
+            lang, output_file_or_path: output_file_opt,
+            bitis_header_lib_file_name, prevent_write_bitis_header_lib,
+        } => {
             match lang {
                 Language::Rust => {
                     let output_file = if let Some(output_file_opt_set) = output_file_opt {
@@ -282,16 +292,33 @@ fn main() {
                         pb
                     };
 
+                    let bitis_header_lib_file_name = bitis_header_lib_file_name.unwrap_or("bitis_lib.h".to_string());
+
                     let jd = JinjaData{enums: processed_bitis.enums,
                         msgs: to_cpp_messages(&processed_bitis.msgs),
                         oos: to_cpp_oneofs(&processed_bitis.oo_enums, &processed_bitis.msgs) };
                     let object_order = dependencies_process(jd.clone());
-                    let rdo = CppDataObjects{ d: jd, object_order };
+                    let rdo = CppDataObjects{ d: jd, object_order, bitis_header_lib_file_name,
+                        bitis_version: crate_version!().to_string() };
 
                     let rendered = rdo.render().unwrap();
                     // println!("{}", rendered);
                     fs::write(output_file.clone(), rendered).expect("Unable to write file");
                     println!("Written to {}", output_file.to_str().unwrap());
+
+                    if !prevent_write_bitis_header_lib {
+                        let header_file_content = include_str!("../cpp_lib/bitis_lib.h");
+                        let header_file_content = format!("//\n\
+                            // Created by bitis_compiler {}\n\
+                            //\n\n\
+                            #pragma once\n\n\
+                            //#define BITIS_CPP_LIB_VERSION \"{}\"\n\n{}", crate_version!(), crate_version!(),
+                        header_file_content);
+
+                        let header_file_name = format!("{}/bitis_lib.h", output_file.parent().unwrap().to_str().unwrap());
+                        fs::write(header_file_name.clone(), header_file_content).expect("Unable to write file");
+                        println!("Written cpp-header-lib to {}", header_file_name);
+                    }
                 }
         } },
         // Commands::Compare{ compare_file: _compare_file } => {
