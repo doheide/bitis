@@ -1,8 +1,4 @@
-//
-// Created by dheide on 26.03.25.
-//
 
-#pragma once
 #include <cfloat>
 #include "inttypes.h"
 #include <type_traits>
@@ -125,9 +121,10 @@ struct BitisDeserializer {
         return bitis_helper::BitiaDeserializerUint8Helper{.bits = bits_to_use, .data = d};
     }
     template<typename T>
-    bitis_helper::BitiaDeserializerHelper<T> decode_data(const uint8_t total_bits) {
+    // bitis_helper::BitiaDeserializerHelper<T> decode_data(T & data, const uint8_t total_bits) {
+    std::size_t  decode_data(T & data, const uint8_t total_bits) {
         uint8_t bits_left = total_bits;
-        T data(0);
+        // T data;
         // ReSharper disable once CppCStyleCast
         auto *data_ptr = (uint8_t *) &data;
         uint8_t idx = 0;
@@ -138,7 +135,8 @@ struct BitisDeserializer {
             bits_left -= rd.bits;
             idx++;
         }
-        return bitis_helper::BitiaDeserializerHelper<T>{.bits = total_bits, .data = data};
+        // return bitis_helper::BitiaDeserializerHelper<T>{.bits = total_bits, .data = data};
+        return total_bits;
     }
 };
 
@@ -156,9 +154,9 @@ struct BitisBool {
         return ser.add_data<uint8_t, 1>(&data);
     }
     static bitis_helper::BitiaDeserializerHelper<BitisBool> deserialize(BitisDeserializer &des) {
-        const auto dr = des.decode_data<uint8_t>(1);
-        return bitis_helper::BitiaDeserializerHelper<BitisBool>{
-            .bits = 1, .data = BitisBool(dr.data==1)
+        uint8_t data = 0;
+        des.decode_data<uint8_t>(data, 1);
+        return bitis_helper::BitiaDeserializerHelper<BitisBool>{.bits = 1, .data = BitisBool(data==1)
         };
     }
     void print(int16_t indent=0) const {
@@ -245,9 +243,10 @@ struct BitisFloatingPoint {
     }
     static bitis_helper::BitiaDeserializerHelper<BitisFloatingPoint> deserialize(
         BitisDeserializer &des) {
-        auto r = des.decode_data<T>(sizeof(T)*8);
+        T val(0.0);
+        auto r = des.decode_data(val, sizeof(T)*8);
         return bitis_helper::BitiaDeserializerHelper<BitisFloatingPoint>{
-        .bits = sizeof(T)*8, .data = BitisFloatingPoint(r.data)};
+        .bits = sizeof(T)*8, .data = BitisFloatingPoint(val)};
     }
     void print(int16_t indent=0) const {
         // ReSharper disable once CppCStyleCast
@@ -370,10 +369,11 @@ struct DynInteger {
         bool further_data_to_read = rv.data.value;
         uint8_t shift_bits = 0;
         while (further_data_to_read) {
-            const auto r = des.decode_data<uint64_t>(DYN_BITS);
+            uint64_t cdata = 0;
+            const auto r = des.decode_data(cdata, DYN_BITS);
 
-            bits_num += r.bits + 1;
-            tval += r.data << shift_bits;
+            bits_num += r + 1;
+            tval += cdata << shift_bits;
             shift_bits += DYN_BITS;
 
             rv = BitisBool::deserialize(des);
@@ -479,9 +479,10 @@ struct DynArray {
         auto tvalues = std::vector<T>(rv_size.data.value);
         for (std::size_t i=0; i < rv_size.data.value; i++) {
             //auto dr = T::deserialize(des);
-            auto dr = des.decode_data<T>(tbits);
-            tvalues[i] = dr.data;
-            num_bits += dr.bits;
+            T cdata;
+            auto r = T::deserialize(des);
+            tvalues[i] = r.data;
+            num_bits += r.bits;
         }
         return bitis_helper::BitiaDeserializerHelper<DynArray>{.bits=num_bits, .data=DynArray(tvalues)};
     }
@@ -516,6 +517,7 @@ struct BinaryBase {
     std::size_t serialize(BitisSerializer &ser) {
         std::size_t num_bits = 0;
         auto data_size = DynInteger<uint32_t, DYN_BITS>(values.size());
+        printf("!!! Binary ser size: %" PRIu32 "\n", data_size.value);
         num_bits += data_size.serialize(ser);
 
         for (std::size_t i=0; i < values.size(); i++) {
@@ -530,12 +532,14 @@ protected:
         std::size_t num_bits = 0;
         auto tbits = 8;
         auto rv_size = DynInteger<uint32_t, DYN_BITS>::deserialize(des);
+        printf("!!! Binary des size: %" PRIu32 "\n", rv_size.data.value);
         num_bits += rv_size.bits;
 
         auto tvalues = std::vector<uint8_t>(rv_size.data.value);
         for (std::size_t i=0; i < rv_size.data.value; i++) {
-            auto [bits, data] = des.decode_data<uint8_t>(tbits);
-            tvalues[i] = data;
+            uint8_t cdata = 0;
+            auto bits = des.decode_data(cdata, tbits);
+            tvalues[i] = cdata;
             num_bits += bits;
         }
         return bitis_helper::BitiaDeserializerHelper<BinaryBase>{.bits=num_bits, .data=BinaryBase(tvalues)};
@@ -577,11 +581,11 @@ struct Binary : BinaryBase<DYN_BITS>{
 };
 
 template <uint8_t DYN_BITS>
-struct BitisString : BinaryBase<DYN_BITS>{
+struct BitisAString : BinaryBase<DYN_BITS>{
 
-    BitisString() : BinaryBase<DYN_BITS>() {}
-    explicit BitisString(const char* s) { set(s); }
-    explicit BitisString(const std::vector<uint8_t> &v) : BinaryBase<DYN_BITS>(v) { }
+    BitisAString() : BinaryBase<DYN_BITS>() {}
+    explicit BitisAString(const char* s) { set(s); }
+    explicit BitisAString(const std::vector<uint8_t> &v) : BinaryBase<DYN_BITS>(v) { }
 
     void set(const char* s) {
         this->values.clear();
@@ -595,9 +599,9 @@ struct BitisString : BinaryBase<DYN_BITS>{
         return (const char *) this->values.data();
     }
 
-    static bitis_helper::BitiaDeserializerHelper<BitisString> deserialize(BitisDeserializer &des) {
+    static bitis_helper::BitiaDeserializerHelper<BitisAString> deserialize(BitisDeserializer &des) {
         auto v = BinaryBase<DYN_BITS>::deserialize_base(des);
-        return bitis_helper::BitiaDeserializerHelper<BitisString>{.bits=v.bits, .data=BitisString(*v.data.get_u8_vec())};
+        return bitis_helper::BitiaDeserializerHelper<BitisAString>{.bits=v.bits, .data=BitisAString(*v.data.get_u8_vec())};
     }
 
     void print(int16_t indent=0) {
@@ -608,11 +612,11 @@ struct BitisString : BinaryBase<DYN_BITS>{
         }
         printf("' {d%u}", DYN_BITS);
     }
-    bool is_equal(const BitisString &other) const {
+    bool is_equal(const BitisAString &other) const {
         return this->values == other.values;
     }
-    bool operator==(const BitisString& other) const { return is_equal(other); }
-    bool operator!=(const BitisString& other) const { return !is_equal(other); }
+    bool operator==(const BitisAString& other) const { return is_equal(other); }
+    bool operator!=(const BitisAString& other) const { return !is_equal(other); }
 };
 
 // ***************************************************************
