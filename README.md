@@ -319,17 +319,33 @@ Bitwise serialization of messages defined in a data description language with in
 Usage: bitis [OPTIONS] --input-file <FILE> <COMMAND>
 
 Commands:
-test     Test bitis data objects file
-compile  Compile bitis data objects file
-compare  Compare bitis data objects file
-setup    Setup directory and file structures
-help     Print this message or the help of the given subcommand(s)
+  compile  Test bitis data objects file Compile bitis data objects file
+  setup    Compare bitis data objects file Setup directory and file structures
+  help     Print this message or the help of the given subcommand(s)
 
 Options:
--i, --input-file <FILE>  Sets a custom config file
--d, --debug...           Turn debugging information on
--h, --help               Print help
--V, --version            Print version
+  -i, --input-file <FILE>  Sets a custom config file
+  -d, --debug...           Turn debugging information on
+  -h, --help               Print help
+  -V, --version            Print version
 ```
 
+The options for the compile command are:
+```text
+Test bitis data objects file Compile bitis data objects file
+
+Usage: bitis --input-file <FILE> compile [OPTIONS] --lang <LANG>
+
+Options:
+  -l, --lang <LANG>
+          compile language [possible values: rust, python, cpp]
+  -o, --output-file-or-path <OUTPUT_FILE_OR_PATH>
+          output file
+      --bitis-header-lib-file-name <BITIS_HEADER_LIB_FILE_NAME>
+          
+      --do-write-bitis-header-lib
+          
+  -h, --help
+          Print help (see more with '--help')
+```
 
