@@ -1,3 +1,27 @@
+//
+// Created by bitis_compiler 0.6.11
+//
+
+#pragma once
+
+//#define BITIS_CPP_LIB_VERSION "0.6.11"
+
+//
+// Created by bitis_compiler 0.6.11
+//
+
+#pragma once
+
+//#define BITIS_CPP_LIB_VERSION "0.6.11"
+
+//
+// Created by bitis_compiler 0.6.11
+//
+
+#pragma once
+
+//#define BITIS_CPP_LIB_VERSION "0.6.11"
+
 
 #include <cfloat>
 #include "inttypes.h"
@@ -208,14 +232,15 @@ struct IntgralWithGivenBitSize {
             num_bits += r.bits;
             is_negative = r.data.value;
         }
-        auto dr = des.decode_data<T>(BITS);
+        T v(0);
+        auto dr = des.decode_data(v, BITS);
         if (std::is_signed<T>::value) {
             if (is_negative) {
-                dr.data = -dr.data;
+                v = -v;
             }
         }
         return  bitis_helper::BitiaDeserializerHelper<IntgralWithGivenBitSize>{
-            .bits = num_bits, .data = IntgralWithGivenBitSize(dr.data)
+            .bits = num_bits+dr, .data = IntgralWithGivenBitSize(v)
         };
     }
     void print(int16_t indent=0) {
@@ -478,11 +503,13 @@ struct DynArray {
 
         auto tvalues = std::vector<T>(rv_size.data.value);
         for (std::size_t i=0; i < rv_size.data.value; i++) {
-            //auto dr = T::deserialize(des);
-            T cdata;
-            auto r = T::deserialize(des);
-            tvalues[i] = r.data;
-            num_bits += r.bits;
+            auto dr = T::deserialize(des);
+            tvalues[i] = dr.data;
+            num_bits += dr.bits;
+            // T cdata;
+            // auto bits = des.decode_data(cdata, tbits);
+            // tvalues[i] = cdata;
+            // num_bits += bits;
         }
         return bitis_helper::BitiaDeserializerHelper<DynArray>{.bits=num_bits, .data=DynArray(tvalues)};
     }
@@ -517,7 +544,6 @@ struct BinaryBase {
     std::size_t serialize(BitisSerializer &ser) {
         std::size_t num_bits = 0;
         auto data_size = DynInteger<uint32_t, DYN_BITS>(values.size());
-        printf("!!! Binary ser size: %" PRIu32 "\n", data_size.value);
         num_bits += data_size.serialize(ser);
 
         for (std::size_t i=0; i < values.size(); i++) {
@@ -532,7 +558,6 @@ protected:
         std::size_t num_bits = 0;
         auto tbits = 8;
         auto rv_size = DynInteger<uint32_t, DYN_BITS>::deserialize(des);
-        printf("!!! Binary des size: %" PRIu32 "\n", rv_size.data.value);
         num_bits += rv_size.bits;
 
         auto tvalues = std::vector<uint8_t>(rv_size.data.value);
