@@ -8,7 +8,7 @@ use bitis_lib::*;
 #[biserdi_enum_id_dynbits(2)]
 #[allow(nonstandard_style)]
 pub enum OO_MsgKvoo_Value {
-  StrVal(BitisString<4>),
+  StrVal(BitisAString<4>),
   NumVal(f64),
   BoolVal(bool),
   IntVal(DynInteger<i32, 7>),
@@ -25,8 +25,8 @@ impl Default for OO_MsgKvoo_Value {
 #[derive(BiserdiMsg, Debug, Clone, PartialEq, Default)]
 #[allow(nonstandard_style)]
 pub struct MsgKVSimple {
-  pub key: BitisString<4>,
-  pub value: BitisString<4>,
+  pub key: BitisAString<4>,
+  pub value: BitisAString<4>,
 }
 #[derive(BiserdiMsg, Debug, Clone, PartialEq, Default)]
 #[allow(nonstandard_style)]
@@ -36,7 +36,7 @@ pub struct MsgKVMapSimple {
 #[derive(BiserdiMsg, Debug, Clone, PartialEq, Default)]
 #[allow(nonstandard_style)]
 pub struct MsgKVOO {
-  pub key: BitisString<4>,
+  pub key: BitisAString<4>,
   pub value: OO_MsgKvoo_Value,
 }
 #[derive(BiserdiMsg, Debug, Clone, PartialEq, Default)]

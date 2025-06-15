@@ -1,6 +1,11 @@
 #include "bitis_lib.h"
 #include <optional>
 
+//#define EXPECTED_BITIS_VERSION "0.6.11"
+//#if EXPECTED_BITIS_VERSION != BITIS_CPP_LIB_VERSION
+//#error "Unexpected bitis library version"
+//#endif
+
 
 
 // ****** OO_MsgKvoo_Value *****
@@ -8,7 +13,7 @@
 
 struct OO_MsgKvoo_Value  {
     struct OO_StrVal {
-        static constexpr auto name = "StrVal"; typedef BitisString<4> OOType; };
+        static constexpr auto name = "StrVal"; typedef BitisAString<4> OOType; };
     struct OO_NumVal {
         static constexpr auto name = "NumVal"; typedef BitisFloatingPoint<double> OOType; };
     struct OO_BoolVal {
@@ -78,8 +83,8 @@ struct OO_MsgKvoo_Value  {
 
 
 struct MsgKVSimple {
-    typedef BitisString<4> Key_T;
-    typedef BitisString<4> Value_T;
+    typedef BitisAString<4> Key_T;
+    typedef BitisAString<4> Value_T;
 
     typedef message_helper::MessageT<
         Key_T, Value_T
@@ -112,45 +117,6 @@ struct MsgKVSimple {
     bool operator!=(const MsgKVSimple &other) const { return !is_equal(other); }
 };
 const char *MsgKVSimple::msg_attr[] = {"key", "value"};
-
-// ****** MsgKVOO *****
-
-
-struct MsgKVOO {
-    typedef BitisString<4> Key_T;
-    typedef OO_MsgKvoo_Value Value_T;
-
-    typedef message_helper::MessageT<
-        Key_T, Value_T
-    > MsgT;
-
-    Key_T key;
-    Value_T value;
-
-    static const char *msg_attr[];
-
-    std::size_t serialize(BitisSerializer &ser) {
-        return message_helper::msg_serialize(this, ser);
-    }
-    static bitis_helper::BitiaDeserializerHelper<MsgKVOO> deserialize(BitisDeserializer &des) {
-        return message_helper::msg_deserialize<MsgKVOO>(des);
-    }
-
-    void print(int16_t indent=0) {
-        printf("MsgKVOO{ ");
-        if (indent>=0) printf("\n");
-        message_helper::msg_print(this, (indent>=0) ? (2 + indent) : indent, msg_attr);
-        print_indent(indent); printf("}");
-        // if (indent>=0) printf("\n");
-    }
-
-    bool is_equal(const MsgKVOO &other) const {
-        return key==other.key && value==other.value;
-   }
-    bool operator==(const MsgKVOO &other) const { return is_equal(other); }
-    bool operator!=(const MsgKVOO &other) const { return !is_equal(other); }
-};
-const char *MsgKVOO::msg_attr[] = {"key", "value"};
 
 // ****** MsgKVMapSimple *****
 
@@ -188,6 +154,45 @@ struct MsgKVMapSimple {
     bool operator!=(const MsgKVMapSimple &other) const { return !is_equal(other); }
 };
 const char *MsgKVMapSimple::msg_attr[] = {"entries"};
+
+// ****** MsgKVOO *****
+
+
+struct MsgKVOO {
+    typedef BitisAString<4> Key_T;
+    typedef OO_MsgKvoo_Value Value_T;
+
+    typedef message_helper::MessageT<
+        Key_T, Value_T
+    > MsgT;
+
+    Key_T key;
+    Value_T value;
+
+    static const char *msg_attr[];
+
+    std::size_t serialize(BitisSerializer &ser) {
+        return message_helper::msg_serialize(this, ser);
+    }
+    static bitis_helper::BitiaDeserializerHelper<MsgKVOO> deserialize(BitisDeserializer &des) {
+        return message_helper::msg_deserialize<MsgKVOO>(des);
+    }
+
+    void print(int16_t indent=0) {
+        printf("MsgKVOO{ ");
+        if (indent>=0) printf("\n");
+        message_helper::msg_print(this, (indent>=0) ? (2 + indent) : indent, msg_attr);
+        print_indent(indent); printf("}");
+        // if (indent>=0) printf("\n");
+    }
+
+    bool is_equal(const MsgKVOO &other) const {
+        return key==other.key && value==other.value;
+   }
+    bool operator==(const MsgKVOO &other) const { return is_equal(other); }
+    bool operator!=(const MsgKVOO &other) const { return !is_equal(other); }
+};
+const char *MsgKVOO::msg_attr[] = {"key", "value"};
 
 // ****** MsgKVMapOO *****
 

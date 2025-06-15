@@ -1,5 +1,5 @@
 enum Numbers(4) {
-  one, two, three, four
+  one, *two, three, four
 }
 
 msg Inner {
@@ -22,7 +22,7 @@ msg ParamTestWithOo {
   uint_4 param_1;
   oneof action(4) {
     Inner inner;
-    int_3 val;
+    *int_3 val;
   }
   Numbers num;
 }

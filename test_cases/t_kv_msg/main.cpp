@@ -28,7 +28,7 @@ int main(int argc, char *argv[]){
         msg.entries.values.push_back(MsgKVSimple{.key = MsgKVSimple::Key_T("lala"),
             .value = MsgKVSimple::Value_T("val1")});
         msg.entries.values.push_back(MsgKVSimple{.key = MsgKVSimple::Key_T("lili"),
-            .value = MsgKVSimple::Value_T("val2")});
+            .value = MsgKVSimple::Value_T("valval2")});
         msg.print(0); printf("\n");
 
         auto fn_name = "val_kv_simple_val1.cpp.dat";
@@ -36,7 +36,7 @@ int main(int argc, char *argv[]){
     }
 
     // MsgKVMapOO
-/*    {
+    {
         auto msg = MsgKVMapOO();
         msg.print(0); printf("\n");
 
@@ -55,8 +55,7 @@ int main(int argc, char *argv[]){
 
         auto fn_name = "val_kv_oo_val1.cpp.dat";
         error_counter += write_or_test(fn_name, msg, arg);
-    }*/
-
+    }
 
     printf("\nTotal_errors: %d\n", error_counter);
     return error_counter;

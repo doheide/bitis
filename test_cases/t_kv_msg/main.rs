@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::env;
 use std::process::ExitCode;
 use ascii::AsciiString;
-use bitis_lib::{BitisString, DynArray, IntegerBaseFunctions, VarWithGivenBitSize};
+use bitis_lib::{BitisAString, DynArray, IntegerBaseFunctions, VarWithGivenBitSize};
 use messages::*;
 
 fn main() -> ExitCode {
@@ -25,12 +25,12 @@ fn main() -> ExitCode {
     // ***
     let mut msg = MsgKVMapSimple::default();
     msg.entries.val.push(MsgKVSimple{
-        key: BitisString::from_str(AsciiString::from_ascii("lala").unwrap()),
-        value: BitisString::from_str(AsciiString::from_ascii("val1").unwrap()),
+        key: BitisAString::from_str(AsciiString::from_ascii("lala").unwrap()),
+        value: BitisAString::from_str(AsciiString::from_ascii("val1").unwrap()),
     });
     msg.entries.val.push(MsgKVSimple{
-        key: BitisString::from_str(AsciiString::from_ascii("lili").unwrap()),
-        value: BitisString::from_str(AsciiString::from_ascii("val2").unwrap()),
+        key: BitisAString::from_str(AsciiString::from_ascii("lili").unwrap()),
+        value: BitisAString::from_str(AsciiString::from_ascii("valval2").unwrap()),
     });
     let fn_name = "val_kv_simple_val1.rs.dat";
     error_counter += helper::write_or_test(fn_name, &msg, &args);
