@@ -92,7 +92,7 @@ fn to_rust_attribute(attribute: &Attribute, msg_names: &Vec<String>) -> Attribut
                         (format!("Binary<{}>", b), "Vec<u8>".to_string()) },
                     SimpleType::AString(b) => {
                         add_val = true;
-                        (format!("BitisString<{}>", b), "char *".to_string()) },
+                        (format!("BitisAString<{}>", b), "char *".to_string()) },
                 }
             }
             AttributeDetails::AttributeEnumOrMsg(em) => {
@@ -180,7 +180,7 @@ fn to_cpp_attribute(attribute: &Attribute, msg_names: &Vec<String>) -> Attribute
                         (format!("Binary<{}>", b), "Vec<u8>".to_string()) },
                     SimpleType::AString(b) => {
                         add_val = true;
-                        (format!("BitisString<{}>", b), "char *".to_string()) },
+                        (format!("BitisAString<{}>", b), "char *".to_string()) },
                 }
             }
             AttributeDetails::AttributeEnumOrMsg(em) => {
@@ -251,6 +251,8 @@ pub struct PyTypeHints {
 pub struct CppDataObjects {
     pub d: JinjaData,
     pub object_order: Vec<String>,
+    pub bitis_header_lib_file_name: String,
+    pub bitis_version: String,
 }
 
 

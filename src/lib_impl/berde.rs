@@ -653,10 +653,10 @@ impl<const N: u8> Default for Binary<N> {
 
 // *****
 #[derive(Clone, PartialEq)]
-pub struct BitisString<const DYNSIZEBITS: u8> {
+pub struct BitisAString<const DYNSIZEBITS: u8> {
     val: Binary<DYNSIZEBITS>
 }
-impl<const DYNSIZEBITS: u8> BitisString<DYNSIZEBITS> {
+impl<const DYNSIZEBITS: u8> BitisAString<DYNSIZEBITS> {
     pub fn from_str(data: AsciiString) -> Self {
         Self{ val: Binary::new(data.as_bytes().into()) }
     }
@@ -673,29 +673,29 @@ impl<const DYNSIZEBITS: u8> BitisString<DYNSIZEBITS> {
         AsciiString::from_ascii(self.val.val.clone()).unwrap().to_string()
     }
 }
-impl<const DYNSIZEBITS: u8> BiserdiTrait for BitisString<DYNSIZEBITS> {
+impl<const DYNSIZEBITS: u8> BiserdiTrait for BitisAString<DYNSIZEBITS> {
     fn bit_serialize(self: &Self, biseri: &mut Biseri) -> Option<u64> {
         self.val.bit_serialize(biseri)
     }
     fn bit_deserialize(version_id: u16, bides: &mut Bides) -> Option<(Self, u64)> {
         let (v, s) = Binary::bit_deserialize(version_id, bides)?;
-        Some((BitisString{val: v}, s))
+        Some((BitisAString{val: v}, s))
     }
 }
-impl<const DYNSIZEBITS: u8> std::fmt::Display for BitisString<DYNSIZEBITS> {
+impl<const DYNSIZEBITS: u8> std::fmt::Display for BitisAString<DYNSIZEBITS> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "'{}' |string:{}", self.get(), DYNSIZEBITS)
     }
 }
-impl<const DYNSIZEBITS: u8> Debug for BitisString<DYNSIZEBITS> {
+impl<const DYNSIZEBITS: u8> Debug for BitisAString<DYNSIZEBITS> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "'{}'", self.get())
     }
 }
-impl<const DYNSIZEBITS: u8> Default for BitisString<DYNSIZEBITS> {
+impl<const DYNSIZEBITS: u8> Default for BitisAString<DYNSIZEBITS> {
     fn default() -> Self { Self::empty() }
 }
-impl<const DYNSIZEBITS: u8> From<ascii::AsciiString> for BitisString<DYNSIZEBITS> {
+impl<const DYNSIZEBITS: u8> From<ascii::AsciiString> for BitisAString<DYNSIZEBITS> {
     fn from(data: ascii::AsciiString) -> Self { Self::from_str(data) }
 }
 
