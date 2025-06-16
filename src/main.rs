@@ -316,8 +316,19 @@ fn main() {
                         header_file_content);
 
                         let header_file_name = format!("{}/bitis_lib.h", output_file.parent().unwrap().to_str().unwrap());
-                        fs::write(header_file_name.clone(), header_file_content).expect("Unable to write file");
-                        println!("Written cpp-header-lib to {}", header_file_name);
+                        let is_writeable_and_not_symlink = {
+                            if let Ok(md) = fs::metadata(&header_file_name) {
+                                !md.is_symlink()
+                            }
+                            else { false }
+                        };
+                        if is_writeable_and_not_symlink {
+                            fs::write(header_file_name.clone(), header_file_content).expect("Unable to write file");
+                            println!("Written cpp-header-lib to {}", header_file_name);
+                        }
+                        else {
+                            println!("Not writing cpp-header-lib to {} as it is a symlink", header_file_name);
+                        }
                     }
                 }
         } },
