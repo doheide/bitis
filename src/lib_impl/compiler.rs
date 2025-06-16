@@ -70,11 +70,11 @@ fn to_rust_attribute(attribute: &Attribute, msg_names: &Vec<String>) -> Attribut
                     SimpleType::UIntDyn(b) => {
                         add_val = true;
                         let base = format!("u{}", integer_bit_size(&b.0));
-                        (format!("DynInteger<{}, {}>", base.clone(), b.1), base) },
+                        (format!("DynInteger<{}, {}, {}>", base.clone(), b.0, b.1), base) },
                     SimpleType::IntDyn(b) => {
                         add_val = true;
                         let base = format!("i{}", integer_bit_size(&b.0));
-                        (format!("DynInteger<{}, {}>", base.clone(), b.1), base) },
+                        (format!("DynInteger<{}, {}, {}>", base.clone(), b.0, b.1), base) },
                     SimpleType::Float => {
                         add_val = true;
                         let base = "f32".to_string();
@@ -158,11 +158,11 @@ fn to_cpp_attribute(attribute: &Attribute, msg_names: &Vec<String>) -> Attribute
                     SimpleType::UIntDyn(b) => {
                         add_val = true;
                         let base = format!("uint{}_t", integer_bit_size(&b.0));
-                        (format!("DynInteger<{}, {}>", base.clone(), b.1), base) }
+                        (format!("DynInteger<{}, {}, {}>", base.clone(), b.0, b.1), base) }
                     SimpleType::IntDyn(b) => {
                         add_val = true;
                         let base = format!("int{}_t", integer_bit_size(&b.0));
-                        (format!("DynInteger<{}, {}>", base.clone(), b.1), base) }
+                        (format!("DynInteger<{}, {}, {}>", base.clone(), b.0, b.1), base) }
                     SimpleType::Float => {
                         add_val = true;
                         let base = "float".to_string();
@@ -1113,10 +1113,19 @@ pub fn dependencies_process(jd: JinjaData) -> Vec<String>{
             oos.name.clone(), Dependencies{in_deps: vec![], out_deps: vec![]});
     }
 
+    println!("{:?}", dependencies);
+
+    if dependencies.len() == 0 {
+        println!("No dependencies found, skipping message and type analysis!");
+        return Vec::new();
+    }
+
     // msgs
     for msgs in jd.msgs {
         for attr in msgs.attributes {
             if attr.is_enum || attr.is_msg || attr.is_oo {
+                println!("attr '{}' -> attr.rust_type_str: {}", attr.base.name, attr.rust_type_str);
+                println!("{:?}", attr);
                 dependencies.get_mut(&attr.rust_type_str).unwrap().out_deps.push(msgs.name.clone());
                 dependencies.get_mut(&msgs.name).unwrap().in_deps.push(attr.rust_type_str.clone());
             }

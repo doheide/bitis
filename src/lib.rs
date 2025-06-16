@@ -13,14 +13,14 @@ pub use std::result;
 
 
 
-pub fn serialize<T: BiserdiTrait>(data: &T) -> Vec<u8>{
+pub fn serialize<T: BiserdiTrait>(data: &T) -> (Vec<u8>, BiserSizes){
     let mut ser = Biseri::new();
 
     data.bit_serialize(&mut ser);
-    ser.finish_add_data().unwrap();
-    // println!("bits: {}, bytes: {}", _bits, _bytes);
+    let r = ser.finish_add_data().unwrap();
+    // println!("bits: {}, bytes: {}", r.total_bits, r.total_bytes);
 
-    ser.get_data().to_owned()
+    (ser.get_data().to_owned(), r)
 }
 pub fn deserialize<T: BiserdiTrait>(data: &Vec<u8>) -> Option<(T, u64)> {
     let mut der = Bides::from_vec(data);

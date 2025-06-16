@@ -24,7 +24,7 @@ pub fn biserdi_msg(item: TokenStream) -> TokenStream {
             // let size_identifier = quote::format_ident!("s");
             let bit_serialize_self_identifier = quote::format_ident!("self");
 
-            for (idx, field) in fields.iter().enumerate() {
+            for (_idx, field) in fields.iter().enumerate() {
                 let identifier = field.ident.as_ref().unwrap();
                 let ty = field.ty.clone();
                 let temp_identifier = quote::format_ident!("t_{}", identifier);
@@ -111,7 +111,7 @@ pub fn biserdi_enum(item: TokenStream) -> TokenStream {
 
                 bit_serialize_impl.extend(quote! {
                     #struct_or_enum_identifier::#ident => {
-                        DynInteger::<u32, #dyn_bits>::new(#id_token).bit_serialize(biseri)?
+                        DynInteger::<u32, 32, #dyn_bits>::new(#id_token).bit_serialize(biseri)?
                     },
                 });
                 bit_deserialize_impl.extend(quote! {
@@ -132,7 +132,7 @@ pub fn biserdi_enum(item: TokenStream) -> TokenStream {
                     fn bit_deserialize(version_id: u16, bides: &mut Bides) -> Option<(Self, u64)> {
                         fn call_deserialize<T:BiserdiTrait>(version_id: u16, bides: &mut Bides) -> Option<(T, u64)> {
                             T::bit_deserialize(version_id, bides) }
-                        let oo_val = DynInteger::<u32, #dyn_bits>::bit_deserialize(version_id, bides)?;
+                        let oo_val = DynInteger::<u32, 32, #dyn_bits>::bit_deserialize(version_id, bides)?;
                         Some((match oo_val.0.val {
                             #bit_deserialize_impl
                             _ => { return None }
@@ -186,7 +186,7 @@ pub fn biserdi_one_of(item: TokenStream) -> TokenStream {
 
                 bit_serialize_impl.extend(quote! {
                     #struct_or_enum_identifier::#ident(v) => {
-                        let s = DynInteger::<u32, #dyn_bits>::new(#id_token).bit_serialize(biseri)?;
+                        let s = DynInteger::<u32, 32, #dyn_bits>::new(#id_token).bit_serialize(biseri)?;
                         s + v.bit_serialize(biseri)?
                     },
                 });
@@ -209,7 +209,7 @@ pub fn biserdi_one_of(item: TokenStream) -> TokenStream {
                     fn bit_deserialize(version_id: u16, bides: &mut Bides) -> Option<(Self, u64)> {
                         fn call_deserialize<T:BiserdiTrait>(version_id: u16, bides: &mut Bides) -> Option<(T, u64)> {
                             T::bit_deserialize(version_id, bides) }
-                        let oo_val = DynInteger::<u32, #dyn_bits>::bit_deserialize(version_id, bides)?;
+                        let oo_val = DynInteger::<u32, 32, #dyn_bits>::bit_deserialize(version_id, bides)?;
                         Some(match oo_val.0.val {
                             #bit_deserialize_impl
                             _ => { return None }
@@ -262,7 +262,7 @@ pub fn biserdi_msg_versioned(item: TokenStream) -> TokenStream {
                         let dyn_msg_size = self.ext.bit_serialize(&mut biseri_temp)?;
                         biseri_temp.finish_add_data();
 
-                        total_size += DynInteger::<u64, 4>::new(dyn_msg_size).bit_serialize(biseri)?;
+                        total_size += DynInteger::<u64, 64, 4>::new(dyn_msg_size).bit_serialize(biseri)?;
                         total_size += biseri.add_biseri_data(&biseri_temp)?;
 
                         Some(total_size)
@@ -276,7 +276,7 @@ pub fn biserdi_msg_versioned(item: TokenStream) -> TokenStream {
                         let (base, cur_size) = call_deserialize::<#base_ty>(version_id, bides)?;
                         total_size += cur_size;
 
-                        let (ext_size, cur_size) = call_deserialize::<DynInteger<u64, 4>>(version_id, bides)?;
+                        let (ext_size, cur_size) = call_deserialize::<DynInteger<u64, 64, 4>>(version_id, bides)?;
                         total_size += ext_size.val + cur_size;
                         let (ext, cur_ext_size) = call_deserialize::<#ext_ty>(version_id, bides)?;
                         if cur_ext_size > ext_size.val { return None; }

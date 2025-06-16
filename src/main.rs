@@ -148,6 +148,7 @@ fn main() {
         } => {
             match lang {
                 Language::Rust => {
+                    if cli.debug > 0 { println!("* Generating rust code ..."); }
                     let output_file = if let Some(output_file_opt_set) = output_file_opt {
                         if output_file_opt_set.is_dir() {
                             let mut of = output_file_opt_set.clone();
@@ -168,9 +169,12 @@ fn main() {
 
                     let rendered = rdo.render().unwrap();
                     println!("{}", rendered);
-                    fs::write(output_file, rendered).expect("Unable to write file");
+                    fs::write(output_file.clone(), rendered).expect("Unable to write file");
+                    if cli.debug > 0 { println!("* Wrote file: {}", output_file.as_path().to_str().unwrap()); }
+
                 },
                 Language::Python => {
+                    if cli.debug > 0 { println!("* Generating python code ..."); }
                     if output_file_opt.is_none() {
                         println!("Error: Output path has to be set for python language compiler.");
                         exit(-1);
@@ -181,7 +185,7 @@ fn main() {
                             exit(-1);
                         }
                     };
-                    println!("path: '{}'", output_path.to_str().unwrap());
+                    if cli.debug > 0 { println!("output-path: '{}'", output_path.to_str().unwrap()); }
 
                     if !output_path.is_dir() {
                         println!("Error: Output path has to be a directory for python language compiler.")
@@ -277,6 +281,8 @@ fn main() {
 
                 }
                 Language::Cpp => {
+                    if cli.debug > 0 { println!("* Generating cpp code ..."); }
+
                     let output_file = if let Some(output_file_opt_set) = output_file_opt {
                         if output_file_opt_set.is_dir() {
                             let mut of = output_file_opt_set.clone();
@@ -304,7 +310,7 @@ fn main() {
                     let rendered = rdo.render().unwrap();
                     // println!("{}", rendered);
                     fs::write(output_file.clone(), rendered).expect("Unable to write file");
-                    println!("Written to {}", output_file.to_str().unwrap());
+                    if cli.debug > 0 { println!("Written to {}", output_file.to_str().unwrap()); }
 
                     if !prevent_write_bitis_header_lib {
                         let header_file_content = include_str!("../cpp_lib/bitis_lib.h");
@@ -317,7 +323,8 @@ fn main() {
 
                         let header_file_name = format!("{}/bitis_lib.h", output_file.parent().unwrap().to_str().unwrap());
                         let is_writeable_and_not_symlink = {
-                            if let Ok(md) = fs::metadata(&header_file_name) {
+                            let md = fs::symlink_metadata(&header_file_name);
+                            if let Ok(md) = md {
                                 !md.is_symlink()
                             }
                             else { false }

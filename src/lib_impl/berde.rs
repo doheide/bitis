@@ -70,6 +70,7 @@ pub trait BiserdiTrait: Sized {
     fn bit_deserialize(version_id: u16, bides: &mut Bides) -> Option<(Self, u64)>;
 }
 
+#[derive(Debug, Clone)]
 pub struct BiserSizes {
     pub total_bits: u64,
     pub total_bytes: u64
@@ -389,14 +390,14 @@ pub struct DynArray<T, const DYNSIZEBITS: u8> where T: BiserdiTrait + Default + 
 impl<T, const DYNSIZEBITS: u8> BiserdiTrait for DynArray<T, DYNSIZEBITS> where T: BiserdiTrait + Default + Clone {
     fn bit_serialize(self: &Self, biseri: &mut Biseri) -> Option<u64> {
         let mut s = 0;
-        s += DynInteger::<u32, DYNSIZEBITS>::new(self.val.len() as u32).bit_serialize(biseri)?;
+        s += DynInteger::<u32, 32, DYNSIZEBITS>::new(self.val.len() as u32).bit_serialize(biseri)?;
         for d in self.val.iter() { s += d.bit_serialize(biseri)?; };
         Some(s)
     }
     fn bit_deserialize(version_id: u16, bides: &mut Bides) -> Option<(Self, u64)> {
         let mut s = 0;
         let (v, cs) =
-            DynInteger::<u32, DYNSIZEBITS>::bit_deserialize(version_id, bides)?;
+            DynInteger::<u32, 32, DYNSIZEBITS>::bit_deserialize(version_id, bides)?;
         let mut data = Vec::with_capacity(cs as usize);
         for _ci in 0..v.val {
             let (vi, si) = T::bit_deserialize(version_id, bides)?;
@@ -459,18 +460,20 @@ impl<T: Sized + Copy + BiserdiTraitVarBitSize + Default + std::fmt::Debug, const
 #[derive(Debug, Clone, PartialEq, Eq, Default, Copy)]
 pub struct DynInteger<
     T: Sized + Copy + BiserdiTraitVarBitSize + AddAssign + Shl<Output = T> + Shr + Ord + PartialEq //+ TryFrom<u64>
-    + IntegerBaseFunctions + Default, const N: u8> {
+    + IntegerBaseFunctions + Default, const MAX_BITS: u8, const BIT_PACKS: u8> {
     pub val: T
 }
+#[allow(dead_code)]
 impl<T: Display + Sized + Copy + BiserdiTraitVarBitSize + AddAssign + Shl<Output = T> + Shr + Ord + PartialEq + TryFrom<u64>
-    + IntegerBaseFunctions + Default, const N: u8> DynInteger<T, N> {
-    const DYN_SIZE: u8 = N;
+    + IntegerBaseFunctions + Default, const MAX_BITS: u8, const BIT_PACKS: u8> DynInteger<T, MAX_BITS, BIT_PACKS> {
+    const MAX_BITS: u8 = MAX_BITS;
+    const BIT_PACKS: u8 = BIT_PACKS;
     pub fn new(v: T) -> Self{
         DynInteger{val: v}
     }
 }
 impl<T: Display + Sized + Copy + BiserdiTraitVarBitSize + AddAssign + Shl<Output = T> + Shr + Ord + PartialEq + TryFrom<u64>
-    + IntegerBaseFunctions + Default, const N: u8> BiserdiTrait for DynInteger<T, N> {
+    + IntegerBaseFunctions + Default, const MAX_BITS: u8, const BIT_PACKS: u8> BiserdiTrait for DynInteger<T, MAX_BITS, BIT_PACKS> {
     fn bit_serialize(self: &Self, biseri: &mut Biseri) -> Option<u64> {
         // let br = self.bits_required();
         // let dyn_sections = br / Self::DYN_SIZE;
@@ -480,18 +483,22 @@ impl<T: Display + Sized + Copy + BiserdiTraitVarBitSize + AddAssign + Shl<Output
         if T::IS_SIGNED { self.val.is_val_negative().bit_serialize(biseri)?; bit_size +=1; }
 
         (val_work != 0).bit_serialize(biseri);
-        let mut max_bits_num = T::get_bits_num();
+        let mut max_bits_num = MAX_BITS;
+        println!("max_bits_num: {}, val_work: {}", max_bits_num, val_work);
         while val_work > 0 {
-            let cur_bitsize = std::cmp::min(max_bits_num, Self::DYN_SIZE);
+            let cur_bitsize = std::cmp::min(max_bits_num, Self::BIT_PACKS);
 
             val_work.bit_serialize(u64::from(cur_bitsize), biseri)?;
             val_work >>= cur_bitsize;
-            bit_size += (cur_bitsize + 1) as u64;
+            bit_size += cur_bitsize as u64;
 
             max_bits_num -= cur_bitsize;
-
-            let further_data = val_work > 0;
-            further_data.bit_serialize(biseri);
+            println!("max_bits_num: {}, val_work: {}", max_bits_num, val_work);
+            if max_bits_num > 0 {
+                let further_data = val_work > 0;
+                further_data.bit_serialize(biseri);
+                bit_size += 1;
+            }
         }
         Some(bit_size)
     }
@@ -504,9 +511,9 @@ impl<T: Display + Sized + Copy + BiserdiTraitVarBitSize + AddAssign + Shl<Output
         if T::IS_SIGNED {
             negative_sign = bool::bit_deserialize(version_id, bides)?.0; bit_size += 1; }
         let mut further_data = bool::bit_deserialize(version_id, bides)?.0;
-        let mut max_bits_num = T::get_bits_num();
+        let mut max_bits_num = MAX_BITS;
         while further_data {
-            let cur_bitsize = std::cmp::min(max_bits_num, Self::DYN_SIZE);
+            let cur_bitsize = std::cmp::min(max_bits_num, Self::BIT_PACKS);
 
             let vt = u64::bit_deserialize(version_id, cur_bitsize as u64, bides)?;
             bit_size += vt.1 + 1;
@@ -514,8 +521,13 @@ impl<T: Display + Sized + Copy + BiserdiTraitVarBitSize + AddAssign + Shl<Output
             cur_shift += u64::from(cur_bitsize);
 
             max_bits_num -= cur_bitsize;
-
-            further_data = bool::bit_deserialize(version_id, bides)?.0;
+            
+            // println!("max_bits_num: {}, bit_size: {}", max_bits_num, bit_size);
+            
+            if max_bits_num > 0 {
+                further_data = bool::bit_deserialize(version_id, bides)?.0;
+            }
+            else { further_data = false }
         }
         let mut vv= T::try_from(v).ok()?;
         if negative_sign {
@@ -525,13 +537,13 @@ impl<T: Display + Sized + Copy + BiserdiTraitVarBitSize + AddAssign + Shl<Output
     }
 }
 impl<T: Display + Sized + Copy + BiserdiTraitVarBitSize + AddAssign + Shl<Output = T> + Shr + Ord + PartialEq + TryFrom<u64>
-    + IntegerBaseFunctions + Default, const N: u8> Display for DynInteger<T, N> {
+    + IntegerBaseFunctions + Default, const MAX_BITS: u8, const BIT_PACKS: u8> Display for DynInteger<T, MAX_BITS, BIT_PACKS> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{} |dynbits:{}]", self.val, N)
+        write!(f, "{} |{}d{}]", self.val, MAX_BITS, BIT_PACKS)
     } }
 impl<T: Display + Sized + Copy + BiserdiTraitVarBitSize + AddAssign + Shl<Output = T> + Shr + Ord + PartialEq + TryFrom<u64>
-+ Default + IntegerBaseFunctions, const N: u8> From<T> for DynInteger<T, N> {
-    fn from(val: T) -> Self { DynInteger::<T, N>::new(val) }
++ Default + IntegerBaseFunctions, const MAX_BITS: u8, const BIT_PACKS: u8> From<T> for DynInteger<T, MAX_BITS, BIT_PACKS> {
+    fn from(val: T) -> Self { DynInteger::<T, MAX_BITS, BIT_PACKS>::new(val) }
 }
 
 
@@ -638,14 +650,14 @@ impl<const DYNSIZEBITS: u8> Binary<DYNSIZEBITS> {
 impl<const DYNSIZEBITS: u8> BiserdiTrait for Binary<DYNSIZEBITS> {
     fn bit_serialize(self: &Self, biseri: &mut Biseri) -> Option<u64> {
         let mut s = 0;
-        s += DynInteger::<u32, DYNSIZEBITS>::new(self.val.len() as u32).bit_serialize(biseri)?;
+        s += DynInteger::<u32, 32, DYNSIZEBITS>::new(self.val.len() as u32).bit_serialize(biseri)?;
         for d in self.val.iter() { s += d.bit_serialize(8, biseri)?; };
         Some(s)
     }
     fn bit_deserialize(version_id: u16, bides: &mut Bides) -> Option<(Self, u64)> {
         let mut s = 0;
         let (v, cs) =
-            DynInteger::<u32, DYNSIZEBITS>::bit_deserialize(version_id, bides)?;
+            DynInteger::<u32, 32, DYNSIZEBITS>::bit_deserialize(version_id, bides)?;
         let mut data = Vec::with_capacity(cs as usize);
         for _ci in 0..v.val {
             let (vi, si) = u8::bit_deserialize(version_id, 8, bides)?;
@@ -1078,7 +1090,7 @@ mod bitis_base_serialization_deserialization {
 
         let mut ser = Biseri::new();
 
-        let v = DynInteger::<u32, 3>::new(val);
+        let v = DynInteger::<u32, 32, 3>::new(val);
         v.bit_serialize(&mut ser);
         let r = ser.finish_add_data().unwrap();
         let (bits, bytes) = (r.total_bits, r.total_bytes);
@@ -1101,7 +1113,7 @@ mod bitis_base_serialization_deserialization {
 
         let mut ser = Biseri::new();
 
-        let v = DynInteger::<i32, 3>::new(val);
+        let v = DynInteger::<i32, 32, 3>::new(val);
         v.bit_serialize(&mut ser);
         let r = ser.finish_add_data().unwrap();
         let (bits, bytes) = (r.total_bits, r.total_bytes);
@@ -1124,7 +1136,7 @@ mod bitis_base_serialization_deserialization {
 
         let mut ser = Biseri::new();
 
-        let v = DynInteger::<i32, 3>::new(val);
+        let v = DynInteger::<i32, 32, 3>::new(val);
         v.bit_serialize(&mut ser);
         let r = ser.finish_add_data().unwrap();
         let (bits, bytes) = (r.total_bits, r.total_bytes);
@@ -1132,7 +1144,7 @@ mod bitis_base_serialization_deserialization {
 
         let mut der = Bides::from_biseri(&ser);
 
-        let dv = DynInteger::<i32, 3>::bit_deserialize(1, &mut der);
+        let dv = DynInteger::<i32, 32, 3>::bit_deserialize(1, &mut der);
         assert!(dv.is_some());
 
         let dv = dv.unwrap();
@@ -1290,7 +1302,7 @@ mod bitis_base_serialization_deserialization {
 
         {
             let v = ValT::new(1.);
-            let vv = deserialize::<ValT>(&serialize(&v));
+            let vv = deserialize::<ValT>(&serialize(&v).0);
             println!("v: {:?}, vv: {:?}", v, vv);
             assert!(vv.is_some());
             let vv = vv.unwrap().0;
@@ -1298,7 +1310,7 @@ mod bitis_base_serialization_deserialization {
         }
         {
             let v = ValT::new(1.2);
-            let vv = deserialize::<ValT>(&serialize(&v));
+            let vv = deserialize::<ValT>(&serialize(&v).0);
             println!("v: {:?}, vv: {:?}", v, vv);
             assert!(vv.is_some());
             let vv = vv.unwrap().0;
@@ -1306,7 +1318,7 @@ mod bitis_base_serialization_deserialization {
         }
         {
             let v = ValT::new(1.21);
-            let vv = deserialize::<ValT>(&serialize(&v));
+            let vv = deserialize::<ValT>(&serialize(&v).0);
             println!("v: {:?}, vv: {:?}", v, vv);
             assert!(vv.is_some());
             let vv = vv.unwrap().0;

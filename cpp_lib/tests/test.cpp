@@ -39,7 +39,7 @@ namespace test_serializer {
 
             auto ser = BitisSerializer();
 
-            auto data = DynInteger<uint8_t, 3>(v);
+            auto data = DynInteger<uint8_t, 8, 3>(v);
             printf("data: "); data.print(-1); printf("\n");
             data.serialize(ser);
             auto r = ser.finalize();
@@ -48,7 +48,7 @@ namespace test_serializer {
 
             // ***
             auto des = BitisDeserializer(ser.data_cache);
-            auto dd = DynInteger<uint8_t, 3>::deserialize(des);
+            auto dd = DynInteger<uint8_t, 8, 3>::deserialize(des);
             printf("deserialized data: %d\n", dd.data.value);
 
             // assert(data.is_equal(dd.data));

@@ -1,4 +1,5 @@
 
+
 #include <cfloat>
 #include "inttypes.h"
 #include <type_traits>
@@ -11,6 +12,7 @@
 #include <cstdio>
 #include <cstring>
 #include <inttypes.h>
+
 
 inline void print_indent(const int16_t indent) {
     for(int i=0; i < indent; i++) { printf(" "); }
@@ -318,7 +320,7 @@ struct BitisOptional {
     bool operator!=(const BitisOptional &other) const { return !is_equal(other); }
 };
 // ***************************************************************
-template <typename T, uint8_t DYN_BITS>
+template <typename T, uint8_t MAX_BITS, uint8_t BIT_PACKS>
 struct DynInteger {
     T value;
 
@@ -348,17 +350,20 @@ struct DynInteger {
         }
         //
         uint64_t tval = tvalue; // should be always a positive value
-        uint8_t max_num_bits_left = sizeof(T)*8;
+        uint8_t max_num_bits_left = MAX_BITS;
         while (tval > 0) {
-            const auto cur_num_bits = std::min(max_num_bits_left, DYN_BITS);
+            const auto cur_num_bits = std::min(max_num_bits_left, BIT_PACKS);
             ser.add_data_bits(&tval, cur_num_bits);
 
             tval >>= cur_num_bits;
-            num_bits += cur_num_bits + 1;
+            num_bits += cur_num_bits;
             max_num_bits_left -= cur_num_bits;
 
-            auto b = BitisBool(tval>0);
-            b.serialize(ser);
+            if (max_num_bits_left > 0) {
+                auto b = BitisBool(tval>0);
+                b.serialize(ser);
+                num_bits += 1;
+            }
         }
         return num_bits;
     }
@@ -376,20 +381,24 @@ struct DynInteger {
         auto rv = BitisBool::deserialize(des);
         bool further_data_to_read = rv.data.value;
         uint8_t shift_bits = 0;
-        uint8_t max_num_bits_left = sizeof(T)*8;
+        uint8_t max_num_bits_left = MAX_BITS;
         while (further_data_to_read) {
-            const auto cur_num_bits = std::min(max_num_bits_left, DYN_BITS);
+            const auto cur_num_bits = std::min(max_num_bits_left, BIT_PACKS);
 
             uint64_t cdata = 0;
             const auto r = des.decode_data(cdata, cur_num_bits);
 
-            bits_num += r + 1;
+            bits_num += r;
             tval += cdata << shift_bits;
             shift_bits += cur_num_bits;
             max_num_bits_left -= cur_num_bits;
 
-            rv = BitisBool::deserialize(des);
-            further_data_to_read = rv.data.value;
+            if (max_num_bits_left > 0) {
+                rv = BitisBool::deserialize(des);
+                further_data_to_read = rv.data.value;
+                bits_num += 1;
+            }
+            else { further_data_to_read = false; }
         }
         if (is_negative) {
             tval = -tval;
@@ -399,8 +408,7 @@ struct DynInteger {
     }
     void print(int16_t indent=0) {
         // ReSharper disable once CppCStyleCast
-        printf("%" PRIi64 " [%sint_%d_d%d]", (int64_t)value, (std::is_signed<T>::value) ? "" : "u",
-            std::numeric_limits<T>::digits, DYN_BITS);
+        printf("%" PRIi64 " [%sint_%dd%d]", (int64_t)value, (std::is_signed<T>::value) ? "" : "u", MAX_BITS, BIT_PACKS);
     }
     bool is_equal(const DynInteger &other) const {
         return value == other.value;
@@ -474,7 +482,7 @@ struct DynArray {
 
     std::size_t serialize(BitisSerializer &ser) {
         std::size_t num_bits = 0;
-        auto data_size = DynInteger<uint32_t, DYN_BITS>(values.size());
+        auto data_size = DynInteger<uint32_t, 32, DYN_BITS>(values.size());
         num_bits += data_size.serialize(ser);
         for (std::size_t i=0; i < values.size(); i++) {
             // num_bits += ser.add_data(values[i].serialize(ser));
@@ -485,7 +493,7 @@ struct DynArray {
     static bitis_helper::BitiaDeserializerHelper<DynArray> deserialize(BitisDeserializer &des) {
         std::size_t num_bits = 0;
         auto tbits = sizeof(T)*8;
-        auto rv_size = DynInteger<uint32_t, DYN_BITS>::deserialize(des);
+        auto rv_size = DynInteger<uint32_t, 32, DYN_BITS>::deserialize(des);
         num_bits += rv_size.bits;
 
         auto tvalues = std::vector<T>(rv_size.data.value);
@@ -530,7 +538,7 @@ struct BinaryBase {
 
     std::size_t serialize(BitisSerializer &ser) {
         std::size_t num_bits = 0;
-        auto data_size = DynInteger<uint32_t, DYN_BITS>(values.size());
+        auto data_size = DynInteger<uint32_t, 32, DYN_BITS>(values.size());
         num_bits += data_size.serialize(ser);
 
         for (std::size_t i=0; i < values.size(); i++) {
@@ -544,7 +552,7 @@ protected:
     static bitis_helper::BitiaDeserializerHelper<BinaryBase> deserialize_base(BitisDeserializer &des) {
         std::size_t num_bits = 0;
         auto tbits = 8;
-        auto rv_size = DynInteger<uint32_t, DYN_BITS>::deserialize(des);
+        auto rv_size = DynInteger<uint32_t, 32, DYN_BITS>::deserialize(des);
         num_bits += rv_size.bits;
 
         auto tvalues = std::vector<uint8_t>(rv_size.data.value);
@@ -847,7 +855,7 @@ namespace bitis_enum_helper {
 // template<typename ...> struct BitisEnum;
 template<typename ES_COLLECTOR, typename DEFAULT_ENUM, uint8_t DYN_BITS>
 struct BitisEnum {
-    DynInteger<uint32_t, DYN_BITS> value;
+    DynInteger<uint32_t, 32, DYN_BITS> value;
 
     typedef ES_COLLECTOR EnumCollector;
     typedef typename bitis_helper::EnumeratedListCollector<ES_COLLECTOR>::type EnumeratedEnumCollector;
@@ -882,7 +890,7 @@ public:
         return value.serialize(ser);
     }
     static bitis_helper::BitiaDeserializerHelper<BitisEnum> deserialize(BitisDeserializer &des) {
-        auto r = DynInteger<uint32_t, DYN_BITS>::deserialize(des);
+        auto r = DynInteger<uint32_t, 32, DYN_BITS>::deserialize(des);
         return bitis_helper::BitiaDeserializerHelper<BitisEnum>{.bits=r.bits, .data=BitisEnum(r.data.value)};
     }
 
