@@ -54,17 +54,17 @@ msg MsgOptionalOOBase {
 }
 
 // *****
-msg MsgKeyValue {
-  string key;
-  oneof value(3) {
-    int_32d7 int_val;
-    double num;
-    *bool bool_val;
-    str_d4 str_val;
-  }
-}
+// msg MsgKeyValue {
+//   string key;
+//   oneof value(3) {
+//     int_32d7 int_val;
+//     double num;
+//     *bool bool_val;
+//     str_d4 str_val;
+//   }
+// }
 
-msg MsgMap {
-  repeated_dyn_4 MsgKeyValue entries;
-}
+// msg MsgMap {
+//   repeated_dyn_4 MsgKeyValue entries;
+// }
 
