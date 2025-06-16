@@ -5,7 +5,8 @@ use bitis_lib::{deserialize, serialize, BiserdiTrait};
 pub fn write_or_test<T: BiserdiTrait+Debug+PartialEq>(fn_name: &str, msg: &T, args: &Vec<String>) -> u8 {
     if args.len() <= 1 {
         println!("* writing {}", fn_name);
-        let data = serialize(msg);
+        let (data, r) = serialize(msg);
+        println!("{:?}", r);
         fs::write(fn_name, data).expect(format!("Unable to write file: {}", fn_name).as_str());
         0
     }

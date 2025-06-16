@@ -35,15 +35,15 @@ impl Default for OO_ParamTestWithInner_Action {
 #[derive(BiserdiMsg, Debug, Clone, PartialEq, Default)]
 #[allow(nonstandard_style)]
 pub struct Inner {
-  pub name: BitisString<4>,
+  pub name: BitisAString<4>,
   pub val: VarWithGivenBitSize<u8, 3>,
   pub num: Numbers,
 }
 #[derive(BiserdiMsg, Debug, Clone, PartialEq, Default)]
 #[allow(nonstandard_style)]
 pub struct ParamTestWithInner {
-  pub name: BitisString<4>,
-  pub param_1: DynInteger<u8, 4>,
+  pub name: BitisAString<4>,
+  pub param_1: DynInteger<u8, 8, 4>,
   pub param_2: bool,
   pub action: OO_ParamTestWithInner_Action,
   pub fp_val: FixPrecisionMinMax<10, 1, 2>,

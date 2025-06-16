@@ -1,27 +1,10 @@
 #include "bitis_lib.h"
 #include <optional>
 
-//#define EXPECTED_BITIS_VERSION "0.6.11"
+//#define EXPECTED_BITIS_VERSION "0.6.12"
 //#if EXPECTED_BITIS_VERSION != BITIS_CPP_LIB_VERSION
 //#error "Unexpected bitis library version"
 //#endif
-
-
-
-// ****** Numbers *****
-namespace NumbersEnum {
-    ENUM_INSTANCE(One);
-    ENUM_INSTANCE(Two);
-    ENUM_INSTANCE(Three);
-    ENUM_INSTANCE(Four);
-}
-
-typedef BitisEnum<bitis_helper::Collector<
-    NumbersEnum::One, 
-    NumbersEnum::Two, 
-    NumbersEnum::Three, 
-    NumbersEnum::Four
->, NumbersEnum::Two, 4> Numbers;
 
 
 
@@ -63,6 +46,64 @@ struct Inner {
     bool operator!=(const Inner &other) const { return !is_equal(other); }
 };
 const char *Inner::msg_attr[] = {"val", "opt_bool"};
+
+// ****** Numbers *****
+namespace NumbersEnum {
+    ENUM_INSTANCE(One);
+    ENUM_INSTANCE(Two);
+    ENUM_INSTANCE(Three);
+    ENUM_INSTANCE(Four);
+}
+
+typedef BitisEnum<bitis_helper::Collector<
+    NumbersEnum::One, 
+    NumbersEnum::Two, 
+    NumbersEnum::Three, 
+    NumbersEnum::Four
+>, NumbersEnum::Two, 4> Numbers;
+
+
+
+// ****** InnerWithEnum *****
+
+
+struct InnerWithEnum {
+    typedef IntgralWithGivenBitSize<uint8_t, 3> Val_T;
+    typedef Numbers Num_T;
+    typedef BitisOptional<BitisBool> OptBool_T;
+
+    typedef message_helper::MessageT<
+        Val_T, Num_T, OptBool_T
+    > MsgT;
+
+    Val_T val;
+    Num_T num;
+    OptBool_T opt_bool;
+
+    static const char *msg_attr[];
+
+    std::size_t serialize(BitisSerializer &ser) {
+        return message_helper::msg_serialize(this, ser);
+    }
+    static bitis_helper::BitiaDeserializerHelper<InnerWithEnum> deserialize(BitisDeserializer &des) {
+        return message_helper::msg_deserialize<InnerWithEnum>(des);
+    }
+
+    void print(int16_t indent=0) {
+        printf("InnerWithEnum{ ");
+        if (indent>=0) printf("\n");
+        message_helper::msg_print(this, (indent>=0) ? (2 + indent) : indent, msg_attr);
+        print_indent(indent); printf("}");
+        // if (indent>=0) printf("\n");
+    }
+
+    bool is_equal(const InnerWithEnum &other) const {
+        return val==other.val && num==other.num && opt_bool==other.opt_bool;
+   }
+    bool operator==(const InnerWithEnum &other) const { return is_equal(other); }
+    bool operator!=(const InnerWithEnum &other) const { return !is_equal(other); }
+};
+const char *InnerWithEnum::msg_attr[] = {"val", "num", "opt_bool"};
 
 // ****** OO_ParamTestWithOo_Action *****
 
@@ -128,47 +169,6 @@ struct OO_ParamTestWithOo_Action  {
     bool operator!=(const OO_ParamTestWithOo_Action &other) const { return !is_equal(other); }
 };
 
-
-// ****** InnerWithEnum *****
-
-
-struct InnerWithEnum {
-    typedef IntgralWithGivenBitSize<uint8_t, 3> Val_T;
-    typedef Numbers Num_T;
-    typedef BitisOptional<BitisBool> OptBool_T;
-
-    typedef message_helper::MessageT<
-        Val_T, Num_T, OptBool_T
-    > MsgT;
-
-    Val_T val;
-    Num_T num;
-    OptBool_T opt_bool;
-
-    static const char *msg_attr[];
-
-    std::size_t serialize(BitisSerializer &ser) {
-        return message_helper::msg_serialize(this, ser);
-    }
-    static bitis_helper::BitiaDeserializerHelper<InnerWithEnum> deserialize(BitisDeserializer &des) {
-        return message_helper::msg_deserialize<InnerWithEnum>(des);
-    }
-
-    void print(int16_t indent=0) {
-        printf("InnerWithEnum{ ");
-        if (indent>=0) printf("\n");
-        message_helper::msg_print(this, (indent>=0) ? (2 + indent) : indent, msg_attr);
-        print_indent(indent); printf("}");
-        // if (indent>=0) printf("\n");
-    }
-
-    bool is_equal(const InnerWithEnum &other) const {
-        return val==other.val && num==other.num && opt_bool==other.opt_bool;
-   }
-    bool operator==(const InnerWithEnum &other) const { return is_equal(other); }
-    bool operator!=(const InnerWithEnum &other) const { return !is_equal(other); }
-};
-const char *InnerWithEnum::msg_attr[] = {"val", "num", "opt_bool"};
 
 // ****** ParamTestWithInner *****
 

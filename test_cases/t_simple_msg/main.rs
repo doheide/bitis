@@ -3,7 +3,7 @@ mod helper;
 
 use std::env;
 use std::process::ExitCode;
-use bitis_lib::{BitisOption, BitisString};
+use bitis_lib::{BitisOption, BitisAString};
 use messages::*;
 
 
@@ -41,7 +41,7 @@ fn main() -> ExitCode {
         param_1: 999.into(),
         param_2: true.into(),
         param_3: (-13).into(),
-        name: BitisString::from_str(ascii::AsciiString::from_ascii("lalalililolo").unwrap(),),
+        name: BitisAString::from_str(ascii::AsciiString::from_ascii("lalalililolo").unwrap(),),
     };
     let fn_name = "val_simple_param_set1.rs.dat";
     error_counter += helper::write_or_test(fn_name, &msg, &args);

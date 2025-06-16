@@ -1,0 +1,5 @@
+
+msg MsgWithDynInt {
+  uint_4d3 val;
+  int_4d3 signed_val;
+}
