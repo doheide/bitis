@@ -26,13 +26,14 @@ stringcase = "0.4.0"
 clap = { version = "4.5.30", features = ["derive", "string", "cargo", "color", "help"] }
 console = "0.15.11"
 toml_edit = "0.22.24"
-bitis-macros = "0.5.3"
+# bitis-macros = "0.5.3"
 array-init = "2.1"
 ascii = "1.1.0"
-
-
-[dependencies_when_dev]
 bitis-macros = { path = "./bitis-macros" }
+
+
+#[dependencies_when_dev]
+#bitis-macros = { path = "./bitis-macros" }
 
 [dev-dependencies]
 rstest = "0.25.0"
