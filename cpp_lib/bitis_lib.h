@@ -1,27 +1,3 @@
-//
-// Created by bitis_compiler 0.6.11
-//
-
-#pragma once
-
-//#define BITIS_CPP_LIB_VERSION "0.6.11"
-
-//
-// Created by bitis_compiler 0.6.11
-//
-
-#pragma once
-
-//#define BITIS_CPP_LIB_VERSION "0.6.11"
-
-//
-// Created by bitis_compiler 0.6.11
-//
-
-#pragma once
-
-//#define BITIS_CPP_LIB_VERSION "0.6.11"
-
 
 #include <cfloat>
 #include "inttypes.h"
@@ -66,17 +42,16 @@ struct BitisSerializer {
     std::vector<uint8_t> data_cache;
     std::size_t final_total_bits;
 
-    template<typename T, std::size_t BITS>
-    std::size_t add_data(const T *value) {
-
+    template<typename T>
+    std::size_t add_data_bits(const T *value, uint8_t bits_left) {
+        uint8_t bits_left_work = bits_left;
         // ReSharper disable once CppCStyleCast
         const auto data = (uint8_t*) value;
 
-        uint8_t bits_left = BITS;
         uint8_t data_index = 0;
 
-        while (bits_left > 0) {
-            const uint8_t bits_to_use = std::min(bits_left, max_bitmask);
+        while (bits_left_work > 0) {
+            const uint8_t bits_to_use = std::min(bits_left_work, max_bitmask);
 
             const uint8_t masked_data = data[data_index] & bit_masks[bits_to_use];
             cur_cache_u8 += masked_data << sub_byte_counter;
@@ -88,9 +63,14 @@ struct BitisSerializer {
                 cur_cache_u8 >>= 8;
                 data_index++;
             }
-            bits_left -= bits_to_use;
+            bits_left_work -= bits_to_use;
         }
-        return BITS;
+        return bits_left;
+    }
+
+    template<typename T, std::size_t BITS>
+    std::size_t add_data(const T *value) {
+        return add_data_bits(value, BITS);
     }
 
     BitisSize finalize() {
@@ -368,11 +348,14 @@ struct DynInteger {
         }
         //
         uint64_t tval = tvalue; // should be always a positive value
+        uint8_t max_num_bits_left = sizeof(T)*8;
         while (tval > 0) {
-            ser.add_data<uint64_t, DYN_BITS>(&tval);
+            const auto cur_num_bits = std::min(max_num_bits_left, DYN_BITS);
+            ser.add_data_bits(&tval, cur_num_bits);
 
-            tval >>= DYN_BITS;
-            num_bits += DYN_BITS + 1;
+            tval >>= cur_num_bits;
+            num_bits += cur_num_bits + 1;
+            max_num_bits_left -= cur_num_bits;
 
             auto b = BitisBool(tval>0);
             b.serialize(ser);
@@ -393,13 +376,17 @@ struct DynInteger {
         auto rv = BitisBool::deserialize(des);
         bool further_data_to_read = rv.data.value;
         uint8_t shift_bits = 0;
+        uint8_t max_num_bits_left = sizeof(T)*8;
         while (further_data_to_read) {
+            const auto cur_num_bits = std::min(max_num_bits_left, DYN_BITS);
+
             uint64_t cdata = 0;
-            const auto r = des.decode_data(cdata, DYN_BITS);
+            const auto r = des.decode_data(cdata, cur_num_bits);
 
             bits_num += r + 1;
             tval += cdata << shift_bits;
-            shift_bits += DYN_BITS;
+            shift_bits += cur_num_bits;
+            max_num_bits_left -= cur_num_bits;
 
             rv = BitisBool::deserialize(des);
             further_data_to_read = rv.data.value;

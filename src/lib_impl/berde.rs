@@ -10,9 +10,10 @@ pub trait IntegerBaseFunctions {
     fn is_val_negative(self: &Self) -> bool;
     fn switch_sign_if_possible(self: &Self) -> Self;
     fn get_zero() -> Self;
+    fn get_bits_num() -> u8;
 }
 macro_rules! impl_integer_signed {
-    ($type:ty) => {
+    ($type:ty, $num_bits: expr) => {
         impl IntegerBaseFunctions for $type {
             const IS_SIGNED: bool = true;
             fn get_absolute_uint(self: &Self) -> u64 {
@@ -22,26 +23,28 @@ macro_rules! impl_integer_signed {
             fn is_val_negative(self: &Self) -> bool { *self < 0 }
             fn switch_sign_if_possible(self: &Self) -> Self { return self.clone().neg() }
             fn get_zero() -> Self { 0 as $type }
+            fn get_bits_num() -> u8 { $num_bits as u8 }
         }
 } }
 macro_rules! impl_integer_unsigned {
-    ($type:ty) => {
+    ($type:ty, $num_bits: expr) => {
         impl IntegerBaseFunctions for $type {
             const IS_SIGNED: bool = false;
             fn get_absolute_uint(self: &Self) -> u64 { self.clone() as u64 }
             fn is_val_negative(self: &Self) -> bool { false }
             fn switch_sign_if_possible(self: &Self) -> Self { return self.clone() }
             fn get_zero() -> Self { 0 as $type }
+            fn get_bits_num() -> u8 { $num_bits as u8 }
         }
 } }
-impl_integer_signed!(i8);
-impl_integer_signed!(i16);
-impl_integer_signed!(i32);
-impl_integer_signed!(i64);
-impl_integer_unsigned!(u8);
-impl_integer_unsigned!(u16);
-impl_integer_unsigned!(u32);
-impl_integer_unsigned!(u64);
+impl_integer_signed!(i8, 8);
+impl_integer_signed!(i16, 16);
+impl_integer_signed!(i32, 32);
+impl_integer_signed!(i64, 64);
+impl_integer_unsigned!(u8, 8);
+impl_integer_unsigned!(u16, 16);
+impl_integer_unsigned!(u32, 16);
+impl_integer_unsigned!(u64, 16);
 
 // ***
 #[derive(Debug, Clone)]
@@ -477,11 +480,16 @@ impl<T: Display + Sized + Copy + BiserdiTraitVarBitSize + AddAssign + Shl<Output
         if T::IS_SIGNED { self.val.is_val_negative().bit_serialize(biseri)?; bit_size +=1; }
 
         (val_work != 0).bit_serialize(biseri);
+        let mut max_bits_num = T::get_bits_num();
         while val_work > 0 {
-            // todo only serialize up to bitsize of T
-            val_work.bit_serialize(u64::from(Self::DYN_SIZE), biseri)?;
-            val_work >>= Self::DYN_SIZE;
-            bit_size += (Self::DYN_SIZE + 1) as u64;
+            let cur_bitsize = std::cmp::min(max_bits_num, Self::DYN_SIZE);
+
+            val_work.bit_serialize(u64::from(cur_bitsize), biseri)?;
+            val_work >>= cur_bitsize;
+            bit_size += (cur_bitsize + 1) as u64;
+
+            max_bits_num -= cur_bitsize;
+
             let further_data = val_work > 0;
             further_data.bit_serialize(biseri);
         }
@@ -496,11 +504,17 @@ impl<T: Display + Sized + Copy + BiserdiTraitVarBitSize + AddAssign + Shl<Output
         if T::IS_SIGNED {
             negative_sign = bool::bit_deserialize(version_id, bides)?.0; bit_size += 1; }
         let mut further_data = bool::bit_deserialize(version_id, bides)?.0;
+        let mut max_bits_num = T::get_bits_num();
         while further_data {
-            let vt = u64::bit_deserialize(version_id, Self::DYN_SIZE as u64, bides)?;
+            let cur_bitsize = std::cmp::min(max_bits_num, Self::DYN_SIZE);
+
+            let vt = u64::bit_deserialize(version_id, cur_bitsize as u64, bides)?;
             bit_size += vt.1 + 1;
             v += vt.0 << cur_shift;
-            cur_shift += u64::from(Self::DYN_SIZE);
+            cur_shift += u64::from(cur_bitsize);
+
+            max_bits_num -= cur_bitsize;
+
             further_data = bool::bit_deserialize(version_id, bides)?.0;
         }
         let mut vv= T::try_from(v).ok()?;
