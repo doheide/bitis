@@ -1089,10 +1089,24 @@ pub fn process_and_validate_bitis(parsed_bitis: &Vec<Value>) -> BitisProcessed {
             }
         });
 
-        // check that all attributes are defined
-        //...
-    }
+        let enums_and_msg_names = [&msg_names[..], &enum_names[..]].concat();
 
+        // check that all attributes are defined
+        msgs.iter().for_each(|msg| {
+            for attr in msg.attributes.clone() {
+                match attr.specific_details {
+                    AttributeDetails::AttributeEnumOrMsg(enum_or_msg) => {
+                        let em_found = enums_and_msg_names.contains(&&enum_or_msg);
+                        if !em_found {
+                            println!("!!! Error: Attribute '{}' type '{}' in message '{}' not defined.", attr.name, enum_or_msg, msg.name);
+                            panic!("->Exiting");
+                        }
+                    },
+                    _ => {}
+                }
+            }
+        });
+    }
 
     BitisProcessed { max_version_number: 0, msgs, enums, oo_enums}
 }
