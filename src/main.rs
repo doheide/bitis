@@ -20,10 +20,6 @@ use utils::*;
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
 struct Cli {
-    /// Sets a custom config file
-    #[arg(short, long, value_name = "FILE")]
-    input_file: PathBuf,
-
     /// Turn debugging information on
     #[arg(short, long, action = clap::ArgAction::Count)]
     debug: u8,
@@ -50,6 +46,10 @@ enum Commands {
     // Test {},
     /// Compile bitis data objects file
     Compile {
+        /// Sets a custom config file
+        #[arg(short, long, value_name = "FILE")]
+        input_file: PathBuf,
+
         /// compile language
         #[arg(short, long)]
         lang: Language,
@@ -58,11 +58,15 @@ enum Commands {
         output_file_or_path: Option<PathBuf>,
 
         #[clap(long)]
-        /* Name of the bitis header lib that is included in the message file */
+        /* Name of the bitis header lib that is included in the message file (cpp only option) */
         bitis_header_lib_file_name: Option<String>,
         #[clap(long)]
-        /* switch if the header lib should be written */
-        prevent_write_bitis_header_lib: bool
+        /* switch if the header lib should be written (cpp only option) */
+        prevent_write_bitis_header_lib: bool,
+
+        #[clap(long)]
+        /* switch if the header lib should be written (cpp only option) */
+        prevent_update_bitis_lib_in_crate: bool
     },
     /// Compare bitis data objects file
     // Compare {
@@ -86,66 +90,68 @@ fn main() {
 
     println!("BitisVersion: {}", crate_version!());
     
-    // let content = fs::read_to_string("test.bitis").expect("File not found");
-    let input_file_path = Path::new(&cli.input_file);
-    if !input_file_path.exists() {
-        println!("Input file {:?} does not exist.", input_file_path); abort();
-    }
-    if input_file_path.extension().unwrap() != "bitis" {
-        println!("Input file extension needs to be 'bitis'."); abort()
-    }
-    let input_dir = input_file_path.parent().unwrap();
-    let input_dir = if let None = input_dir.parent() { PathBuf::from("./") } else { input_dir.to_owned() };
-    let input_file_wo_ext = input_file_path.file_stem().unwrap();
-
-    if cli.debug > 0 { println!("Input file: {:?} (dir: {})", input_file_path, input_dir.to_str().unwrap()); }
-
-    // println!("input_dir: {input_dir:?}");
-    // println!("inout_file_wo_ext: {inout_file_wo_ext:?}");
-
-    let re = Regex::new(r".+\.v([0-9]+)").unwrap();
-    let ver_files: Vec<_> = fs::read_dir(input_dir.clone()).unwrap().into_iter().filter_map(|x| {
-        let cf = x.unwrap().path();
-        let cf_stem = cf.file_stem().unwrap();
-        let v = match re.captures(&cf_stem.to_str().unwrap()) {
-            Some(v) => match v.get(1) {
-                Some(vv) => { vv.as_str().parse::<u16>().unwrap() }, None => 0 }, None => 0 };
-        if cf_stem != input_file_wo_ext &&
-            v == 0 { None }
-        else if cf.extension().unwrap() != "bitis" { None }
-        else { Some((cf, v)) }
-    }).collect();
-    if cli.debug > 0 { println!("Inputs version files: {:?}", ver_files.iter().map(|x| x).collect::<Vec<_>>()); }
-
-    let parsed_bitis: Vec<_> = ver_files.iter().map(|f| {
-        let content = fs::read_to_string(&(f.0)).expect("Input File not found");
-        let mut lexer = Token::lexer(content.as_str());
-        lexer.extras = f.1;
-        if cli.debug > 3 { println!("file: {} ver: {}", f.0.to_str().unwrap(), f.1); }
-        if cli.debug > 3 { println!("bitis-file content:\n{}", content); }
-        match parse_root(&mut lexer) {
-            Ok(v) => v,
-            Err(e) => {
-                let (err_str, err_span) = e.clone();
-                let content_err = &content[err_span];
-                println!("Error: {}\n  -> Source: '{}'", err_str, content_err);
-                abort()
-            }
-        }
-    }).flatten().collect();
-    if cli.debug > 1 { println!("parsed_bitis: {:?}", parsed_bitis); }
-
-    let processed_bitis = process_and_validate_bitis(&parsed_bitis);
-    if cli.debug > 2 { println!("processed_bitis: {:?}", processed_bitis); }
-
     // ******
     match cli.command {
         // Commands::Test {} => {
         // }
         Commands::Compile {
+            input_file,
             lang, output_file_or_path: output_file_opt,
             bitis_header_lib_file_name, prevent_write_bitis_header_lib,
+            prevent_update_bitis_lib_in_crate
         } => {
+            // let content = fs::read_to_string("test.bitis").expect("File not found");
+            let input_file_path = Path::new(&input_file);
+            if !input_file_path.exists() {
+                println!("Input file {:?} does not exist.", input_file_path); abort();
+            }
+            if input_file_path.extension().unwrap() != "bitis" {
+                println!("Input file extension needs to be 'bitis'."); abort()
+            }
+            let input_dir = input_file_path.parent().unwrap();
+            let input_dir = if let None = input_dir.parent() { PathBuf::from("./") } else { input_dir.to_owned() };
+            let input_file_wo_ext = input_file_path.file_stem().unwrap();
+
+            if cli.debug > 0 { println!("Input file: {:?} (dir: {})", input_file_path, input_dir.to_str().unwrap()); }
+
+            // println!("input_dir: {input_dir:?}");
+            // println!("inout_file_wo_ext: {inout_file_wo_ext:?}");
+
+            let re = Regex::new(r".+\.v([0-9]+)").unwrap();
+            let ver_files: Vec<_> = fs::read_dir(input_dir.clone()).unwrap().into_iter().filter_map(|x| {
+                let cf = x.unwrap().path();
+                let cf_stem = cf.file_stem().unwrap();
+                let v = match re.captures(&cf_stem.to_str().unwrap()) {
+                    Some(v) => match v.get(1) {
+                        Some(vv) => { vv.as_str().parse::<u16>().unwrap() }, None => 0 }, None => 0 };
+                if cf_stem != input_file_wo_ext &&
+                    v == 0 { None }
+                else if cf.extension().unwrap() != "bitis" { None }
+                else { Some((cf, v)) }
+            }).collect();
+            if cli.debug > 0 { println!("Inputs version files: {:?}", ver_files.iter().map(|x| x).collect::<Vec<_>>()); }
+
+            let parsed_bitis: Vec<_> = ver_files.iter().map(|f| {
+                let content = fs::read_to_string(&(f.0)).expect("Input File not found");
+                let mut lexer = Token::lexer(content.as_str());
+                lexer.extras = f.1;
+                if cli.debug > 3 { println!("file: {} ver: {}", f.0.to_str().unwrap(), f.1); }
+                if cli.debug > 3 { println!("bitis-file content:\n{}", content); }
+                match parse_root(&mut lexer) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        let (err_str, err_span) = e.clone();
+                        let content_err = &content[err_span];
+                        println!("Error: {}\n  -> Source: '{}'", err_str, content_err);
+                        abort()
+                    }
+                }
+            }).flatten().collect();
+            if cli.debug > 1 { println!("parsed_bitis: {:?}", parsed_bitis); }
+
+            let processed_bitis = process_and_validate_bitis(&parsed_bitis);
+            if cli.debug > 2 { println!("processed_bitis: {:?}", processed_bitis); }
+
             match lang {
                 Language::Rust => {
                     if cli.debug > 0 { println!("* Generating rust code ..."); }
@@ -240,11 +246,12 @@ fn main() {
                     let rdo = PyTypeHints{ d };
                     let py_type_hints = rdo.render().unwrap();
                     write_file(&output_path, format!("{}/bitis_msgs.pyi", lib_name).as_str(), py_type_hints.as_str(), cli.debug > 0);
+                    write_file(&output_path, format!("{}/{}.pyi", lib_name, lib_name).as_str(), py_type_hints.as_str(), cli.debug > 0);
 
                     // *************************************
                     {
                         let toml_file = output_path.join("Cargo.toml");
-                        if toml_file.exists() {
+                        if toml_file.exists() && !prevent_update_bitis_lib_in_crate {
                             if cli.debug > 0 { println!("- Found toml file and setting bitis-dependency"); }
 
                             let cct_content = match fs::read(toml_file.clone()) {
@@ -316,7 +323,10 @@ fn main() {
                         let header_file_content = include_str!("../cpp_lib/bitis_lib.h");
                         let header_file_content = format!("//\n\
                             // Created by bitis_compiler {}\n\
-                            //\n\n\
+                            //\n//\n\
+                            // !!! THIS FILE IS AUTOMATICALLY GENERATED AND WILL BE OVERWRITTEN \n\
+                            //     UNLESS THIS IS DISABLED BY BITIS COMPILER FLAGS !!!\n\
+                            //     (please consult the documentation)\n//\n\n\
                             #pragma once\n\n\
                             //#define BITIS_CPP_LIB_VERSION \"{}\"\n\n{}", crate_version!(), crate_version!(),
                         header_file_content);
@@ -388,8 +398,12 @@ fn main() {
                         if fs::create_dir_all(&py_code_dir).is_err() {
                             println!("Could not create directory '{}'", py_code_dir.to_str().unwrap()); exit(-1);
                         }
+                        // if fs::write({let mut t = py_code_dir.clone(); t.push("__init__.py"); t},
+                        //              format!("from .{} import *", lib_name).as_str()).is_err() {
+                        //     println!("Could not create file '__init__.py' in dir '{}'", py_code_dir.to_str().unwrap()); exit(-1);
+                        // }
                         if fs::write({let mut t = py_code_dir.clone(); t.push("__init__.py"); t},
-                                     format!("from .{} import *", lib_name).as_str()).is_err() {
+                                     "from .bitis_msgs import *".to_string().as_str()).is_err() {
                             println!("Could not create file '__init__.py' in dir '{}'", py_code_dir.to_str().unwrap()); exit(-1);
                         }
                         if fs::write({let mut t = py_code_dir.clone(); t.push("py.typed"); t}, "").is_err() {

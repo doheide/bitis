@@ -10,8 +10,9 @@ use stringcase::Caser;
 // ************************************************************************
 fn integer_bit_size(bit_size: &u8) -> u8 {
     match bit_size {
-        0..=8 => 8,
-        9..=16 => 16,
+        0..=16 => 16,
+        // 0..=8 => 8,
+        // 9..=16 => 16,
         17..=32 => 32,
         _ => 64
     }
@@ -62,11 +63,11 @@ fn to_rust_attribute(attribute: &Attribute, msg_names: &Vec<String>) -> Attribut
                     SimpleType::UIntFixed(b) => {
                         add_val = true;
                         let base = format!("u{}", integer_bit_size(&b));
-                        (format!("VarWithGivenBitSize<{}, {}>", base.clone(), b), base) },
+                        (format!("IntWithGivenBitSize<{}, {}>", base.clone(), b), base) },
                     SimpleType::IntFixed(b) => {
                         add_val = true;
                         let base = format!("i{}", integer_bit_size(&b));
-                        (format!("VarWithGivenBitSize<{}, {}>", base.clone(), b), base) },
+                        (format!("IntWithGivenBitSize<{}, {}>", base.clone(), b), base) },
                     SimpleType::UIntDyn(b) => {
                         add_val = true;
                         let base = format!("u{}", integer_bit_size(&b.0));
@@ -92,7 +93,7 @@ fn to_rust_attribute(attribute: &Attribute, msg_names: &Vec<String>) -> Attribut
                         (format!("Binary<{}>", b), "Vec<u8>".to_string()) },
                     SimpleType::AString(b) => {
                         add_val = true;
-                        (format!("BitisAString<{}>", b), "char *".to_string()) },
+                        (format!("BitisAString<{}>", b), "String".to_string()) },
                 }
             }
             AttributeDetails::AttributeEnumOrMsg(em) => {
@@ -713,11 +714,13 @@ pub fn parse_attribute(last_token: Token, lexer: &mut Lexer<'_, Token>,
         Ok(oo)
     }
     else if let Some(t) = enum_or_msg_str {
-        Ok(Attribute{name, comment: specific_comment, is_repeated_and_size, is_optional,
+        Ok(Attribute{name, comment: specific_comment,
+            is_repeated_and_size: is_repeated_and_size, is_optional,
             specific_details: AttributeDetails::AttributeEnumOrMsg(t)})
     }
     else {
-        Ok(Attribute{name, comment: specific_comment, is_repeated_and_size, is_optional,
+        Ok(Attribute{name, comment: specific_comment,
+            is_repeated_and_size: is_repeated_and_size, is_optional,
             specific_details: AttributeDetails::AttributeSimple(attr_type)})
     }
 }
@@ -764,7 +767,8 @@ pub fn parse_oneof(lexer: &mut Lexer<'_, Token>, parent_name: String, comment: O
                             oo_name, parent_name), lexer.span()));
     }
 
-    Ok(Attribute{name: oo_name.clone(), comment, is_repeated_and_size, is_optional,
+    Ok(Attribute{name: oo_name.clone(), comment,
+        is_repeated_and_size: is_repeated_and_size, is_optional,
         specific_details: AttributeDetails::AttributeOneOf(OneOfInfo{
             name: format!("OO_{}_{}", parent_name.to_pascal_case(), oo_name.to_pascal_case()),
             dyn_bits: bit_size, attributes: oo_attribs,
@@ -1370,7 +1374,7 @@ mod bitis_generate_rust {
 
         let rendered = rdo.render().unwrap();
         let lala_commment = "/// comment for Lala\n";
-        let lala_empty = "pub struct Lala {\n  pub a1: VarWithGivenBitSize<i8, 5>,\n  pub bool_array: FixedArray<bool,4>,\n}\n";
+        let lala_empty = "pub struct Lala {\n  pub a1: IntWithGivenBitSize<i8, 5>,\n  pub bool_array: FixedArray<bool,4>,\n}\n";
         println!("rendered:\n{}",rendered);
         assert_eq!(rendered, (HEADER.to_owned() + ENUMS_HEADER + "\n\n" + OO_HEADER + "\n\n" +
             MSG_HEADER + lala_commment + PER_MSG_HEADER +lala_empty).to_string());
@@ -1430,7 +1434,7 @@ mod bitis_generate_rust {
 
         let rendered = rdo.render().unwrap();
         let testoo_commment = "/// comment for Oneof\n";
-        let testoo_enum = "pub enum OO_TestOo_OoLi {\n  Test1(VarWithGivenBitSize<u8, 3>),\n  Test2(f32),\n}\n\n";
+        let testoo_enum = "pub enum OO_TestOo_OoLi {\n  Test1(IntWithGivenBitSize<u8, 3>),\n  Test2(f32),\n}\n\n";
         let testoo_msg = "pub struct TestOo {\n  pub oo_li: OO_TestOo_OoLi,\n  pub b1: bool,\n}\n";
         println!("*rendered:\n{}",rendered);
         assert_eq!(rendered, (HEADER.to_owned() + ENUMS_HEADER + "\n\n" + OO_HEADER + PER_OO_HEADER
@@ -1616,7 +1620,7 @@ mod bitis_processing {
                 comment: Some("This is a test".to_string()),
                 parent: None,
                 attributes: vec![Attribute{name: "a1".to_string(), comment: None,
-                    is_repeated_and_size: None, is_optional: false,
+                    is_repeated: None, is_optional: false,
                     specific_details: AttributeSimple(SimpleType::UIntFixed(4)),
                 }],
             }),
@@ -1626,7 +1630,7 @@ mod bitis_processing {
                 comment: Some("This is a test".to_string()),
                 parent: None,
                 attributes: vec![Attribute{name: "a2".to_string(), comment: None,
-                    is_repeated_and_size: None, is_optional: false,
+                    is_repeated: None, is_optional: false,
                     specific_details: AttributeSimple(SimpleType::UIntFixed(4)),
                 }],
             })
@@ -1657,7 +1661,7 @@ mod bitis_processing {
                 comment: Some("This is a test2".to_string()),
                 parent: None,
                 attributes: vec![Attribute{name: "lala".to_string(), comment: None,
-                    is_repeated_and_size: None, is_optional: false,
+                    is_repeated: None, is_optional: false,
                     specific_details: AttributeSimple(SimpleType::UIntFixed(4)),
                 }],
             }),
@@ -1667,9 +1671,9 @@ mod bitis_processing {
                 comment: Some("This is a test2".to_string()),
                 parent: None,
                 attributes: vec![
-                    Attribute{name: "lala".to_string(), comment: None, is_repeated_and_size: None, is_optional: false,
+                    Attribute{name: "lala".to_string(), comment: None, is_repeated: None, is_optional: false,
                         specific_details: AttributeSimple(SimpleType::UIntFixed(4)),},
-                    Attribute{name: "lala2".to_string(), comment: None, is_repeated_and_size: None, is_optional: false,
+                    Attribute{name: "lala2".to_string(), comment: None, is_repeated: None, is_optional: false,
                         specific_details: AttributeSimple(SimpleType::UIntFixed(3)),},
                 ],
             }),
@@ -1679,9 +1683,9 @@ mod bitis_processing {
                 comment: Some("This is a test".to_string()),
                 parent: None,
                 attributes: vec![
-                    Attribute{ name: "a1".to_string(), comment: None, is_repeated_and_size: None, is_optional: false,
+                    Attribute{ name: "a1".to_string(), comment: None, is_repeated: None, is_optional: false,
                         specific_details: AttributeSimple(SimpleType::UIntFixed(4)) },
-                    Attribute{ name: "lala_use".to_string(), comment: None, is_repeated_and_size: None, is_optional: false,
+                    Attribute{ name: "lala_use".to_string(), comment: None, is_repeated: None, is_optional: false,
                         specific_details: AttributeEnumOrMsg("TestMsgInner".to_string()) },
                 ],
             }),
@@ -1691,7 +1695,7 @@ mod bitis_processing {
                 comment: Some("This isa test".to_string()),
                 parent: None,
                 attributes: vec![Attribute{name: "a2".to_string(), comment: None,
-                    is_repeated_and_size: None, is_optional: false,
+                    is_repeated: None, is_optional: false,
                     specific_details: AttributeSimple(SimpleType::UIntFixed(4)),
                 }],
             }),

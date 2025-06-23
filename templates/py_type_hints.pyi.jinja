@@ -1,4 +1,5 @@
 from __future__ import annotations
+from enum import Enum
 
 {# *****************************************************************#}
 {# *****************************************************************#}
@@ -35,13 +36,17 @@ class {{ coo.name }}:
 {# *****************************************************************#}
 # *** Messages
 {%+ for cm in d.msgs ~%}
-class {{ cm.name|pascal_case }}:
+class {{ cm.name }}:
 {%- if let Some(comment_impl) = cm.comment +%}
   """
   {{comment_impl}}
   """
 {%+ endif +%}
-  def __init__(self, {%- for ca in cm.attributes +%} {{ca.base.name}}: {{ca.base_type_str|to_py_type|safe}},{%- endfor -%}) -> None: ...
+  def __init__(self, {%- for ca in cm.attributes +%} {{ca.base.name}}: {% if let Some(repeated_type) = ca.base.is_repeated_and_size %}list[{% endif -%}
+  {{ca.base_type_str|to_py_type|safe}}{% if let Some(repeated_type) = ca.base.is_repeated_and_size %}]{% endif %},{%- endfor -%}) -> None: ...
+
+  @staticmethod
+  def default() -> {{ cm.name }}: ...
 
   def serialize(self) -> bytes:
     """
@@ -49,8 +54,8 @@ class {{ cm.name|pascal_case }}:
 
     :return: bytes representing the serialized class instance
     """
-  @classmethod
-  def deserialize(cls, data: bytes) -> {{ cm.name|pascal_case }}:
+  @staticmethod
+  def deserialize(data: bytes) -> {{ cm.name }}:
     """
     Deserializes bytes to a python object
 
@@ -70,9 +75,11 @@ class {{ cm.name|pascal_case }}:
 {%- endfor -%}{%+ endif -%}
 {% else +%}
   @property
-  def {{ca.base.name|snake_case}}(self) -> {{ca.base_type_str|to_py_type|safe}}: ...
+  def {{ca.base.name|snake_case}}(self) -> {% if let Some(repeated_type) = ca.base.is_repeated_and_size %}list[{% endif -%}
+    {{ca.base_type_str|to_py_type|safe}}{% if let Some(repeated_type) = ca.base.is_repeated_and_size %}]{% endif -%}: ...
   @{{ca.base.name|snake_case}}.setter
-  def {{ca.base.name|snake_case}}(self, v: {{ca.base_type_str|to_py_type|safe}}) -> None: ...
+  def {{ca.base.name|snake_case}}(self, v: {% if let Some(repeated_type) = ca.base.is_repeated_and_size %}list[{% endif -%}
+    {{ca.base_type_str|to_py_type|safe}}{% if let Some(repeated_type) = ca.base.is_repeated_and_size %}]{% endif -%}) -> None: ...
 {%- endif -%}
 {%- endfor %}
 

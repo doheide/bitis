@@ -302,6 +302,40 @@ let kv_map: HashMap<String, OO_MsgKvoo_Value> = msg.entries.val.iter().map(|v| {
 println!("Hash map: {}", kv_map);
 ```
 
+# Usage
+
+## Rust
+
+Add "bitis" to cargo toml. Assuming the bitis messages is compiled into the file 'messages.rs' in the same directory as "main.rs", 
+import the module and "use" the messages individually or with an asterix:
+```
+mod messages;
+use messages::*;
+```
+
+## C++
+
+When compiling bitis messages to C++ code, by default the single header library file "bitis_lib.h" is generated besides 
+the c++ code for the messages. Writing / updating "bitis_lib.h" can be disabled with the compiler option 
+"--prevent-write-bitis-header-lib". If a custom header file is to be included, the header file can be specified using
+the option "--bitis-header-lib-file-name".
+
+
+## Python
+
+The python implementation is based on maturin and pyo3. The bitis messages are compiled to a python library. 
+Setting up the library can be automatically done by the bitis compiler. For that a python venv is required with
+the python library "Maturin" installed. How to setup and activate a venv / virtual environment can be found in python 
+documentation. Assuming the venv is activated, maturin can be installed with
+```bash
+pip install maturin
+```
+If the python library containing the code for messages and it's functionality, is to be called "py_msg", the library 
+can be setup with  
+```bash
+bitis setup -s maturin py_msg/
+```
+
 
 # Bitis compiler
 
@@ -338,14 +372,23 @@ Usage: bitis --input-file <FILE> compile [OPTIONS] --lang <LANG>
 
 Options:
   -l, --lang <LANG>
-          compile language [possible values: rust, python, cpp]
+          compile language
+
+          Possible values:
+          - rust:   use rust code
+          - python
+          - cpp
+
   -o, --output-file-or-path <OUTPUT_FILE_OR_PATH>
           output file
+
       --bitis-header-lib-file-name <BITIS_HEADER_LIB_FILE_NAME>
           
-      --do-write-bitis-header-lib
+
+      --prevent-write-bitis-header-lib
           
+
   -h, --help
-          Print help (see more with '--help')
+          Print help (see a summary with '-h')
 ```
 

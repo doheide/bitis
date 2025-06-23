@@ -6,9 +6,13 @@ use pyo3::types::{PyBytes};
 
 use super::messages;
 
+// Base
+fn do_val_from<T: ValFromInto<U>, U>(v: &U) -> T {
+    T::val_from(v)
+}
 
-{# *****************************************************************#}
-{# *****************************************************************#}
+// *****************************************************************
+// *****************************************************************
 // Enums
 {%+ for ce in d.enums ~%}
 {%- if let Some(comment_impl) = ce.comment -%}
@@ -17,6 +21,7 @@ use super::messages;
 #[pyclass]
 #[derive(Debug, Clone)]
 #[allow(nonstandard_style)]
+#[allow(dead_code)]
 pub enum {{ ce.name }} {
 {%- for cv in ce.values +%}
   {{ cv|pascal_case }},
@@ -29,29 +34,31 @@ impl std::fmt::Display for {{ ce.name }} {
       {{ ce.name }}::{{ cv|pascal_case }} => { write!(f, "{{ ce.name }}::{{ cv|pascal_case }}") }, {% endfor %}
     }
 } }
-#[allow(nonstandard_style)]
-fn {{ ce.name }}_rust_to_py(v: messages::{{ ce.name }}) -> {{ ce.name }} {
-    match v {
+
+impl ValFromInto<{{ ce.name }}> for messages::{{ ce.name }} {
+  fn val_into(&self) -> {{ ce.name }} {
+    match self.clone() {
 {%- for cv in ce.values +%}
       messages::{{ ce.name }}::{{ cv|pascal_case }} => {{ ce.name }}::{{ cv|pascal_case }}, {% endfor %}
     }
-}
-#[allow(nonstandard_style)]
-fn {{ ce.name }}_py_to_rust(v: {{ ce.name }}) -> messages::{{ ce.name }} {
+  }
+  fn val_from(v: &{{ ce.name }}) -> Self {
     match v {
 {%- for cv in ce.values +%}
       {{ ce.name }}::{{ cv|pascal_case }} => messages::{{ ce.name }}::{{ cv|pascal_case }}, {% endfor %}
     }
+  }
 }
 {%- endfor +%}
 
-{# *****************************************************************#}
-{# *****************************************************************#}
+// *****************************************************************
+// *****************************************************************
 // *** Enums for oneof
 {%+ for (_, coo) in d.oos -%}
 #[pyclass]
 #[derive(Debug)]
 #[allow(nonstandard_style)]
+#[allow(dead_code)]
 pub enum {{ coo.name }} {
 {%- for ca in coo.attributes +%}
   {% include "pyclasses_oo_attr.py.rs.jinja" %}
@@ -87,7 +94,7 @@ impl {{ coo.name }} {
       }
     })
   }
-  pub fn from_rust_obj(d: messages::{{ coo.name }}) -> PyResult<Self> {
+  pub fn from_rust_obj(d: &messages::{{ coo.name }}) -> PyResult<Self> {
     let r = Python::with_gil(|_py| {
       match d { {%- for ca in coo.attributes -%}{%- if ca.is_msg || ca.is_oo +%}
         messages::{{ coo.name }}::{{ca.base.name|pascal_case}}(v) => Self::{{ca.base.name|pascal_case}}(Py::new(_py, {{ca.base.name|pascal_case}}::from_rust_obj(v).unwrap()).unwrap()),
@@ -114,8 +121,8 @@ impl std::fmt::Display for {{ coo.name }} {
 }
 {%- endfor +%}
 
-{# *****************************************************************#}
-{# *****************************************************************#}
+// *****************************************************************
+// *****************************************************************
 // *** Messages
 {% for cm in d.msgs ~%}
 {%- if let Some(comment_impl) = cm.comment -%}
@@ -123,30 +130,41 @@ impl std::fmt::Display for {{ coo.name }} {
 {%- endif -%}
 #[pyclass]
 #[derive(Debug)]
-pub struct {{cm.name|pascal_case}} {
-{%- if let Some(p) = cm.parent -%}// parent: {{ p }}{%- endif -%}
-{%- for ca in cm.attributes +%}
-{% include "pyclasses_attr.py.rs.jinja" %}
-{%- endfor %}
+#[allow(dead_code)]
+pub struct {{cm.name}} {
+// lala
+{% if let Some(p) = cm.parent -%}// parent: {{ p }}{%- endif -%}
+{% for ca in cm.attributes +%}
+{%- if let Some(comment_impl) = ca.base.comment -%}
+//{{comment_impl}}
+{%- endif -%}
+{# !ca.is_py_wrapped #}
+{%- if !ca.is_oo +%}  #[pyo3(get, set)]
+{%+ endif +%}  pub {{ca.base.name}}: {% include "pyclasses_attr.py.rs.jinja" %}
+{% endfor -%}
 }
 #[pymethods]
-impl {{cm.name|pascal_case}} {
+impl {{cm.name}} {
   #[new]
   pub fn __new__(
-{%- for ca in cm.attributes +%} {{ca.base.name}}: {%~ if ca.base.is_optional -%}Option<{%- endif -%}{%+ if ca.is_msg || ca.is_oo -%}Py<{%- endif -%}{{ca.base_type_str}}{%- if ca.is_msg || ca.is_oo -%}>{%- endif -%}{%~ if ca.base.is_optional -%}>{%- endif -%},{%- endfor -%}) -> Self {
+{%- for ca in cm.attributes +%} {{ca.base.name}}: {% include "pyclasses_attr.py.rs.jinja" %}{%- endfor -%}) -> Self {
     Self{ {%- for ca in cm.attributes +%} {{ca.base.name}}: {{ca.base.name}}.into(),{%- endfor +%} }
   }
-  pub fn serialize(&self, py: Python) -> PyObject {
+  #[staticmethod]
+  pub fn default() -> PyResult<Self> { Self::from_rust_obj(&Default::default()) }
+
+  pub fn serialize(&self, py: Python) -> (PyObject, u64, u64) {
     let msg = self.to_rust();
-    PyBytes::new(py, &serialize(&msg)).into()
+    let r = serialize(&msg);
+    (PyBytes::new(py, &r.0).into(), r.1.total_bits, r.1.total_bytes)
   }
   #[staticmethod]
   pub fn deserialize(_py: Python, data: Bound<'_, PyBytes>) -> PyResult<Self> {
     let dv: Vec<u8> = data.extract()?;
-    let v = match deserialize::<messages::{{cm.name|pascal_case}}>(&dv) {
-      Some(v) => v, None => return Err(PyErr::new::<PyException, _>("Error when deserializing {{cm.name|pascal_case}}"))
+    let v = match deserialize::<messages::{{cm.name}}>(&dv) {
+      Some(v) => v, None => return Err(PyErr::new::<PyException, _>("Error when deserializing {{cm.name}}"))
     };
-    Self::from_rust_obj(v.0)
+    Self::from_rust_obj(&v.0)
   }
   pub fn __repr__(&self) -> String {
     format!("{}", self)
@@ -176,30 +194,33 @@ impl {{cm.name|pascal_case}} {
   }
 {%- endfor -%}{%+ endif -%}{%+ endif -%}{%- endfor %}
 }
-impl {{cm.name|pascal_case}} {
-  pub fn to_rust(&self) -> messages::{{cm.name|pascal_case}} {
+impl {{cm.name}} {
+  pub fn to_rust(&self) -> messages::{{cm.name}} {
     Python::with_gil(|_py| {
-      messages::{{cm.name|pascal_case}}{ {%- for ca in cm.attributes +%} {{ca.base.name}}: {%+ if ca.is_enum -%} {{ ca.rust_type_str }}_py_to_rust({%- endif -%}
-      self.{{ca.base.name}}
-      {%- if ca.is_msg || ca.is_oo -%}.borrow(_py).to_rust()
-      {%- else -%}.clone().into() {%- endif -%}{%- if ca.is_enum -%}){%- endif -%}, {%- endfor -%}}
+      messages::{{cm.name}}{ {%- for ca in cm.attributes +%} {{ca.base.name}}: do_val_from(&self.{{ca.base.name}}), {%- endfor -%}}
     })
   }
-  pub fn from_rust_obj(d: messages::{{cm.name|pascal_case}}) -> PyResult<Self> {
-    let r = Python::with_gil(|_py| { Self{ {%- for ca in cm.attributes +%} {{ca.base.name}}: {%~ if ca.base.is_optional -%} match {% endif -%} {%~ if ca.is_msg || ca.is_oo -%}
-        Py::new(_py, {{ ca.rust_type_str }}::from_rust_obj(d.{{ca.base.name}}).unwrap()).unwrap()
-        {%- else -%} {%- if ca.is_enum -%} {{ ca.rust_type_str }}_rust_to_py(d.{{ca.base.name}})
-        {%- else -%} d.{{ca.base.name}}{%- if ca.add_val -%}.val{%- endif -%} {%- endif -%}{%- endif -%}{%- if ca.base.is_optional +%} { Some(v) => Some(v.val), None => None }{% endif -%}, {%- endfor -%}} });
+  pub fn from_rust_obj(d: &messages::{{cm.name}}) -> PyResult<Self> {
+    let r = Python::with_gil(|_py| { Self{ {%- for ca in cm.attributes +%} {{ca.base.name}}: d.{{ca.base.name}}.val_into(), {%- endfor -%}} });
     Ok(r)
   }
 }
-impl std::fmt::Display for {{cm.name|pascal_case}} {
+impl std::fmt::Display for {{cm.name}} {
   fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
     Python::with_gil(|_py| {
-      write!(f, "{{cm.name|pascal_case}}({%- for ca in cm.attributes -%}{{ca.base.name}}: ({}), {%+ endfor -%})",
-        {%- for ca in cm.attributes +%} {%~ if ca.base.is_optional -%}match {% endif -%} self.{{ca.base.name}}{%~ if ca.base.is_optional +%} { Some(v) => format!("{}", v{% endif -%}
-          {%- if ca.is_msg || ca.is_oo -%}.borrow(_py).__repr__(){%- endif -%}{%~ if ca.base.is_optional -%}), None=> "None".to_string()}{%- endif -%}, {%- endfor -%})
+      let t = self.to_rust();
+//      write!(f, "{{cm.name}}({%- for ca in cm.attributes -%}{{ca.base.name}}: ({}), {%+ endfor -%})",
+//        {%- for ca in cm.attributes +%} t.{{ca.base.name}}, {%- endfor -%})
+      write!(f, "{}", t)
     })
+  }
+}
+impl ValFromInto<Py<{{cm.name}}>> for messages::{{cm.name}} {
+  fn val_into(self: &Self) -> Py<{{cm.name}}> {
+    Python::with_gil(|_py| { Py::new(_py, {{cm.name}}::from_rust_obj(self).unwrap()).unwrap() })
+  }
+  fn val_from(val: &Py<{{cm.name}}>) -> Self {
+    Python::with_gil(|_py| { val.borrow(_py).to_rust() })
   }
 }
 

@@ -1,9 +1,4 @@
-{%- if let Some(comment_impl) = ca.base.comment -%}
-//{{comment_impl}}
-  {{ca.base.name}}:
-{%- endif -%} {# !ca.is_py_wrapped #}
-{%- if !ca.is_oo +%}  #[pyo3(get, set)]
-{%+ endif +%}  pub {{ca.base.name}}: {%~ if ca.base.is_optional -%}Option<{%- endif -%}
+{%~ if ca.base.is_optional -%}Option<{%- endif -%}
 {%- if let Some(repeated_type) = ca.base.is_repeated_and_size -%}
 {%- match repeated_type -%}
 {%- when DynOrFixedType::Dyn(_) ~%}Vec<

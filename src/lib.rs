@@ -109,18 +109,18 @@ mod msg_manager_test {
 
     #[derive(BiserdiMsg, Debug, Clone, PartialEq, Default)]
     struct MsgHeaderByteTwo {
-        size_high: VarWithGivenBitSize<u8, 6>,
-        must_be_one: VarWithGivenBitSize<u8, 2>,
+        size_high: IntWithGivenBitSize<u8, 6>,
+        must_be_one: IntWithGivenBitSize<u8, 2>,
     }
     #[derive(BiserdiMsg, Debug, Clone, PartialEq, Default)]
     struct MsgHeader {
-        size_low: VarWithGivenBitSize<u8, 6>,
-        must_be_one: VarWithGivenBitSize<u8, 1>,
+        size_low: IntWithGivenBitSize<u8, 6>,
+        must_be_one: IntWithGivenBitSize<u8, 1>,
         byte_two: BitisOption<MsgHeaderByteTwo>
     }
     #[derive(BiserdiMsg, Debug, Clone, PartialEq, Default)]
     struct MsgLalaBase {
-        a1: VarWithGivenBitSize<u16, 13>,
+        a1: IntWithGivenBitSize<u16, 13>,
         b1: bool,
         b2: bool,
         f: f32,
@@ -252,7 +252,7 @@ mod msg_deserialization {
 
     #[derive(BiserdiMsg, Debug, Clone, PartialEq)]
     struct MsgLalaBase {
-        a1: VarWithGivenBitSize<u16, 13>,
+        a1: IntWithGivenBitSize<u16, 13>,
         b1: bool,
         b2: bool,
         f: f32,
@@ -262,8 +262,8 @@ mod msg_deserialization {
     struct MsgLili {
         inner_msg: MsgLalaBase,
         b1: bool,
-        b2: VarWithGivenBitSize<u8, 7>,
-        signed: VarWithGivenBitSize<i8, 4>,
+        b2: IntWithGivenBitSize<u8, 7>,
+        signed: IntWithGivenBitSize<i8, 4>,
     }
 
     #[rstest]
@@ -324,7 +324,7 @@ mod msg_deserialization {
         B1(bool),
         F2(f32),
         //#[biserdi_enum_id_bits(22)]
-        Signed(VarWithGivenBitSize<i8, 6>),
+        Signed(IntWithGivenBitSize<i8, 6>),
     }
 
     fn oneof_test_serde(m: OOLili) {
@@ -419,7 +419,7 @@ mod msg_deserialization_ver {
 
     #[derive(BiserdiMsg, Debug, Clone, PartialEq)]
     struct MsgLalaBase {
-        a1: VarWithGivenBitSize<u16, 13>,
+        a1: IntWithGivenBitSize<u16, 13>,
         b1: bool,
         b2: bool,
         f: f32,
@@ -440,7 +440,7 @@ mod msg_deserialization_ver {
     #[derive(BiserdiMsg, Debug, Clone, PartialEq)]
     #[allow(nonstandard_style)]
     struct MsgLala_V2 {
-        e1: VarWithGivenBitSize<i8, 4>,
+        e1: IntWithGivenBitSize<i8, 4>,
         e2: bool,
     }
     #[derive(BiserdiMsg, Debug, Clone, PartialEq)]
@@ -472,7 +472,7 @@ mod msg_deserialization_ver {
     struct MsgLalaV4 {
         ee1: bool,
         ee2: bool,
-        ee3: VarWithGivenBitSize<i16, 14>,
+        ee3: IntWithGivenBitSize<i16, 14>,
     }
     #[derive(BiserdiMsg, Debug, Clone, PartialEq)]
     struct MsgLalaExtV4 {

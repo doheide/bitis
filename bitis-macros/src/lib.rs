@@ -19,6 +19,7 @@ pub fn biserdi_msg(item: TokenStream) -> TokenStream {
             let mut bit_deserialize_impl = quote!{};
             let mut bit_deserialize_impl_init = quote!{};
             let mut bit_deserialize_impl_size = quote!{0};
+            let mut msg_display_impl = quote!{};
 
             let size_identifier = Ident::new("s".into(), Span::call_site());
             // let size_identifier = quote::format_ident!("s");
@@ -41,6 +42,9 @@ pub fn biserdi_msg(item: TokenStream) -> TokenStream {
                 bit_deserialize_impl_size.extend(quote!{
                     +#temp_identifier.1
                 });
+                msg_display_impl.extend(quote!{
+                    write!(f, "{}: {}, ", stringify!(#identifier), #bit_serialize_self_identifier.#identifier)?;
+                });
             }
 
             let code = quote! {
@@ -56,6 +60,14 @@ pub fn biserdi_msg(item: TokenStream) -> TokenStream {
                             T::bit_deserialize(version_id, bides) }
                         #bit_deserialize_impl
                         Some((Self{#bit_deserialize_impl_init}, #bit_deserialize_impl_size))
+                    }
+                }
+                #[automatically_derived]
+                impl std::fmt::Display for #struct_or_enum_identifier {
+                    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        write!(f, "{}{{", stringify!(#struct_or_enum_identifier))?;
+                        #msg_display_impl
+                        write!(f, "}}")
                     }
                 }
             };
