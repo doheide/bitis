@@ -41,6 +41,17 @@ int main(int argc, char *argv[]){
     }
 
     {
+        auto msg = MsgWithInner();
+        msg.val = MsgWithInner::Val_T(3);
+        msg.imsg.param_1 = MsgEnumOpt::Param1_T::create_enum<SensorSourceEnum::TemperaturSensor>(),
+        msg.imsg.param_2 = MsgEnumOpt::Param2_T::create_val(
+            MsgEnumOpt::Param2_T::ValT::create_enum<ExampleEnumEnum::E7>());
+        printf("\n"); msg.print(0); printf("\n");
+        auto fn_name = "val_nested_val2.cpp.dat";
+        error_counter += write_or_test(fn_name, msg, arg);
+    }
+
+    {
         auto inner = MsgEnumOpt{
             .val = MsgEnumOpt::Val_T(1),
             .param_1 = MsgEnumOpt::Param1_T::create_enum<SensorSourceEnum::TemperaturSensor>(),
@@ -62,11 +73,8 @@ int main(int argc, char *argv[]){
     }
 
     {
-        auto msg = MsgWithInner();
-        msg.val = MsgWithInner::Val_T(3);
-        msg.imsg.param_1 = MsgEnumOpt::Param1_T::create_enum<SensorSourceEnum::TemperaturSensor>(),
-        msg.imsg.param_2 = MsgEnumOpt::Param2_T::create_val(
-            MsgEnumOpt::Param2_T::ValT::create_enum<ExampleEnumEnum::E7>());
+        auto msg = MsgWithTwoInner();
+        msg.imsg.imsg.val = MsgEnumOpt::Val_T(1);
         printf("\n"); msg.print(0); printf("\n");
         auto fn_name = "val_nested_two_val2.cpp.dat";
         error_counter += write_or_test(fn_name, msg, arg);

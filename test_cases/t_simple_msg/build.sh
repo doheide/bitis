@@ -1,10 +1,18 @@
 #!/bin/bash
 set -e
 
-# compile messages to code
-../../target/debug/bitis -d -i simple_msg.bitis compile -o ../impl/rust_impl/src/messages.rs -l rust
+test_dir=$(pwd)
 
-../../target/debug/bitis -d -i simple_msg.bitis compile -o ../impl/cpp_impl/src/messages.h -l cpp
+# compile messages to code
+../../target/debug/bitis -d compile -o ../impl/rust_impl/src/messages.rs -l rust  -i simple_msg.bitis
+
+../../target/debug/bitis -d compile -o ../impl/cpp_impl/src/messages.h -l cpp -i simple_msg.bitis
+
+cd ../impl/python_impl/
+. ./.venv/bin/activate
+../../../target/debug/bitis compile -i $test_dir/simple_msg.bitis --prevent-update-bitis-lib-in-crate -l python -o py_msg/
+cd -
+
 
 # ****
 echo -e "\n******\nrust"
@@ -20,6 +28,7 @@ cd ../impl/rust_impl/src
 ln -s "$cpath/main.rs" main.rs
 cd -
 
+
 # ****
 echo -e "\n******\ncpp"
 src_path=../impl/cpp_impl/src/
@@ -33,6 +42,22 @@ cpath=$(pwd)
 cd ../impl/cpp_impl/src
 ln -s "$cpath/main.cpp" main.cpp
 cd -
+
+
+# ****
+echo -e "\n******\npython"
+src_path=../impl/python_impl/
+main_file=main.py
+if [[ -e $src_path/$main_file ]]; then
+    echo "$main_file already exists"
+    test -L $src_path/$main_file || (>&2 echo "$src_path/$main_file has to be a symbolic link "; exit 1 )
+    rm -v $src_path/$main_file
+fi
+cpath=$(pwd)
+cd ../impl/python_impl/
+ln -s "$cpath/main.py" main.py
+cd -
+
 
 # ****
 # build
@@ -60,17 +85,31 @@ set +e
 
 ../impl/cpp_impl/build/test_cpp
 
+python ../impl/python_impl/main.py
+
 # ****
 ../impl/rust_impl/target/debug/rust_impl rs
 rs_rs_err=$?
 ../impl/rust_impl/target/debug/rust_impl cpp
 rs_cpp_err=$?
+../impl/rust_impl/target/debug/rust_impl py
+rs_py_err=$?
 ../impl/cpp_impl/build/test_cpp cpp
 cpp_cpp_err=$?
 ../impl/cpp_impl/build/test_cpp rs
 cpp_rs_err=$?
+../impl/cpp_impl/build/test_cpp py
+cpp_py_err=$?
 
-echo -e "\nrs_rs_err: $rs_rs_err, rs_cpp_err: $rs_cpp_err, cpp_cpp_err: $cpp_cpp_err, cpp_rs_err: $cpp_rs_err"
+python ../impl/python_impl/main.py py
+py_py_err=$?
+python ../impl/python_impl/main.py rs
+py_rs_err=$?
+python ../impl/python_impl/main.py cpp
+py_cpp_err=$?
+
+
+echo -e "\nrs_rs_err: $rs_rs_err, rs_cpp_err: $rs_cpp_err, cpp_cpp_err: $cpp_cpp_err, cpp_rs_err: $cpp_rs_err, cpp_py_err: $cpp_py_err, rs_py_err: $rs_py_err, py_py_err: $py_py_err, py_rs_err: $py_rs_err, py_cpp_err: $py_cpp_err"
 
 
 

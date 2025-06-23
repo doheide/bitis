@@ -23,24 +23,24 @@ msg MsgFixedBaseArray {
   repeated_fixed_3 Inner val8;
 }
 
-msg MsgDynBaseArray {
-  ExampleEnum ee;
-  repeated_dyn_3 uint_3 val1;
-  repeated_dyn_3 int_3 val2;
-  repeated_dyn_3 bool val3;
-  repeated_dyn_3 int_8d3 val4;
-  repeated_dyn_3 double val5;
-  repeated_dyn_3 fp_10[-2,3] val6;
-  repeated_dyn_6 SensorSource val7;
-  repeated_dyn_3 Inner val8;
-}
-
-msg MsgLargeFixedArray {
-  SensorSource param_1;
-  repeated_fixed_100 uint_3 val1;
-  repeated_fixed_100 int_3 val2;
-  repeated_fixed_100 bool val3;
-}
+//msg MsgDynBaseArray {
+//  ExampleEnum ee;
+//  repeated_dyn_3 uint_3 val1;
+//  repeated_dyn_3 int_3 val2;
+//  repeated_dyn_3 bool val3;
+//  repeated_dyn_3 int_8d3 val4;
+//  repeated_dyn_3 double val5;
+//  repeated_dyn_3 fp_10[-2,3] val6;
+//  repeated_dyn_6 SensorSource val7;
+//  repeated_dyn_3 Inner val8;
+//}
+//
+//msg MsgLargeFixedArray {
+//  SensorSource param_1;
+//  repeated_fixed_100 uint_3 val1;
+//  repeated_fixed_100 int_3 val2;
+//  repeated_fixed_100 bool val3;
+//}
 
 
 

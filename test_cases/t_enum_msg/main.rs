@@ -16,7 +16,7 @@ fn main() -> ExitCode {
     println!("args: {:?}", args);
 
     // ***
-    let msg = MsgEnumOne{ val: Default::default(), param_1: SensorSource::TemperaturSensor };
+    let msg = MsgEnumOne::default();
     let fn_name = "val_enum_one_default.rs.dat";
     error_counter += helper::write_or_test(fn_name, &msg, &args);
 
@@ -26,7 +26,7 @@ fn main() -> ExitCode {
     error_counter += helper::write_or_test(fn_name, &msg, &args);
 
     // ***
-    let msg = MsgEnumTwo{ val: Default::default(), param_1: Default::default() };
+    let msg = MsgEnumTwo::default();
     let fn_name = "val_enum_two_default.rs.dat";
     error_counter += helper::write_or_test(fn_name, &msg, &args);
 
@@ -36,7 +36,7 @@ fn main() -> ExitCode {
     error_counter += helper::write_or_test(fn_name, &msg, &args);
 
     // ***
-    let msg = MsgEnumOpt{ val: Default::default(), param_1: Default::default(), param_2: Default::default(), };
+    let msg = MsgEnumOpt::default();
     let fn_name = "val_enum_opt_default.rs.dat";
     error_counter += helper::write_or_test(fn_name, &msg, &args);
 

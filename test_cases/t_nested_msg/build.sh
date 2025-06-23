@@ -1,10 +1,17 @@
 #!/bin/bash
 set -e
 
-# compile messages to code
-../../target/debug/bitis -d -i nested_msg.bitis compile -o ../impl/rust_impl/src/messages.rs -l rust
+test_dir=$(pwd)
 
-../../target/debug/bitis -d -i nested_msg.bitis compile -o ../impl/cpp_impl/src/messages.h -l cpp
+# compile messages to code
+../../target/debug/bitis -d compile -i nested_msg.bitis -o ../impl/rust_impl/src/messages.rs -l rust
+
+../../target/debug/bitis -d compile -i nested_msg.bitis -o ../impl/cpp_impl/src/messages.h -l cpp
+
+cd ../impl/python_impl/
+. ./.venv/bin/activate
+../../../target/debug/bitis compile -i $test_dir/nested_msg.bitis --prevent-update-bitis-lib-in-crate -l python -o py_msg/
+cd -
 
 
 # ****
@@ -35,6 +42,22 @@ cpath=$(pwd)
 cd ../impl/cpp_impl/src
 ln -s "$cpath/main.cpp" main.cpp
 cd -
+
+# ****
+echo -e "\n******\npython"
+src_path=../impl/python_impl/
+main_file=main.py
+if [[ -e $src_path/$main_file ]]; then
+    echo "$main_file already exists"
+    test -L $src_path/$main_file || (>&2 echo "$src_path/$main_file has to be a symbolic link "; exit 1 )
+    rm -v $src_path/$main_file
+fi
+cpath=$(pwd)
+cd ../impl/python_impl/
+ln -s "$cpath/main.py" main.py
+cd -
+
+
 
 # ****
 # build
