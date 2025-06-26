@@ -25,7 +25,7 @@ fn main() -> ExitCode {
     // ***
     let msg = MsgFixedBaseArray{
         param_1: SensorSource::TemperaturSensor.into(),
-        val1: [1.into(), 2.into(), 3.into()].into(),
+        val1: [1_u16.into(), 2.into(), 3.into()].into(),
         val2: [(-2).into(), 2.into(), 0.into()].into(),
         val3: [true.into(), false.into(), true.into()].into(),
         val4: [(-1).into(), 123.into(), 10.into()].into(),
@@ -71,9 +71,9 @@ fn main() -> ExitCode {
 
     // ***
     let mut msg = MsgLargeFixedArray::default();
-    msg.val1.val.iter_mut().enumerate().for_each(|(i, v)| { *v = ((i+1) as u8 & 7).into() });
+    msg.val1.val.iter_mut().enumerate().for_each(|(i, v)| { *v = ((i+1) as u16 & 7).into() });
     msg.val2.val.iter_mut().enumerate().for_each(|(i, v)| {
-         let ii = (i as i8) & 7; *v = ((1-(ii&1)*2)*(ii>>1)).into() });
+         let ii = (i as i16) & 7; *v = ((1-(ii&1)*2)*(ii>>1)).into() });
     msg.val3.val.iter_mut().enumerate().for_each(|(i, v)| { *v = (((i as u8) & 2) == 2).into() });
     let fn_name = "val_large_array_val1.rs.dat";
     error_counter += helper::write_or_test(fn_name, &msg, &args);

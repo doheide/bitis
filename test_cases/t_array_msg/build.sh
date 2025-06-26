@@ -59,8 +59,6 @@ ln -s "$cpath/main.py" main.py
 cd -
 
 
-exit
-
 # ****
 # build
 cpath=$(pwd)
@@ -87,7 +85,7 @@ set +e
 
 ../impl/rust_impl/target/debug/rust_impl
 ../impl/cpp_impl/build/test_cpp
-python ../impl/python_impl/main.py s
+python ../impl/python_impl/main.py
 
 
 # ****

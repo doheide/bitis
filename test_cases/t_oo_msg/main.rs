@@ -3,7 +3,6 @@ mod helper;
 
 use std::env;
 use std::process::ExitCode;
-use bitis_lib::{DynArray, IntegerBaseFunctions, VarWithGivenBitSize};
 use messages::*;
 
 fn main() -> ExitCode {
@@ -58,70 +57,81 @@ fn main() -> ExitCode {
     let fn_name = "val_oonested_val1.rs.dat";
     error_counter += helper::write_or_test(fn_name, &msg, &args);
 
-    // *****************************************************
     // ***
-    let msg = MsgOONestedArray::default();
-    let fn_name = "val_oonestedarray_default.rs.dat";
-    error_counter += helper::write_or_test(fn_name, &msg, &args);
-
-    // ***
-    let mut msg = MsgOONestedArray::default();
-    msg.values.val.push(MsgOONestedBase{
-        id: 2.into(),
-        value: OO_MsgOoNestedBase_Value::Inner(MsgSimpleBaseOneInt{param_1: 1111.into()}),
-    });
-    msg.values.val.push(MsgOONestedBase::default());
-    msg.values.val.push(MsgOONestedBase::default());
-
-    let fn_name = "val_oonestedarray_val1.rs.dat";
-    error_counter += helper::write_or_test(fn_name, &msg, &args);
-
-    // *****************************************************
-    // ***
-    let msg = MsgRepeatedFixedOOBase::default();
-    let fn_name = "val_repeatedoo_default.rs.dat";
-    error_counter += helper::write_or_test(fn_name, &msg, &args);
-
-    // ***
-    let msg = MsgRepeatedFixedOOBase{
-        id: 1.into(),
-        value: [OO_MsgRepeatedFixedOoBase_Value::default(),
-            OO_MsgRepeatedFixedOoBase_Value::default(),
-            OO_MsgRepeatedFixedOoBase_Value::TrueFalse(true.into())
-        ].into(),
+    let msg = MsgOONestedBase{
+        id: 3.into(),
+        value: OO_MsgOoNestedBase_Value::Number(123.456.into()),
     };
-
-    let fn_name = "val_repeatedoo_val1.rs.dat";
+    let fn_name = "val_oonested_val2.rs.dat";
     error_counter += helper::write_or_test(fn_name, &msg, &args);
 
-    // *****************************************************
-    // ***
-    let msg = MsgRepeatedDynOOBase::default();
-    let fn_name = "val_repeateddynoo_default.rs.dat";
-    error_counter += helper::write_or_test(fn_name, &msg, &args);
-
-    // ***
-    let msg = MsgRepeatedDynOOBase{
-        id: 65.into(),
-        value: [OO_MsgRepeatedDynOoBase_Value::TrueFalse(true),
-            OO_MsgRepeatedDynOoBase_Value::Int(34.into()), ].into(),
-    };
-    let fn_name = "val_repeateddynoo_val1.rs.dat";
-    error_counter += helper::write_or_test(fn_name, &msg, &args);
-
-    // *****************************************************
-    // ***
-    let msg = MsgOptionalOOBase::default();
-    let fn_name = "val_optionaloo_default.rs.dat";
-    error_counter += helper::write_or_test(fn_name, &msg, &args);
-
-    // ***
-    let msg = MsgOptionalOOBase{
-        id: 83.into(),
-        value: Some(OO_MsgOptionalOoBase_Value::TrueFalse(true)).into(),
-    };
-    let fn_name = "val_optionaloo_val1.rs.dat";
-    error_counter += helper::write_or_test(fn_name, &msg, &args);
+    // // *****************************************************
+    // The following messages are not allowed as these can (currently) not be implemented
+    // in python --> Combining oneofs with modifiers is not allowed to ensure python compability
+    //  
+    // // ***
+    // let msg = MsgOONestedArray::default();
+    // let fn_name = "val_oonestedarray_default.rs.dat";
+    // error_counter += helper::write_or_test(fn_name, &msg, &args);
+    //
+    // // ***
+    // let mut msg = MsgOONestedArray::default();
+    // msg.values.val.push(MsgOONestedBase{
+    //     id: 2.into(),
+    //     value: OO_MsgOoNestedBase_Value::Inner(MsgSimpleBaseOneInt{param_1: 1111.into()}),
+    // });
+    // msg.values.val.push(MsgOONestedBase::default());
+    // msg.values.val.push(MsgOONestedBase::default());
+    //
+    // let fn_name = "val_oonestedarray_val1.rs.dat";
+    // error_counter += helper::write_or_test(fn_name, &msg, &args);
+    //
+    // // *****************************************************
+    // // ***
+    // let msg = MsgRepeatedFixedOOBase::default();
+    // let fn_name = "val_repeatedoo_default.rs.dat";
+    // error_counter += helper::write_or_test(fn_name, &msg, &args);
+    //
+    // // ***
+    // let msg = MsgRepeatedFixedOOBase{
+    //     id: 1.into(),
+    //     value: [OO_MsgRepeatedFixedOoBase_Value::default(),
+    //         OO_MsgRepeatedFixedOoBase_Value::default(),
+    //         OO_MsgRepeatedFixedOoBase_Value::TrueFalse(true.into())
+    //     ].into(),
+    // };
+    //
+    // let fn_name = "val_repeatedoo_val1.rs.dat";
+    // error_counter += helper::write_or_test(fn_name, &msg, &args);
+    //
+    // // *****************************************************
+    // // ***
+    // let msg = MsgRepeatedDynOOBase::default();
+    // let fn_name = "val_repeateddynoo_default.rs.dat";
+    // error_counter += helper::write_or_test(fn_name, &msg, &args);
+    //
+    // // ***
+    // let msg = MsgRepeatedDynOOBase{
+    //     id: 65.into(),
+    //     value: [OO_MsgRepeatedDynOoBase_Value::TrueFalse(true),
+    //         OO_MsgRepeatedDynOoBase_Value::Int(34.into()), ].into(),
+    // };
+    // let fn_name = "val_repeateddynoo_val1.rs.dat";
+    // error_counter += helper::write_or_test(fn_name, &msg, &args);
+    //
+    // // *****************************************************
+    // // ***
+    // let msg = MsgOptionalOOBase::default();
+    // let fn_name = "val_optionaloo_default.rs.dat";
+    // error_counter += helper::write_or_test(fn_name, &msg, &args);
+    //
+    // // ***
+    // let msg = MsgOptionalOOBase{
+    //     id: 83.into(),
+    //     value: Some(OO_MsgOptionalOoBase_Value::TrueFalse(true)).into(),
+    // };
+    // let fn_name = "val_optionaloo_val1.rs.dat";
+    // error_counter += helper::write_or_test(fn_name, &msg, &args);
 
     
     println!("\n* Total errors: {}", error_counter);

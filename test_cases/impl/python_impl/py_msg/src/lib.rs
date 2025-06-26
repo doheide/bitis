@@ -11,11 +11,12 @@ use pyrust::*;
 fn py_msg(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
 
-    m.add_class::<SensorSource>()?;
-    m.add_class::<ExampleEnum>()?;
 
-    m.add_class::<Inner>()?;
-    m.add_class::<MsgFixedBaseArray>()?;
+    m.add_class::<MsgSimpleBaseOneInt>()?;
+    m.add_class::<MsgSimpleBaseThreeInt>()?;
+    m.add_class::<MsgSimpleTestBase>()?;
+    m.add_class::<MsgSimpleTestFP>()?;
+    m.add_class::<MsgSimpleOpt>()?;
 
 
     Ok(())
