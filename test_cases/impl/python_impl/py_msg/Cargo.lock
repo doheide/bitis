@@ -138,7 +138,7 @@ checksum = "3a8241f3ebb85c056b509d4327ad0358fbbba6ffb340bf388f26350aeda225b1"
 
 [[package]]
 name = "bitis"
-version = "0.8.1"
+version = "0.8.2"
 dependencies = [
  "array-init",
  "ascii",
@@ -154,7 +154,7 @@ dependencies = [
 
 [[package]]
 name = "bitis-macros"
-version = "0.8.1"
+version = "0.8.2"
 dependencies = [
  "darling",
  "proc-macro2",
