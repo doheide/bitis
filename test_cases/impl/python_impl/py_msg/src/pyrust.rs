@@ -98,12 +98,14 @@ pub struct MsgSimpleBaseThreeInt {
   pub param_2: u16,
   #[pyo3(get, set)]
   pub param_3: u16,
+  #[pyo3(get, set)]
+  pub param_4: u16,
 }
 #[pymethods]
 impl MsgSimpleBaseThreeInt {
   #[new]
-  pub fn __new__( param_1: u16, param_2: u16, param_3: u16,) -> Self {
-    Self{ param_1: param_1.into(), param_2: param_2.into(), param_3: param_3.into(), }
+  pub fn __new__( param_1: u16, param_2: u16, param_3: u16, param_4: u16,) -> Self {
+    Self{ param_1: param_1.into(), param_2: param_2.into(), param_3: param_3.into(), param_4: param_4.into(), }
   }
   #[staticmethod]
   pub fn default() -> PyResult<Self> { Self::from_rust_obj(&Default::default()) }
@@ -129,11 +131,11 @@ impl MsgSimpleBaseThreeInt {
 impl MsgSimpleBaseThreeInt {
   pub fn to_rust(&self) -> messages::MsgSimpleBaseThreeInt {
     Python::with_gil(|_py| {
-      messages::MsgSimpleBaseThreeInt{ param_1: do_val_from(&self.param_1), param_2: do_val_from(&self.param_2), param_3: do_val_from(&self.param_3),}
+      messages::MsgSimpleBaseThreeInt{ param_1: do_val_from(&self.param_1), param_2: do_val_from(&self.param_2), param_3: do_val_from(&self.param_3), param_4: do_val_from(&self.param_4),}
     })
   }
   pub fn from_rust_obj(d: &messages::MsgSimpleBaseThreeInt) -> PyResult<Self> {
-    let r = Python::with_gil(|_py| { Self{ param_1: d.param_1.val_into(), param_2: d.param_2.val_into(), param_3: d.param_3.val_into(),} });
+    let r = Python::with_gil(|_py| { Self{ param_1: d.param_1.val_into(), param_2: d.param_2.val_into(), param_3: d.param_3.val_into(), param_4: d.param_4.val_into(),} });
     Ok(r)
   }
 }

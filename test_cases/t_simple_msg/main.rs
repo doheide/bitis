@@ -27,6 +27,7 @@ fn main() -> ExitCode {
         param_1: 1122.into(),
         param_2: 3.into(),
         param_3: 3.into(),
+        param_4: 33.into(),
     };
     let fn_name = "val_simple_three_int.rs.dat";
     error_counter += helper::write_or_test(fn_name, &msg, &args);

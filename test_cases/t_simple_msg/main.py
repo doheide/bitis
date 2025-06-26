@@ -20,7 +20,7 @@ def main():
     msg.param_1 = 1122
     error_counter += write_or_test("val_simple_one_int.py.dat", msg, data_id_replacement)
 
-    msg = py_msg.MsgSimpleBaseThreeInt(1122, 3, 223)
+    msg = py_msg.MsgSimpleBaseThreeInt(1122, 3, 223, 33)
     msg.param_3 = 3
     error_counter += write_or_test("val_simple_three_int.py.dat", msg, data_id_replacement)
 

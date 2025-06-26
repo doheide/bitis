@@ -30,6 +30,7 @@ int main(int argc, char *argv[]){
             .param_1 = MsgSimpleBaseThreeInt::Param1_T(1122),
             .param_2 = MsgSimpleBaseThreeInt::Param2_T(3),
             .param_3 = MsgSimpleBaseThreeInt::Param3_T(3),
+            .param_4 = MsgSimpleBaseThreeInt::Param4_T(33),
         };
         msg.print(0); printf("\n");
 

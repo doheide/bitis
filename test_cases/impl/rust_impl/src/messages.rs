@@ -18,6 +18,7 @@ pub struct MsgSimpleBaseThreeInt {
   pub param_1: IntWithGivenBitSize<u16, 11>,
   pub param_2: IntWithGivenBitSize<u16, 6>,
   pub param_3: IntWithGivenBitSize<u16, 11>,
+  pub param_4: DynInteger<u16, 6, 4>,
 }
 #[derive(BiserdiMsg, Debug, Clone, PartialEq, Default)]
 #[allow(nonstandard_style)]
