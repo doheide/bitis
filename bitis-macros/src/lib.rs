@@ -151,6 +151,12 @@ pub fn biserdi_enum(item: TokenStream) -> TokenStream {
                         }, oo_val.1))
                     }
                 }
+                #[automatically_derived]
+                impl std::fmt::Display for #struct_or_enum_identifier {
+                    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        write!(f, "{:?}", self)
+                    }
+                }
             };
             // println!("{}", code);
             code
@@ -226,6 +232,12 @@ pub fn biserdi_one_of(item: TokenStream) -> TokenStream {
                             #bit_deserialize_impl
                             _ => { return None }
                         })
+                    }
+                }
+                #[automatically_derived]
+                impl std::fmt::Display for #struct_or_enum_identifier {
+                    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        write!(f, "{:?}", self)
                     }
                 }
             };

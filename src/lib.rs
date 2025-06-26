@@ -377,12 +377,16 @@ mod msg_deserialization {
         Two,
         Three
     }
+    // impl std::fmt::Display for EnumLele {
+    //     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { write!(f, "{:?}", self) }
+    // }
     #[derive(BiserdiMsg, Debug, Clone, PartialEq)]
     struct MsgLalaEnum {
         e1: EnumLele,
         b1: bool,
         b2: bool,
     }
+
     #[rstest]
     fn enum_msg_serde() {
         let mut ser = Biseri::new();
