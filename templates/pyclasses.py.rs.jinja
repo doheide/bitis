@@ -86,21 +86,17 @@ impl {{ coo.name }} {
 impl {{ coo.name }} {
   pub fn to_rust(&self) -> messages::{{ coo.name }} {
     Python::with_gil(|_py| {
-      match self { {%- for ca in coo.attributes -%}{%- if ca.is_msg || ca.is_oo +%}
-        Self::{{ca.base.name|pascal_case}}(v) => messages::{{ coo.name }}::{{ca.base.name|pascal_case}}(v.borrow(_py).to_rust()),
-{%- else +%}
-        Self::Val(v) => messages::{{ coo.name }}::Val((*v).into()){%- endif -%}
+      match self { {%- for ca in coo.attributes -%}
+        Self::{{ca.base.name|pascal_case}}(v) => messages::{{ coo.name }}::{{ca.base.name|pascal_case}}(do_val_from(v)),
 {%+ endfor %}
       }
     })
   }
   pub fn from_rust_obj(d: &messages::{{ coo.name }}) -> PyResult<Self> {
     let r = Python::with_gil(|_py| {
-      match d { {%- for ca in coo.attributes -%}{%- if ca.is_msg || ca.is_oo +%}
-        messages::{{ coo.name }}::{{ca.base.name|pascal_case}}(v) => Self::{{ca.base.name|pascal_case}}(Py::new(_py, {{ca.base.name|pascal_case}}::from_rust_obj(v).unwrap()).unwrap()),
-{%- else +%}
-        messages::{{ coo.name }}::{{ca.base.name|pascal_case}}(v) => Self::{{ca.base.name|pascal_case}}(v.val.into()){%- endif -%}
-{%+ endfor %}
+      match d { {%- for ca in coo.attributes -%}
+        messages::{{ coo.name }}::{{ca.base.name|pascal_case}}(v) => Self::{{ca.base.name|pascal_case}}(v.val_into()),
+{% endfor %}
       }
     });
     Ok(r)
@@ -117,6 +113,14 @@ impl std::fmt::Display for {{ coo.name }} {
       {{ coo.name }}::{{ca.base.name|pascal_case}}(v) => { write!(f, "{{ coo.name }}({{ca.base.name|pascal_case}}({}))", v) },
 {%- endif -%}{%- endfor %}
     }
+  }
+}
+impl ValFromInto<Py<{{coo.name}}>> for messages::{{coo.name}} {
+  fn val_into(self: &Self) -> Py<{{coo.name}}> {
+    Python::with_gil(|_py| { Py::new(_py, {{coo.name}}::from_rust_obj(self).unwrap()).unwrap() })
+  }
+  fn val_from(val: &Py<{{coo.name}}>) -> Self {
+    Python::with_gil(|_py| { val.borrow(_py).to_rust() })
   }
 }
 {%- endfor +%}
@@ -209,8 +213,6 @@ impl std::fmt::Display for {{cm.name}} {
   fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
     Python::with_gil(|_py| {
       let t = self.to_rust();
-//      write!(f, "{{cm.name}}({%- for ca in cm.attributes -%}{{ca.base.name}}: ({}), {%+ endfor -%})",
-//        {%- for ca in cm.attributes +%} t.{{ca.base.name}}, {%- endfor -%})
       write!(f, "{}", t)
     })
   }

@@ -540,7 +540,7 @@ impl<const NUM_BITS: u8, const MIN_IVALUE: i64, const MAX_IVALUE: i64> Into<f64>
 impl<const NUM_BITS: u8, const MIN_IVALUE: i64, const MAX_IVALUE: i64> ValFromInto<f64> for FixPrecisionMinMax<NUM_BITS, MIN_IVALUE, MAX_IVALUE> {
     fn val_into(&self) -> f64 {
         match self.val {
-            FixPrecisionVal::Overflow => { Self::MIN_VALUE - 1.0 },
+            FixPrecisionVal::Overflow => { Self::MAX_VALUE + 1.0 },
             FixPrecisionVal::Value(v) => { v },
             FixPrecisionVal::Underflow =>  { Self::MIN_VALUE - 1.0 },
         }
@@ -727,7 +727,7 @@ impl<T, U> ValFromInto<Option<U>> for BitisOption<T> where T: BiserdiTrait + Def
 
 // ****************************************************************************
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FixedArray<T: Sized + Clone + BiserdiTrait + Default + Debug, const N: usize> { pub val: [T; N] }
+pub struct FixedArray<T: Sized + BiserdiTrait + Default + Debug, const N: usize> { pub val: [T; N] }
 impl<T, const N: usize> BiserdiTrait for FixedArray<T, N>
         where T: Sized + Clone + BiserdiTrait + Default + std::fmt::Debug {
     fn bit_serialize(self: &Self, biseri: &mut Biseri) -> Option<u64> {
@@ -744,20 +744,21 @@ impl<T, const N: usize> BiserdiTrait for FixedArray<T, N>
         Some((Self{ val: v}, bits))
     }
 }
-impl<T: Sized + Clone + BiserdiTrait + Default + Debug, const N: usize, U: Into<T> + Clone> From<[U; N]> for FixedArray<T, N> {
-    fn from(v: [U;N]) -> Self { Self{ val: map_array_init(&v, |v| v.clone().into()) } } }
 impl<T: Sized + Clone + BiserdiTrait + Default + Debug, const N: usize> Display for FixedArray<T, N> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         let das: Vec<String> = self.val.iter().map(|v| format!("{:?}", v)).collect();
         write!(f, "[{}]", das.join(", "))
     } }
-impl<T: Sized + Clone + BiserdiTrait + Default + Debug, const N: usize> Default for FixedArray<T, N>  {
+impl<T: Sized + BiserdiTrait + Default + Debug, const N: usize> Default for FixedArray<T, N>  {
     fn default() -> Self {
         Self{val: array_init::array_init(|_| T::default())}
     }
 }
-impl<T: Sized + Clone + BiserdiTrait + Default + Debug + ValFromInto<U>, const N: usize, U: Clone> Into<[U; N]> for FixedArray<T, N> {
-    fn into(self) -> [U; N] { map_array_init(&self.val, |v| v.clone().val_into()) }
+impl<T: Sized + BiserdiTrait + Default + Debug + Clone, const N: usize> Into<[T; N]> for FixedArray<T, N> {
+    fn into(self) -> [T; N] { map_array_init(&self.val, |v| v.clone()) }
+}
+impl<T: Sized + Clone + BiserdiTrait + Default + Debug, const N: usize> From<[T; N]> for FixedArray<T, N> {
+    fn from(v: [T;N]) -> Self { Self{ val: map_array_init(&v, |v| v.clone()) } }
 }
 impl<T: Sized + Clone + BiserdiTrait + Default + Debug + ValFromInto<U>, const N: usize, U> ValFromInto<[U; N]> for FixedArray<T, N> {
     fn val_into(&self) -> [U; N] { map_array_init(&self.val, |v| v.clone().val_into()) }
@@ -766,7 +767,7 @@ impl<T: Sized + Clone + BiserdiTrait + Default + Debug + ValFromInto<U>, const N
 
 // ****************************************************************************
 #[derive(Debug, Clone, PartialEq)]
-pub struct DynArray<T, const DYNSIZEBITS: u8> where T: BiserdiTrait + Default + Clone { pub val: Vec<T> }
+pub struct DynArray<T, const DYNSIZEBITS: u8> where T: BiserdiTrait + Default { pub val: Vec<T> }
 impl<T, const DYNSIZEBITS: u8> BiserdiTrait for DynArray<T, DYNSIZEBITS> where T: BiserdiTrait + Default + Clone {
     fn bit_serialize(self: &Self, biseri: &mut Biseri) -> Option<u64> {
         let mut s = 0;
@@ -787,30 +788,30 @@ impl<T, const DYNSIZEBITS: u8> BiserdiTrait for DynArray<T, DYNSIZEBITS> where T
         Some((Self{ val: data }, s+cs))
     }
 }
-impl<T: Sized + BiserdiTrait + Default + Clone, const DYNSIZEBITS: u8, const N: usize> From<[T; N]> for DynArray<T, DYNSIZEBITS> {
+impl<T: Sized + BiserdiTrait + Default + Debug + Clone, const DYNSIZEBITS: u8, const N: usize> From<[T; N]> for DynArray<T, DYNSIZEBITS> {
     fn from(val: [T;N]) -> Self {
         DynArray{val: val.to_vec()}
     } }
-impl<T: Sized + BiserdiTrait + Default + Clone, const DYNSIZEBITS: u8> From<Vec<T>> for DynArray<T, DYNSIZEBITS> {
+impl<T: Sized + BiserdiTrait + Default + Debug + Clone, const DYNSIZEBITS: u8> From<Vec<T>> for DynArray<T, DYNSIZEBITS> {
     fn from(val: Vec<T>) -> Self {
         DynArray{val: val}
     } }
-impl<T: Sized + BiserdiTrait + Display + Default + Clone, const DYNSIZEBITS: u8> std::fmt::Display for DynArray<T, DYNSIZEBITS> {
+impl<T: Sized + BiserdiTrait + Display + Debug + Default + Clone, const DYNSIZEBITS: u8> std::fmt::Display for DynArray<T, DYNSIZEBITS> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         let das: Vec<String> = self.val.iter().map(|v| v.to_string()).collect();
         write!(f, "[{} |dynbits:{}]", das.join(", "), DYNSIZEBITS)
     } }
-impl<T: Sized + BiserdiTrait + Default + Clone, const DYNSIZEBITS: u8> Default for DynArray<T, DYNSIZEBITS> {
+impl<T: Sized + BiserdiTrait + Default + Debug + Clone, const DYNSIZEBITS: u8> Default for DynArray<T, DYNSIZEBITS> {
     fn default() -> Self {
         Self{val: Vec::new()}
     }
 }
-impl<T: Sized + BiserdiTrait + Default + Clone, const DYNSIZEBITS: u8> Into<Vec<T>> for DynArray<T, DYNSIZEBITS> {
+impl<T: Sized + BiserdiTrait + Default + Debug, const DYNSIZEBITS: u8> Into<Vec<T>> for DynArray<T, DYNSIZEBITS> {
     fn into(self) -> Vec<T> { self.val }
 }
-impl<T: Sized + BiserdiTrait + Default + Clone, const DYNSIZEBITS: u8> ValFromInto<Vec<T>> for DynArray<T, DYNSIZEBITS> {
-    fn val_into(&self) -> Vec<T> { self.val.iter().map(|v| v.clone().into()).collect() }
-    fn val_from(val: &Vec<T>) -> Self { Self{val: val.clone()} }
+impl<T: Sized + BiserdiTrait + Default + Debug +  ValFromInto<U>, const DYNSIZEBITS: u8, U> ValFromInto<Vec<U>> for DynArray<T, DYNSIZEBITS> {
+    fn val_into(&self) -> Vec<U> { self.val.iter().map(|v| v.val_into()).collect() }
+    fn val_from(val: &Vec<U>) -> Self { Self { val: val.iter().map(|v| { T::val_from(v).into() }).collect() } }
 }
 
 
