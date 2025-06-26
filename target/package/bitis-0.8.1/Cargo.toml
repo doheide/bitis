@@ -11,7 +11,7 @@
 
 [package]
 edition = "2024"
-name = "bitis-macros"
+name = "bitis"
 version = "0.8.2"
 build = false
 autolib = false
@@ -19,34 +19,62 @@ autobins = false
 autoexamples = false
 autotests = false
 autobenches = false
-description = "Bitwise serialization of messages defined in a data description language"
+description = "Bitwise serialization of messages defined in a data description language with interfaces for rust, python and c++."
 homepage = "https://github.com/doheide/bitis"
 readme = "README.md"
 keywords = [
     "interface",
     "serialization",
     "bitwise",
-    "data description language",
+    "DSL",
 ]
 license = "MIT"
 repository = "https://github.com/doheide/bitis"
 
 [lib]
-name = "bitis_macros"
+name = "bitis_lib"
 path = "src/lib.rs"
-proc-macro = true
 
-[dependencies.darling]
-version = "0.20.10"
+[[bin]]
+name = "bitis"
+path = "src/main.rs"
 
-[dependencies.proc-macro2]
-version = "1.0.93"
+[dependencies.array-init]
+version = "2.1"
 
-[dependencies.quote]
-version = "1.0.38"
+[dependencies.ascii]
+version = "1.1.0"
+
+[dependencies.askama]
+version = "0.14"
+
+[dependencies.bitis-macros]
+version = "0.8.1"
+
+[dependencies.clap]
+version = "4.5.30"
+features = [
+    "derive",
+    "string",
+    "cargo",
+    "color",
+    "help",
+]
+
+[dependencies.console]
+version = "0.15.11"
+
+[dependencies.logos]
+version = "0.15.0"
 
 [dependencies.regex]
 version = "1.11.1"
 
-[dependencies.syn]
-version = "2.0.98"
+[dependencies.stringcase]
+version = "0.4.0"
+
+[dependencies.toml_edit]
+version = "0.22.24"
+
+[dev-dependencies.rstest]
+version = "0.25.0"
