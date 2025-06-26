@@ -656,14 +656,16 @@ pub fn parse_attribute(last_token: Token, lexer: &mut Lexer<'_, Token>,
             Token::UIntFixed(s) => { attr_type = SimpleType::UIntFixed(s); break; },
             Token::UIntDyn((m,s)) if m < s =>
                 return Err(("Error: Unsigned dyn integer bit size of integer type must be bigger than the bit size of the package".to_owned(), lexer.span())),
-            Token::UIntDyn((m,_)) if (m & 3) != 0 =>
-                return Err(("Error: Unsigned dyn integer bit size of integer type must be a multiple of 8".to_owned(), lexer.span())),
+            // The next condition is allowed.
+            // Token::UIntDyn((m,_)) if (m & 3) != 0 =>
+            //     return Err(("Error: Unsigned dyn integer bit size of integer type must be a multiple of 8".to_owned(), lexer.span())),
             Token::UIntDyn((m,s)) => { attr_type = SimpleType::UIntDyn((m, s)); break; },
             Token::IntFixed(s) => { attr_type = SimpleType::IntFixed(s); break; },
             Token::IntDyn((m,s)) if m < s =>
                 return Err(("Error: Unsigned dyn integer bit size of integer type must be bigger than the bit size of the package".to_owned(), lexer.span())),
-            Token::IntDyn((m,_)) if (m & 3) != 0 =>
-                return Err(("Error: Unsigned dyn integer bit size of integer type must be a multiple of 8".to_owned(), lexer.span())),
+            // The next condition is allowed.
+            // Token::IntDyn((m,_)) if (m & 3) != 0 =>
+            //     return Err(("Error: Unsigned dyn integer bit size of integer type must be a multiple of 8".to_owned(), lexer.span())),
             Token::IntDyn((m,s)) => {
                 attr_type = SimpleType::IntDyn((m,s)); break;
             },
@@ -673,6 +675,8 @@ pub fn parse_attribute(last_token: Token, lexer: &mut Lexer<'_, Token>,
             Token::FixedPoint(s) => { attr_type = SimpleType::FixedPrecision(s); break; },
             Token::Binary(b) => { attr_type = SimpleType::Binary(b); break; },
             Token::StringVal(s) => { enum_or_msg_str = Some(s); break; }
+            Token::OneOf if is_optional || is_repeated_and_size.is_some() =>
+                return Err(("Error: Oneof is not allowed to be used with modifiers".to_owned(), lexer.span())),
             Token::OneOf => {
                 oneof_infos = match parse_oneof(lexer, parent_name.clone(), specific_comment.clone(),
                                                 is_repeated_and_size.clone(), is_optional.clone()) {
