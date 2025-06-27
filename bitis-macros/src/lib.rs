@@ -7,6 +7,7 @@ use proc_macro2::{Span, Ident};
 use proc_macro2::TokenTree::Literal;
 use regex::Regex;
 
+
 //#[proc_macro_derive(BiserdiMsg, attributes(biserdi_enum))]
 #[proc_macro_derive(BiserdiMsg)]
 pub fn biserdi_msg(item: TokenStream) -> TokenStream {
@@ -20,8 +21,10 @@ pub fn biserdi_msg(item: TokenStream) -> TokenStream {
             let mut bit_deserialize_impl_init = quote!{};
             let mut bit_deserialize_impl_size = quote!{0};
             let mut msg_display_impl = quote!{};
+            let mut bit_min_size_impl = quote!{};
 
             let size_identifier = Ident::new("s".into(), Span::call_site());
+            let bit_min_size_identifier = Ident::new("bs".into(), Span::call_site());
             // let size_identifier = quote::format_ident!("s");
             let bit_serialize_self_identifier = quote::format_ident!("self");
 
@@ -45,6 +48,7 @@ pub fn biserdi_msg(item: TokenStream) -> TokenStream {
                 msg_display_impl.extend(quote!{
                     write!(f, "{}: {}, ", stringify!(#identifier), #bit_serialize_self_identifier.#identifier)?;
                 });
+                bit_min_size_impl.extend(quote! { #bit_min_size_identifier += call_min_bits::<#ty>(); });
             }
 
             let code = quote! {
@@ -61,6 +65,11 @@ pub fn biserdi_msg(item: TokenStream) -> TokenStream {
                         #bit_deserialize_impl
                         Some((Self{#bit_deserialize_impl_init}, #bit_deserialize_impl_size))
                     }
+                    fn min_bits() -> u64 {
+                        let mut #bit_min_size_identifier = 0;
+                        #bit_min_size_impl
+                        #bit_min_size_identifier
+                    }
                 }
                 #[automatically_derived]
                 impl std::fmt::Display for #struct_or_enum_identifier {
@@ -71,7 +80,7 @@ pub fn biserdi_msg(item: TokenStream) -> TokenStream {
                     }
                 }
             };
-            // println!("{}", code);
+            // println!("BiserdiMsg:\n{}", code);
             code
         },
         _ => panic!("BiserdiMsg only allowed for Structs")
@@ -150,6 +159,7 @@ pub fn biserdi_enum(item: TokenStream) -> TokenStream {
                             _ => { return None }
                         }, oo_val.1))
                     }
+                   fn min_bits() -> u64 { 1 }
                 }
                 #[automatically_derived]
                 impl std::fmt::Display for #struct_or_enum_identifier {
@@ -158,7 +168,7 @@ pub fn biserdi_enum(item: TokenStream) -> TokenStream {
                     }
                 }
             };
-            // println!("{}", code);
+            // println!("* BiserdiEnum:\n{}", code.to_string());
             code
         },
         _ => panic!("BiserdiEnum only allowed for Enums")
@@ -190,6 +200,9 @@ pub fn biserdi_one_of(item: TokenStream) -> TokenStream {
         Data::Enum(syn::DataEnum { variants, .. }) => {
             let mut bit_serialize_impl = quote!{};
             let mut bit_deserialize_impl = quote!{};
+            let mut bit_min_size_impl = quote!{};
+
+            let bit_min_size_identifier = Ident::new("bs".into(), Span::call_site());
 
             for (id, variant) in variants.iter().enumerate() {
                 let ident = variant.ident.clone();
@@ -214,6 +227,9 @@ pub fn biserdi_one_of(item: TokenStream) -> TokenStream {
                         (#struct_or_enum_identifier::#ident(v.0), v.1 + oo_val.1)
                     },
                 });
+                bit_min_size_impl.extend(quote! {
+                    #bit_min_size_identifier = std::cmp::min(call_min_bits::<#ty>(), #bit_min_size_identifier);
+                });
             }
             let code = quote! {
                 #[automatically_derived]
@@ -233,6 +249,11 @@ pub fn biserdi_one_of(item: TokenStream) -> TokenStream {
                             _ => { return None }
                         })
                     }
+                   fn min_bits() -> u64 {
+                        let mut #bit_min_size_identifier = u64::MAX;
+                        #bit_min_size_impl
+                        return #bit_min_size_identifier;
+                    }
                 }
                 #[automatically_derived]
                 impl std::fmt::Display for #struct_or_enum_identifier {
@@ -241,7 +262,7 @@ pub fn biserdi_one_of(item: TokenStream) -> TokenStream {
                     }
                 }
             };
-            // println!("{}", code);
+            // println!("* BiserdiOneOf:\n{}", code.to_string());
             code
         },
         _ => panic!("BiserdiOneOf only allowed for Enums")
@@ -310,6 +331,7 @@ pub fn biserdi_msg_versioned(item: TokenStream) -> TokenStream {
 
                         Some((Self{base, ext}, total_size))
                     }
+                    fn min_bits() -> u64 { 0 }
                 }
             };
             // println!("{}", code);
@@ -359,6 +381,7 @@ pub fn biserdi_msg_versioned(item: TokenStream) -> TokenStream {
                             _ => { return None }
                         })
                     }
+                    fn min_bits() -> u64 { 0 }
                 }
             };
             // println!("{}", code);

@@ -1,5 +1,5 @@
 # bitis
-This library/compiler is currently in an early **alpha version**! 
+This library/compiler is currently a **beta version**! 
 
 <u>Bit</u>w<u>is</u>e data serialization is a Rust library with Python interface and a C++ implementation for bit-level serialization and deserialization, designed to be lightweight and efficient. It provides support for messages, enums, and various numeric types, including integers, floating points, dynamic-sized integers, and fixed-point numbers.
 Key Features
@@ -38,6 +38,20 @@ Key Features
   * [Example messages](#example-messages)
     * [Nested Messages](#nested-messages)
     * [Key Value Map](#key-value-map)
+* [Usage](#usage)
+  * [Rust](#rust)
+  * [C++](#c)
+  * [Python](#python)
+* [Tutorial](#tutorial)
+  * [Install](#install-)
+    * [Rust](#rust-1)
+    * [C++](#c-1)
+    * [Python](#python-1)
+  * [Using generated code](#using-generated-code)
+    * [Rust](#rust-2)
+    * [C++](#c-2)
+    * [Python](#python-2)
+      * [Important Notes](#important-notes)
 * [Bitis compiler](#bitis-compiler)
 <!-- TOC -->
 
@@ -336,6 +350,26 @@ can be setup with
 bitis setup -s maturin py_msg/
 ```
 
+# Tutorial
+## Install 
+...
+### Rust
+...
+### C++
+...
+### Python
+...
+
+## Using generated code
+...
+### Rust
+...
+### C++
+...
+### Python
+...
+#### Important Notes
+...
 
 # Bitis compiler
 
