@@ -30,9 +30,11 @@ struct Cli {
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 enum Language {
-    /// use rust code
+    /// generate rust code
     Rust,
+    /// generate python library (based on generated rust code and maturin) 
     Python,
+    /// generate c++ code
     Cpp
 }
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]

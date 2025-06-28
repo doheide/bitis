@@ -29,8 +29,8 @@ toml_edit = "0.22.24"
 # bitis-macros = "0.5.3"
 array-init = "2.1"
 ascii = "1.1.0"
-#bitis-macros = "0.9.0"
-bitis-macros = { path = "./bitis-macros" }
+bitis-macros = "0.9.1"
+#bitis-macros = { path = "./bitis-macros" }
 
 
 #[dependencies_when_dev]
