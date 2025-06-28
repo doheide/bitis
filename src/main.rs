@@ -334,12 +334,23 @@ fn main() {
                         header_file_content);
 
                         let header_file_name = format!("{}/bitis_lib.h", output_file.parent().unwrap().to_str().unwrap());
+                        // println!("testing header_file_name: {}", header_file_name);
                         let is_writeable_and_not_symlink = {
-                            let md = fs::symlink_metadata(&header_file_name);
-                            if let Ok(md) = md {
-                                !md.is_symlink()
+                            match fs::exists(&header_file_name) {
+                                Ok(true) => {
+                                    // println!("  File exists ...");
+                                    let md = fs::symlink_metadata(&header_file_name);
+                                    if let Ok(md) = md {
+                                        // println!("  is symlink: {}", md.is_symlink());
+                                        !md.is_symlink()
+                                    } else { false }
+                                },
+                                Ok(false) => {
+                                    // println!("  File does not exist.");
+                                    true
+                                },
+                                Err(_) => false
                             }
-                            else { false }
                         };
                         if is_writeable_and_not_symlink {
                             fs::write(header_file_name.clone(), header_file_content).expect("Unable to write file");
