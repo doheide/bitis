@@ -155,7 +155,9 @@ dependencies = [
 
 [[package]]
 name = "bitis-macros"
-version = "0.9.2"
+version = "0.9.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "63309c6470ad122e2d16804a5d489423c02f45961ff62e4a175938b28fe63a3d"
 dependencies = [
  "darling",
  "proc-macro2",
