@@ -12,7 +12,7 @@
 [package]
 edition = "2024"
 name = "bitis"
-version = "0.9.2"
+version = "0.9.3"
 build = false
 autolib = false
 autobins = false
