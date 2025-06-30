@@ -33,7 +33,8 @@ pub enum {{ coo.name }} {
 impl Default for {{ coo.name }} {
 {%- for ca in coo.attributes -%}
   {%- if coo.default_attrib_name == ca.base.name %}
-  fn default() -> Self { Default::default()) }
+//  fn default() -> Self { Self::{%- include "data_oo_attr.rs.jinja" -%}(call_default()) }
+  fn default() -> Self { Self::{{coo.default_attrib_name|pascal_case}}(call_default()) }
   {%- endif %}
 {%- endfor %}
 }

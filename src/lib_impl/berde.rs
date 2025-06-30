@@ -276,6 +276,7 @@ macro_rules! impl_biserdi {
 
 // ****************************************************************************
 pub fn call_min_bits<T: BiserdiTrait>() -> u64 { T::min_bits() }
+pub fn call_default<T: Default>() -> T { T::default() }
 
 // ****************************************************************************
 // bool
