@@ -806,11 +806,11 @@ impl<T: Sized + BiserdiTrait + Default + Debug + Clone, const DYNSIZEBITS: u8, c
     fn from(val: [T;N]) -> Self {
         DynArray{val: val.to_vec()}
     } }
-impl<T: Sized + BiserdiTrait + Default + Debug + Clone, const DYNSIZEBITS: u8> From<Vec<T>> for DynArray<T, DYNSIZEBITS> {
+impl<T: Sized + BiserdiTrait + Default + Debug, const DYNSIZEBITS: u8> From<Vec<T>> for DynArray<T, DYNSIZEBITS> {
     fn from(val: Vec<T>) -> Self {
         DynArray{val: val}
     } }
-impl<T: Sized + BiserdiTrait + Display + Debug + Default + Clone, const DYNSIZEBITS: u8> std::fmt::Display for DynArray<T, DYNSIZEBITS> {
+impl<T: Sized + BiserdiTrait + Display + Debug + Default, const DYNSIZEBITS: u8> std::fmt::Display for DynArray<T, DYNSIZEBITS> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         let das: Vec<String> = self.val.iter().map(|v| v.to_string()).collect();
         write!(f, "[{} |dynbits:{}]", das.join(", "), DYNSIZEBITS)

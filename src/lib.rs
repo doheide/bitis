@@ -22,10 +22,12 @@ pub fn serialize<T: BiserdiTrait>(data: &T) -> (Vec<u8>, BiserSizes){
 
     (ser.get_data().to_owned(), r)
 }
-pub fn deserialize<T: BiserdiTrait>(data: &Vec<u8>) -> Option<(T, u64)> {
+pub fn deserialize<T: BiserdiTrait>(data: &Vec<u8>) -> Option<(T, BiserSizes)> {
     let mut der = Bides::from_vec(data);
 
-    T::bit_deserialize(1, &mut der)
+    let (v, bits) = T::bit_deserialize(1, &mut der)?;
+    let bytes_num = (bits >> 3) + if bits & 7 != 0 { 1 } else { 0 };
+    Some((v, BiserSizes{total_bits: bits, total_bytes: bytes_num}))
 }
 
 
@@ -37,8 +39,11 @@ pub enum MessageManagerError {
 pub trait MessageWithHeaderTrait : Default {
     fn serialize_header(&mut self, payload_size: usize, biseri: &mut Biseri) -> Option<u64>;
     fn serialize_payload(&self, biseri: &mut Biseri) -> Option<u64>;
+    #[allow(unused_variables)]
+    fn post_serialization_callback(&mut self, header_size: usize, serialize_data: Vec<u8>) -> Vec<u8> { serialize_data }
     fn deserialize_header(&mut self, data: &mut Bides) -> Result<Option<(usize, usize)>, MessageManagerError>;
     fn deserialize_payload(&mut self, data: &mut Bides) -> Option<usize>;
+    fn pre_deserialization_callback(&mut self) {}
 }
 #[derive(Debug, Clone)]
 pub struct MessageManager<MWH> {
@@ -51,12 +56,12 @@ pub struct MessageManager<MWH> {
 }
 #[allow(unused)]
 impl<MWH: MessageWithHeaderTrait + Default> MessageManager<MWH> {
-    fn create() -> Self {
+    pub fn create() -> Self {
         Self{bides: Bides::new(), data_unused: Vec::new(), header_successfully_read: false,
             payload_size: 0, msg_with_header: Default::default(), }
     }
 
-    fn bit_serialize(&mut self) -> Vec<u8> {
+    pub fn bit_serialize(&mut self) -> Vec<u8> {
         let mut biseri_payload =  Biseri::new();
         self.msg_with_header.serialize_payload(&mut biseri_payload);
         let rp = biseri_payload.finish_add_data().unwrap();
@@ -64,15 +69,15 @@ impl<MWH: MessageWithHeaderTrait + Default> MessageManager<MWH> {
         
         let mut biseri_header =  Biseri::new();
         self.msg_with_header.serialize_header(rp.total_bytes as usize, &mut biseri_header);
-        biseri_header.finish_add_data().unwrap();
+        let header_size = biseri_header.finish_add_data().unwrap();
         
         let mut data = biseri_header.get_data();
         data.extend(biseri_payload.get_data());
 
-        data
+        self.msg_with_header.post_serialization_callback(header_size.total_bytes as usize, data)
     }
 
-    fn append_data_and_try_deserialize(&mut self, data: &Vec<u8>) -> Result<Option<usize>, MessageManagerError> {
+    pub fn append_data_and_try_deserialize(&mut self, data: &Vec<u8>) -> Result<Option<usize>, MessageManagerError> {
         self.bides.append_data(data);
 
         if !self.header_successfully_read {
@@ -98,6 +103,12 @@ impl<MWH: MessageWithHeaderTrait + Default> MessageManager<MWH> {
             }
         }
         else { Ok(None) }
+    }
+
+    pub fn clear(& mut self) {
+        self.bides = Bides::new(); self.data_unused = Vec::new();
+        self.header_successfully_read = false; self.payload_size = 0;
+        self.msg_with_header = Default::default();
     }
 }
 

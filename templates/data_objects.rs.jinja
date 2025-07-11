@@ -1,11 +1,12 @@
 use bitis_lib::*;
+use strum_macros::AsRefStr;
 
 // Enums
 {%+ for ce in d.enums ~%}
 {%- if let Some(comment_impl) = ce.comment -%}
 ///{{comment_impl}}
 {%- endif -%}
-#[derive(BiserdiEnum, Debug, Clone, PartialEq, Copy, Default)]
+#[derive(BiserdiEnum, Debug, Clone, PartialEq, Copy, Default, AsRefStr)]
 #[biserdi_enum_id_dynbits({{ce.bit_size}})]
 #[allow(nonstandard_style)]
 pub enum {{ ce.name }} {
@@ -20,7 +21,7 @@ pub enum {{ ce.name }} {
 {# *****************************************************************#}
 // Enums for oneof
 {%+ for (_, coo) in d.oos -%}
-#[derive(BiserdiOneOf, Debug, Clone, PartialEq)]
+#[derive(BiserdiOneOf, Debug, Clone, PartialEq, AsRefStr)]
 #[biserdi_enum_id_dynbits({{coo.dyn_bits}})]
 #[allow(nonstandard_style)]
 pub enum {{ coo.name }} {
@@ -55,4 +56,6 @@ pub struct {{cm.name}} {
   {% include "data_object_attr.rs.jinja" %}
 {%- endfor %}
 }
+
 {% endfor %}
+
