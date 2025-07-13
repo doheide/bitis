@@ -19,7 +19,7 @@ class {{ ce.name }}(Enum):
 {# *****************************************************************#}
 {# *****************************************************************#}
 # *** Enums for oneof
-{%+ for (_, coo) in d.oos -%}
+{%+ for (_, coo) in d.oos %}
 class {{ coo.name }}Enum(Enum):
 {%- for ca in coo.attributes +%}
   {{ ca.base.name|pascal_case }} = {{loop.index}}
@@ -30,12 +30,12 @@ class {{ coo.name }}:
   @staticmethod
   def new_{{ca.base.name|snake_case}}({{ca.base.name|snake_case}}: {{ ca.base_type_str|to_py_type|safe }}) -> {{ coo.name }}: ...
 {%- endfor %}
-{%- endfor -%}
+{%- endfor %}
 
 {# *****************************************************************#}
 {# *****************************************************************#}
 # *** Messages
-{%+ for cm in d.msgs ~%}
+{%+ for cm in d.msgs %}
 class {{ cm.name }}:
 {%- if let Some(comment_impl) = cm.comment +%}
   """

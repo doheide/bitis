@@ -12,7 +12,7 @@ use bitis_lib::*;
 use std::process::{abort, exit, Command, Stdio};
 
 use clap::{crate_version, Parser, Subcommand, ValueEnum};
-use regex::Regex;
+// use regex::Regex;
 use toml_edit::{value, DocumentMut};
 use utils::*;
 
@@ -49,8 +49,10 @@ enum Commands {
     /// Compile bitis data objects file
     Compile {
         /// Sets a custom config file
-        #[arg(short, long, value_name = "FILE")]
-        input_file: PathBuf,
+        #[arg(short, long, value_name = "FILE", num_args = 1..)]
+        input_files: Vec<PathBuf>,
+        #[arg(long, short = 'p')]
+        input_base_path: Option<PathBuf>,
 
         /// compile language
         #[arg(short, long)]
@@ -62,6 +64,7 @@ enum Commands {
         #[clap(long)]
         /* Name of the bitis header lib that is included in the message file (cpp only option) */
         bitis_header_lib_file_name: Option<String>,
+
         #[clap(long)]
         /* switch if the header lib should be written (cpp only option) */
         prevent_write_bitis_header_lib: bool,
@@ -97,19 +100,42 @@ fn main() {
         // Commands::Test {} => {
         // }
         Commands::Compile {
-            input_file,
+            input_files, input_base_path,
             lang, output_file_or_path: output_file_opt,
             bitis_header_lib_file_name, prevent_write_bitis_header_lib,
             prevent_update_bitis_lib_in_crate
         } => {
+            let base_input_path = input_base_path.clone().unwrap_or(PathBuf::from("./"));
+            if !base_input_path.exists() { println!("Base input path {:?} does not exist.", base_input_path); abort(); }
+            if !base_input_path.is_dir() { println!("Base input path {:?} is not a directory.", base_input_path); abort(); }
+            if cli.debug > 0 { println!("Base input path: {:?}", base_input_path); }
+
+            if input_files.len() == 0 {
+                println!("Error: No input files given.");
+                abort();
+            }
+
+            let mut content = String::new();
+            input_files.iter().for_each(|input_file| {
+                if !input_file.exists() {
+                    println!("Input file {:?} does not exist.", input_file); abort();
+                }
+                if input_file.extension().unwrap() != "bitis" {
+                    println!("Input file extension needs to be 'bitis'."); abort()
+                }
+                if cli.debug > 0 { println!("Reading input file: {:?}", input_file); }
+                let cur_content = fs::read_to_string(input_file).unwrap();
+
+                content.push_str("\n\n".into());
+                content.push_str(&cur_content);
+            });
+
+            let (input_file_wo_ext, input_file_path) = if input_files.len() == 1 {
+                (input_files[0].file_stem().unwrap(), Some(input_files[0].parent().unwrap()))
+            } else { (Path::new("messages").file_stem().unwrap(), None) };
+
             // let content = fs::read_to_string("test.bitis").expect("File not found");
-            let input_file_path = Path::new(&input_file);
-            if !input_file_path.exists() {
-                println!("Input file {:?} does not exist.", input_file_path); abort();
-            }
-            if input_file_path.extension().unwrap() != "bitis" {
-                println!("Input file extension needs to be 'bitis'."); abort()
-            }
+/*            let input_file_path = Path::new(&input_file);
             let input_dir = input_file_path.parent().unwrap();
             let input_dir = if let None = input_dir.parent() { PathBuf::from("./") } else { input_dir.to_owned() };
             let input_file_wo_ext = input_file_path.file_stem().unwrap();
@@ -118,6 +144,7 @@ fn main() {
 
             // println!("input_dir: {input_dir:?}");
             // println!("inout_file_wo_ext: {inout_file_wo_ext:?}");
+
 
             let re = Regex::new(r".+\.v([0-9]+)").unwrap();
             let ver_files: Vec<_> = fs::read_dir(input_dir.clone()).unwrap().into_iter().filter_map(|x| {
@@ -132,6 +159,7 @@ fn main() {
                 else { Some((cf, v)) }
             }).collect();
             if cli.debug > 0 { println!("Inputs version files: {:?}", ver_files.iter().map(|x| x).collect::<Vec<_>>()); }
+
 
             let parsed_bitis: Vec<_> = ver_files.iter().map(|f| {
                 let content = fs::read_to_string(&(f.0)).expect("Input File not found");
@@ -148,7 +176,18 @@ fn main() {
                         abort()
                     }
                 }
-            }).flatten().collect();
+            }).flatten().collect();*/
+
+            let mut lexer = Token::lexer(content.as_str());
+            let parsed_bitis = match parse_root(&mut lexer) {
+                Ok(v) => v,
+                Err(e) => {
+                    let (err_str, err_span) = e.clone();
+                    let content_err = &content[err_span];
+                    println!("Error: {}\n  -> Source: '{}'", err_str, content_err);
+                    abort()
+                }
+            };
             if cli.debug > 1 { println!("parsed_bitis: {:?}", parsed_bitis); }
 
             let processed_bitis = process_and_validate_bitis(&parsed_bitis);
@@ -166,11 +205,25 @@ fn main() {
                         else { output_file_opt_set }
                     }
                     else{
-                        let mut pb = PathBuf::new();
-                        pb.push(input_dir.clone().to_str().unwrap());
-                        pb.push(format!("{}.rs", input_file_wo_ext.to_str().unwrap()).as_str());
-                        pb
+                        if let Some(input_dir) = input_base_path {
+                            let mut of = input_dir.clone();
+                            of.push(format!("{}.rs", input_file_wo_ext.to_str().unwrap()).as_str());
+                            of
+                        } else {
+                            if let Some(ibp) = input_file_path {
+                                let mut of = ibp.to_path_buf();
+                                of.push(format!("{}.rs", input_file_wo_ext.to_str().unwrap()).as_str());
+                                of
+                            }
+                            else {
+                                println!("Error: Output path has to be set for rust language compiler \
+                                or path from inpuit file is used if there is only one input file.");
+                                abort()
+                            }
+                        }
                     };
+                    if cli.debug > 0 { println!("output-file: '{}'", output_file.to_str().unwrap()); }
+
                     let rdo = RustDataObjects{ d: JinjaData{enums: processed_bitis.enums,
                         msgs: to_rust_messages(&processed_bitis.msgs),
                         oos: to_rust_oneofs(&processed_bitis.oo_enums,&processed_bitis.msgs) } };
@@ -292,7 +345,7 @@ fn main() {
                 Language::Cpp => {
                     if cli.debug > 0 { println!("* Generating cpp code ..."); }
 
-                    let output_file = if let Some(output_file_opt_set) = output_file_opt {
+/*                    let output_file = if let Some(output_file_opt_set) = output_file_opt {
                         if output_file_opt_set.is_dir() {
                             let mut of = output_file_opt_set.clone();
                             of.push(format!("{}.h", input_file_wo_ext.to_str().unwrap()).as_str());
@@ -305,7 +358,35 @@ fn main() {
                         pb.push(input_dir.clone().to_str().unwrap());
                         pb.push(format!("{}.h", input_file_wo_ext.to_str().unwrap()).as_str());
                         pb
+                    };*/
+
+                    let output_file = if let Some(output_file_opt_set) = output_file_opt {
+                        if output_file_opt_set.is_dir() {
+                            let mut of = output_file_opt_set.clone();
+                            of.push(format!("{}.h", input_file_wo_ext.to_str().unwrap()).as_str());
+                            of
+                        }
+                        else { output_file_opt_set }
+                    }
+                    else{
+                        if let Some(input_dir) = input_base_path {
+                            let mut of = input_dir.clone();
+                            of.push(format!("{}.h", input_file_wo_ext.to_str().unwrap()).as_str());
+                            of
+                        } else {
+                            if let Some(ibp) = input_file_path {
+                                let mut of = ibp.to_path_buf();
+                                of.push(format!("{}.h", input_file_wo_ext.to_str().unwrap()).as_str());
+                                of
+                            }
+                            else {
+                                println!("Error: Output path has to be set for rust language compiler \
+                                or path from inpuit file is used if there is only one input file.");
+                                abort()
+                            }
+                        }
                     };
+                    if cli.debug > 0 { println!("output-file: '{}'", output_file.to_str().unwrap()); }
 
                     let bitis_header_lib_file_name = bitis_header_lib_file_name.unwrap_or("bitis_lib.h".to_string());
 
