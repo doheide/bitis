@@ -18,6 +18,7 @@ fn {{lib_name}}(m: &Bound<'_, PyModule>) -> PyResult<()> {
 {%- endfor +%}
 {%+ for (_, coo) in d.oos +%}
     m.add_class::<{{coo.name}}>()?;
+    m.add_class::<{{ coo.name }}Enum>()?;
 {%- endfor +%}
 
     Ok(())

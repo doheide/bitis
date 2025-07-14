@@ -300,7 +300,7 @@ fn main() {
 
                     let rdo = PyTypeHints{ d };
                     let py_type_hints = rdo.render().unwrap();
-                    write_file(&output_path, format!("{}/bitis_msgs.pyi", lib_name).as_str(), py_type_hints.as_str(), cli.debug > 0);
+                    // write_file(&output_path, format!("{}/bitis_msgs.pyi", lib_name).as_str(), py_type_hints.as_str(), cli.debug > 0);
                     write_file(&output_path, format!("{}/{}.pyi", lib_name, lib_name).as_str(), py_type_hints.as_str(), cli.debug > 0);
 
                     // *************************************
@@ -497,7 +497,7 @@ fn main() {
                         //     println!("Could not create file '__init__.py' in dir '{}'", py_code_dir.to_str().unwrap()); exit(-1);
                         // }
                         if fs::write({let mut t = py_code_dir.clone(); t.push("__init__.py"); t},
-                                     "from .bitis_msgs import *".to_string().as_str()).is_err() {
+                                     format!("from .{lib_name} import *").as_str()).is_err() {
                             println!("Could not create file '__init__.py' in dir '{}'", py_code_dir.to_str().unwrap()); exit(-1);
                         }
                         if fs::write({let mut t = py_code_dir.clone(); t.push("py.typed"); t}, "").is_err() {

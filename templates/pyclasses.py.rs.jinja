@@ -64,7 +64,7 @@ pub enum {{ coo.name }} {
 {%- endfor %}
 }
 
-#[pyclass]
+#[pyclass(eq, eq_int)]
 #[derive(Debug, PartialEq)]
 pub enum {{ coo.name }}Enum {
 {%- for ca in coo.attributes +%}
