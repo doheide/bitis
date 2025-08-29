@@ -126,7 +126,11 @@ struct {{cm.name}} {
     }
 
     bool is_equal(const {{cm.name}} &other) const {
+        {%- if cm.attributes.len() == 0 %}
+        return true;
+        {%- else %}
         return {% for ca in cm.attributes +%}{{ca.base.name}}==other.{{ca.base.name}}{% if !loop.last %} && {% endif %} {%- endfor %};
+        {%- endif -%}
    }
     bool operator==(const {{cm.name}} &other) const { return is_equal(other); }
     bool operator!=(const {{cm.name}} &other) const { return !is_equal(other); }
