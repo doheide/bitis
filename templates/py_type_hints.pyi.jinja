@@ -20,10 +20,12 @@ class {{ ce.name }}(Enum):
 {# *****************************************************************#}
 # *** Enums for oneof
 {%+ for (_, coo) in d.oos %}
+{#
 class {{ coo.name }}Enum(Enum):
 {%- for ca in coo.attributes +%}
   {{ ca.base.name|pascal_case }} = {{loop.index}}
 {%- endfor %}
+#}
 
 class {{ coo.name }}:
 {%- for ca in coo.attributes +%}
