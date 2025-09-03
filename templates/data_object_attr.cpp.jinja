@@ -1,4 +1,3 @@
-{%- if let Some(comment_impl) = ca.base.comment -%}
-//{{comment_impl}}
-{%- endif %}
-    {{ca.base.name|pascal_case}}_T {{ca.base.name}};
+{%- if let Some(comment_impl) = ca.base.comment %}
+    //{{comment_impl}}
+{%- endif %}    {{ca.base.name|pascal_case}}_T {{ca.base.name}};

@@ -104,11 +104,15 @@ struct {{cm.name}} {
     typedef message_helper::MessageT<
         {% for ca in cm.attributes +%}{{ca.base.name|pascal_case}}_T{% if !loop.last %}, {% endif %} {%- endfor %}
     > MsgT;
-{%+ for ca in cm.attributes -%}
-    {% include "data_object_attr.cpp.jinja" -%}
+{%+ for ca in cm.attributes %}
+{% include "data_object_attr.cpp.jinja" -%}
 {%- endfor %}
 
-    static const char *msg_attr[];
+    {%- for ca in cm.attributes %}
+    const char * str_{{ca.base.name}} = "{{ca.base.name}}";{%- endfor %}
+    const char *msg_attr[{{cm.attributes.len()}}] = { {%- for ca in cm.attributes -%}str_{{ca.base.name}}{% if !loop.last %}, {% endif %}{%- endfor -%}};
+
+    //static const char *msg_attr[];
 
     std::size_t serialize(BitisSerializer &ser) {
         return message_helper::msg_serialize(this, ser);
@@ -135,7 +139,7 @@ struct {{cm.name}} {
     bool operator==(const {{cm.name}} &other) const { return is_equal(other); }
     bool operator!=(const {{cm.name}} &other) const { return !is_equal(other); }
 };
-const char *{{cm.name}}::msg_attr[] = { {%- for ca in cm.attributes -%}"{{ca.base.name}}"{% if !loop.last %}, {% endif %}{%- endfor -%}};
+//const char *{{cm.name}}::msg_attr[] = { {%- for ca in cm.attributes -%}"{{ca.base.name}}"{% if !loop.last %}, {% endif %}{%- endfor -%}};
 
 {%- endif -%}{%- endfor -%}
 

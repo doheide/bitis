@@ -548,7 +548,7 @@ pub fn parse_root(lexer: &mut Lexer<'_, Token>) -> Result<Vec<Value>> {
                 Ok(Token::Enum) => Some(parse_enum(lexer, specific_comment.clone())),
                 Ok(Token::Comment) => None,
                 Ok(Token::SpecificComment(s)) => {
-                    specific_comment = Some(s); None },
+                    specific_comment = Some(s.trim().to_string()); None },
                 _ => Some(Err((format!("Unexpected token {:?}", token).to_owned(), lexer.span()))),
             };
             match rv {
