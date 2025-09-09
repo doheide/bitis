@@ -417,7 +417,7 @@ dependencies = [
 
 [[package]]
 name = "py_msg"
-version = "0.10.2"
+version = "0.10.3"
 dependencies = [
  "array-init",
  "bitis",
