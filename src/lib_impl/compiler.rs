@@ -1116,6 +1116,26 @@ pub fn process_and_validate_bitis(parsed_bitis: &Vec<Value>) -> BitisProcessed {
         });
     }
 
+    {
+        println!("FixedPoint summary:");
+        msgs.iter().for_each(|msg| {
+            for attr in msg.attributes.clone() {
+                match attr.specific_details {
+                    AttributeDetails::AttributeSimple(asi) => match asi {
+                        SimpleType::FixedPrecision(fpp) => {
+                            let values_number = 1_u64 << fpp.bits;
+                            let prec = (fpp.max_val - fpp.min_val) as f64 / values_number as f64;
+                            println!("{}::{} => [{} : {}] precision: {}", msg.name, attr.name,
+                                fpp.min_val, fpp.max_val, prec);
+                        }
+                        _ => {}
+                    },
+                    _ => {}
+                }
+            }
+        });
+    }
+
     BitisProcessed { max_version_number: 0, msgs, enums, oo_enums}
 }
 

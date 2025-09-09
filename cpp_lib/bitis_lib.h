@@ -1052,10 +1052,11 @@ namespace oneof_helper {
     template<typename ... Ts>
     struct UnionT {
     private:
-        void *data[MaxSizeof<Ts ...>::value] = {};
+        uint8_t data[MaxSizeof<Ts ...>::value] = {};
     public:
-        template<typename T>
-        void set(T v) {
+
+		template<typename T>
+        void set(T &v) {
             static_assert(ContainsType<T, bitis_helper::Collector<Ts...>>::value);
             *((T*)data) = v;
         }
@@ -1065,7 +1066,29 @@ namespace oneof_helper {
             return (T*)data;
         }
     };
+    /*template<typename ...> struct UnionT;
+    template<typename ... Ts>
+    struct UnionDynSizeT {
+    private:
+        // uint8_t data[MaxSizeof<Ts ...>::value] = {};
+		uint8_t *data;
+    public:
+		UnionDynSizeT() : data(nullptr) { }
+		~UnionDynSizeT() { delete [] data; data = nullptr;  }
 
+		template<typename T>
+        void set(T &v) {
+            static_assert(ContainsType<T, bitis_helper::Collector<Ts...>>::value);
+			delete [] data;
+			data = new uint8_t[sizeof(T)];
+            *((T*)data) = v;
+        }
+        template<typename T>
+        T *get() const {
+            static_assert(ContainsType<T, bitis_helper::Collector<Ts...>>::value);
+            return (T*)data;
+        }
+    };*/
 
     template<typename ...> struct OneOfT_Impl;
     template<typename OOT_STRUCT, typename T, typename ... Ts>
@@ -1086,7 +1109,8 @@ namespace oneof_helper {
             auto data_pointer = d->template get_oo<typename remove_const<T>::type>();
             if (data_pointer) {
                 auto r = T::OOType::deserialize(des);
-                d->oo_value.set(r.data);
+                //d->oo_value.set(r.data);
+                d->template set_oo<T>(r.data);
                 return r.bits;
             }
             OneOfT_Impl<OOT_STRUCT, bitis_helper::Collector<Ts ...>> inner;
@@ -1192,14 +1216,19 @@ std::vector<uint8_t> serialize(T & msg) {
     auto ser = BitisSerializer();
     // auto r = serialize(a, ser);
     msg.serialize(ser);
-    auto r = ser.finalize();
+    // auto r = ser.finalize();
+    ser.finalize();
     return ser.data_cache;
 }
 
 template<typename T>
-T deserialize(const std::vector<uint8_t>& data) {
+bitis_helper::BitiaDeserializerHelper<T> deserialize_with_size(const std::vector<uint8_t>& data) {
     auto des = BitisDeserializer(data);
     auto dd = T::deserialize(des);
-    return dd.data;
+    return dd;
+}
+template<typename T>
+T deserialize(const std::vector<uint8_t>& data) {
+    return deserialize_with_size<T>(data).data;
 }
 
