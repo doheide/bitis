@@ -1,1 +1,1 @@
-/home/dheide/source/common/bitis/test_cases/t_simple_msg/main.cpp
+/home/dheide/source/common/bitis/test_cases/t_oo_msg/main.cpp

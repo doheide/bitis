@@ -12,3 +12,4 @@ crate-type = ["cdylib"]
 pyo3 = "0.25.0"
 bitis= {path = "../../../.."}
 array-init = "2.1.0"
+strum_macros = "0.27.2"

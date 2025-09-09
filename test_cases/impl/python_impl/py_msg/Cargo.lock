@@ -138,7 +138,7 @@ checksum = "3a8241f3ebb85c056b509d4327ad0358fbbba6ffb340bf388f26350aeda225b1"
 
 [[package]]
 name = "bitis"
-version = "0.9.1"
+version = "0.10.2"
 dependencies = [
  "array-init",
  "ascii",
@@ -154,9 +154,7 @@ dependencies = [
 
 [[package]]
 name = "bitis-macros"
-version = "0.9.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b1051789cfa7f526d5e421a2c7fd40ad3f98ba24e0298ba1a3c4151e980cb361"
+version = "0.10.2"
 dependencies = [
  "darling",
  "proc-macro2",
@@ -424,6 +422,7 @@ dependencies = [
  "array-init",
  "bitis",
  "pyo3",
+ "strum_macros",
 ]
 
 [[package]]
@@ -596,6 +595,18 @@ name = "strsim"
 version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f"
+
+[[package]]
+name = "strum_macros"
+version = "0.27.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7695ce3845ea4b33927c055a39dc438a45b059f7c1b3d91d38d10355fb8cbca7"
+dependencies = [
+ "heck",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
 
 [[package]]
 name = "syn"
