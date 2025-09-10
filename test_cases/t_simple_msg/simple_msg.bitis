@@ -23,6 +23,7 @@ msg MsgSimpleTestBase {
 msg MsgSimpleTestFP {
   bool param_1;
   fp_10[-1,1] fp;
+  //fp_34[-90,90] fpl;
 }
 
 msg MsgSimpleOpt {

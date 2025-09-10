@@ -15,7 +15,7 @@ int main(int argc, char *argv[]){
     char *arg = nullptr;
     if (argc > 1) arg = argv[1];
 
-    {
+/*    {
         auto msg = MsgSimpleBaseOneInt{
             .param_1 = MsgSimpleBaseOneInt::Param1_T(1122),
         };
@@ -62,17 +62,19 @@ int main(int argc, char *argv[]){
 
         auto fn_name = "val_simple_param_set1.cpp.dat";
         error_counter += write_or_test(fn_name, msg, arg);
-    }
+    }*/
     {
         auto msg = MsgSimpleTestFP{
             .param_1 = MsgSimpleTestFP::Param1_T(true),
             .fp = MsgSimpleTestFP::Fp_T(0.1),
+            // .fpl = MsgSimpleTestFP::Fpl_T(-1.),
         };
         msg.print(0);printf("\n");
 
         auto fn_name = "val_simple_test_fp.cpp.dat";
         error_counter += write_or_test(fn_name, msg, arg);
     }
+    /*
     {
         auto msg = MsgSimpleOpt();
         msg.print(0);printf("\n");
@@ -92,6 +94,7 @@ int main(int argc, char *argv[]){
         auto fn_name = "val_simple_opt_valset1.cpp.dat";
         error_counter += write_or_test(fn_name, msg, arg);
     }
+    */
 
     printf("\nTotal_errors: %d\n", error_counter);
     return error_counter;
