@@ -669,10 +669,15 @@ struct FixPrecisionMinMax {
         else if (state == Overflow) { v = max_value; }
         else {
             auto of = (value - ((double)MIN_IVALUE));
+            // printf("of: %f\n", of);
             auto diff = (double)(MAX_IVALUE - MIN_IVALUE);
+            // printf("diff: %f\n", diff);
             auto mv = (double)max_value - 2.;
-            v = lround(of / diff * mv) + 1;
+            auto t = of / diff * mv;
+            // printf("t: %f\n", t);
+            v = llround(t) + 1;
 
+            // printf("v: %" PRIu64 "\n", v);
             // v = (uint64_t) ((value - ((double)MIN_IVALUE))
             //     / ((double)(MAX_IVALUE - MIN_IVALUE))
             //     * (double)(max_value - 2)) + 1;
