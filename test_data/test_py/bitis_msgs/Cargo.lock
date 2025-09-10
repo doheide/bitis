@@ -155,7 +155,7 @@ dependencies = [
 
 [[package]]
 name = "bitis_msgs"
-version = "0.10.3"
+version = "0.10.4"
 dependencies = [
  "bitis",
  "pyo3",
