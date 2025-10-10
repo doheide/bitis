@@ -746,6 +746,7 @@ pub fn parse_oneof(lexer: &mut Lexer<'_, Token>, parent_name: String, comment: O
         if let Some(token) = lexer.next() {
             match token {
                 Ok(Token::CBraceClose) => break,
+                Ok(Token::Comment) => { },
                 Ok(Token::Star) => { is_default = true; },
                 Ok(last_token) => {
                     let oo_attr = match parse_attribute(last_token, lexer, oo_name.clone(), true) {
