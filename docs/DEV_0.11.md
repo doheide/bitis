@@ -1,0 +1,66 @@
+# bitis 0.11 development plan (branch `dev/v0.11`)
+
+Goal: safe decoding of untrusted input in all runtimes, compiler fixes, and a new
+Dart target. The wire format (docs/WIRE_FORMAT.md) does NOT change.
+
+Compatibility rule for 0.11: **no breaking API changes**. Existing functions keep
+their signatures; new fallible functions are added next to them. Behaviour
+changes are limited to bug fixes (e.g. truncated input now fails instead of
+decoding zero bits; encoders no longer hang). A later breaking release (Result-
+based traits, crate split) will be coordinated with the backend/firmware agents.
+
+## Rust runtime (src/lib_impl/berde.rs, src/lib.rs, bitis-macros)
+
+- `pub enum DecodeError { UnexpectedEnd, InvalidValue, InvalidDiscriminant, TrailingData }`
+- `pub enum EncodeError { ValueOutOfRange }`
+  (both `Debug, Clone, Copy, PartialEq, Eq`, `Display`, `std::error::Error`)
+- Traits keep returning `Option`; the reason of a failure is recorded in a
+  side channel (`Bides::error() -> Option<DecodeError>`, first error wins;
+  `Biseri::error() -> Option<EncodeError>`).
+- New top-level functions:
+  - `try_serialize<T>(&T) -> Result<(Vec<u8>, BiserSizes), EncodeError>`
+  - `try_deserialize<T>(&[u8]) -> Result<(T, BiserSizes), DecodeError>`
+  - `try_deserialize_exact<T>(&[u8]) -> Result<T, DecodeError>`
+- Legacy `serialize` keeps silently truncating out-of-range values (documented),
+  but never hangs. Legacy `deserialize` returns `None` on every error.
+- `BiserdiTrait` gets `fn max_bits() -> Option<u64>` with default `None`
+  (`Some(n)` for fixed-size types and messages consisting only of them).
+- Integer wrappers: `try_new`, `MIN`/`MAX` constants. Fixed point: explicit
+  state accessors (`value() -> Option<f64>`, `is_overflow()`, `is_underflow()`).
+
+## C++ runtime (cpp_lib/bitis_lib.h)
+
+- `enum class BitisError : uint8_t { Ok = 0, UnexpectedEnd, InvalidValue,
+  InvalidDiscriminant, TrailingData, ValueOutOfRange };`
+- Sticky error state in `BitisDeserializer` / `BitisSerializer`; reads past the
+  end return 0 and set `UnexpectedEnd`.
+- New: `try_deserialize<T>(const uint8_t*, size_t, T&, BitisSize* = nullptr)`,
+  vector overload, `try_deserialize_exact<T>`, `try_serialize<T>(const T&,
+  std::vector<uint8_t>&, BitisSize* = nullptr)`.
+- Legacy `serialize`, `deserialize`, `deserialize_with_size` keep working.
+- Must stay usable on ESP32 firmware: C++17, no exceptions, no RTTI.
+
+## Compiler
+
+- Deterministic output, `//|` doc comment fix, validation pass with
+  file:line:col errors, schema stamp.
+- Schema stamp: generated code exposes the compiler version and a 64-bit schema
+  hash (first 8 bytes of SHA-256 over the canonical schema description, lower-
+  case hex, 16 digits). Template variables: `bitis_version` (string) and
+  `schema_hash` (16 hex digits, no prefix).
+  - Rust: `pub const BITIS_VERSION: &str`, `pub const BITIS_SCHEMA_HASH: u64`
+  - C++: `constexpr const char* BITIS_VERSION`, `constexpr uint64_t BITIS_SCHEMA_HASH`
+  - Dart: `const String bitisVersion`, `final Int64 bitisSchemaHash` (+ hex string)
+
+## Dart
+
+- `dart/bitis/`: pure-Dart runtime package `bitis` (web-safe).
+- Compiler target `-l dart` generating classes per message/enum/oneof.
+- Type mapping: `int` for widths ≤ 32 bits, `Int64` (package:fixnum) for
+  33–64 bits signed and unsigned ≤ 63 bits, `BigInt` for unsigned 64-bit.
+
+## Golden vectors
+
+- `golden/`: one schema covering all types, value cases, committed expected
+  bytes (produced by Rust), plus invalid inputs with the expected error kind.
+  Rust, C++ and Dart tests must all pass against the same files.
