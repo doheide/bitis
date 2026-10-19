@@ -1,0 +1,13 @@
+# Generates dart/bitis/test/rust_vectors.dart from the Rust reference runtime:
+#   cd dart/bitis/tool/rust_vectors
+#   cargo run -q > ../../test/rust_vectors.dart && (cd ../.. && dart format test)
+[package]
+name = "rustvec"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+bitis = { path = "../../../.." }
+
+[workspace]
