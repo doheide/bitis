@@ -71,20 +71,25 @@ width B derived from X).
 
 ### 2.6 `float`, `double`
 IEEE 754 binary32 / binary64 bit pattern, `W(bits, 32)` / `W(bits, 64)`
-(equivalent to the little-endian byte representation). NaN payloads are
-preserved where the platform allows it; test vectors only use the canonical
-quiet NaN.
+(equivalent to the little-endian byte representation). Decoders accept any
+NaN. Rust and C++ preserve NaN payloads on encode; the Dart runtime always
+encodes the canonical quiet NaN (`0x7FC00000` / `0x7FF8000000000000`) because
+JavaScript cannot preserve payloads. Test vectors only use the canonical NaN.
 
 ### 2.7 `fp_N[min, max]` — fixed precision (2 ≤ N ≤ 53, integer min < max)
 `W(r, N)` with the raw value `r`:
 - `r = 0` → Underflow, `r = 2^N − 1` → Overflow, otherwise a value.
-- Let `S = (2^N − 3) as f64`, `R = (max − min) as f64`.
+- Let `S = (2^N − 3) as f64`, `R = (max as f64) − (min as f64)` (convert first, then
+  subtract; `min`/`max` must lie within ±2^53).
 - Encoding of a value `v` (all arithmetic in IEEE f64, in exactly this order):
   - `v > max` → Overflow; `v < min` → Underflow; `v` is NaN → Underflow
   - else `t = (v − min) / R * S + 1.0`, `r = round_half_away_from_zero(t)` (Rust `f64::round`)
 - Decoding: `v = (r − 1) as f64 / S * R + min`.
 - Runtimes expose Underflow/Overflow as explicit states, not as numeric
   sentinels.
+- Re-encoding a decoded value is not guaranteed to reproduce the raw value for
+  large N (f64 rounding, e.g. `fp_53[-1e6, 1e6]`); equality of fixed-point
+  values is defined on the raw value.
 
 ### 2.8 `astr_dY` — ASCII string
 `U32D(Y)` byte count `n`, then `n` × `W(byte, 8)`.
