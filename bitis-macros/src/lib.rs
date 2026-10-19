@@ -390,3 +390,76 @@ fn biserdi_msg_versioned_impl(input: &DeriveInput) -> syn::Result<proc_macro2::T
         _ => Err(syn::Error::new_spanned(struct_or_enum_identifier, "BiserdiMsgVersioned is only allowed for structs and enums")),
     }
 }
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use syn::parse_quote;
+
+    fn err_msg(r: syn::Result<proc_macro2::TokenStream>) -> String {
+        r.err().expect("expected an error").to_string()
+    }
+
+    #[test]
+    fn msg_ok_and_hygienic() {
+        let input: DeriveInput = parse_quote! { struct M { a: bool, b: IntWithGivenBitSize<u8, 3> } };
+        let code = biserdi_msg_impl(&input).unwrap().to_string();
+        assert!(code.contains(":: bitis_lib :: BiserdiTrait"));
+        assert!(code.contains("fn max_bits"));
+        assert!(!code.contains("panic"));
+    }
+
+    #[test]
+    fn msg_errors() {
+        let input: DeriveInput = parse_quote! { struct M(bool); };
+        assert!(err_msg(biserdi_msg_impl(&input)).contains("named fields"));
+        let input: DeriveInput = parse_quote! { enum M { A } };
+        assert!(err_msg(biserdi_msg_impl(&input)).contains("only allowed for structs"));
+    }
+
+    #[test]
+    fn enum_errors() {
+        let input: DeriveInput = parse_quote! { enum E { A, B } };
+        assert!(err_msg(biserdi_enum_impl(&input)).contains("biserdi_enum_id_dynbits"));
+        let input: DeriveInput = parse_quote! { #[biserdi_enum_id_dynbits(0)] enum E { A, B } };
+        assert!(err_msg(biserdi_enum_impl(&input)).contains("between 1 and 32"));
+        let input: DeriveInput = parse_quote! { #[biserdi_enum_id_dynbits(x)] enum E { A, B } };
+        assert!(err_msg(biserdi_enum_impl(&input)).contains("biserdi_enum_id_dynbits"));
+        let input: DeriveInput = parse_quote! { #[biserdi_enum_id_dynbits(3)] enum E { A(bool), B } };
+        assert!(err_msg(biserdi_enum_impl(&input)).contains("without nested types"));
+        let input: DeriveInput = parse_quote! { #[derive(Debug)] #[biserdi_enum_id_dynbits(3)] enum E { A, B } };
+        let code = biserdi_enum_impl(&input).unwrap().to_string();
+        assert!(code.contains("InvalidDiscriminant"));
+    }
+
+    #[test]
+    fn oneof_errors() {
+        let input: DeriveInput = parse_quote! { #[biserdi_enum_id_dynbits(3)] enum E { A, B(bool) } };
+        assert!(err_msg(biserdi_one_of_impl(&input)).contains("exactly one unnamed field"));
+        let input: DeriveInput = parse_quote! { #[biserdi_enum_id_dynbits(3)] enum E { A(bool, bool) } };
+        assert!(err_msg(biserdi_one_of_impl(&input)).contains("exactly one unnamed field"));
+        let input: DeriveInput = parse_quote! { #[biserdi_enum_id_dynbits(3)] enum E { A(bool), B(f32) } };
+        let code = biserdi_one_of_impl(&input).unwrap().to_string();
+        assert!(code.contains("InvalidDiscriminant"));
+        assert!(!code.contains("u64 :: MAX"));
+    }
+
+    #[test]
+    fn versioned_errors() {
+        let input: DeriveInput = parse_quote! { struct V { base: A, other: B } };
+        assert!(err_msg(biserdi_msg_versioned_impl(&input)).contains("'base'"));
+        let input: DeriveInput = parse_quote! { struct V { base: A } };
+        assert!(err_msg(biserdi_msg_versioned_impl(&input)).contains("'ext'"));
+        let input: DeriveInput = parse_quote! { enum V { Version(A) } };
+        assert!(err_msg(biserdi_msg_versioned_impl(&input)).contains("V[0-9]+"));
+        let input: DeriveInput = parse_quote! { enum V { V99999999(A) } };
+        assert!(err_msg(biserdi_msg_versioned_impl(&input)).contains("V[0-9]+"));
+        let input: DeriveInput = parse_quote! { enum V { V1 } };
+        assert!(err_msg(biserdi_msg_versioned_impl(&input)).contains("unnamed field"));
+        let input: DeriveInput = parse_quote! { struct V { base: A, ext: B } };
+        let code = biserdi_msg_versioned_impl(&input).unwrap().to_string();
+        assert!(code.contains("checked_add"));
+        assert!(code.contains("try_skip_bits"));
+    }
+}
