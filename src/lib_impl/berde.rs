@@ -1,8 +1,66 @@
-use std::ops::{AddAssign, Neg, Shl, Shr};
+use std::ops::{AddAssign, Shl, Shr};
 use std::convert::{TryFrom, From, TryInto};
 use std::fmt::{Debug, Display};
 use array_init::map_array_init;
 use ascii::{AsAsciiStr, AsciiString};
+
+// ****************************************************************************
+// Errors (docs/WIRE_FORMAT.md section 3)
+
+/// Reason why decoding failed.
+///
+/// The `BiserdiTrait` functions keep returning `Option`; the reason of a failure is
+/// recorded in [`Bides::error`] (first error wins) and returned by [`crate::try_deserialize`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DecodeError {
+    /// The input ended before the message was complete (in a stream: wait for more data).
+    UnexpectedEnd,
+    /// A field value is outside its valid range or a string contains a non-ASCII byte.
+    InvalidValue,
+    /// Unknown enum or oneof index.
+    InvalidDiscriminant,
+    /// Strict decoding only: the input is longer than the message.
+    TrailingData,
+}
+impl Display for DecodeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DecodeError::UnexpectedEnd => write!(f, "unexpected end of input"),
+            DecodeError::InvalidValue => write!(f, "invalid value"),
+            DecodeError::InvalidDiscriminant => write!(f, "invalid enum or oneof discriminant"),
+            DecodeError::TrailingData => write!(f, "trailing data after message"),
+        }
+    }
+}
+impl std::error::Error for DecodeError {}
+
+/// Reason why encoding failed.
+///
+/// Recorded in [`Biseri::error`] and returned by [`crate::try_serialize`]. The legacy
+/// [`crate::serialize`] ignores it and writes the value truncated to the declared width.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EncodeError {
+    /// A value does not fit its declared width / base type (or a string is not ASCII).
+    ValueOutOfRange,
+}
+impl Display for EncodeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            EncodeError::ValueOutOfRange => write!(f, "value out of range"),
+        }
+    }
+}
+impl std::error::Error for EncodeError {}
+
+// ***
+/// Largest magnitude representable with `num_bits` bits that also fits the base type
+/// (`type_bits` wide, signed or unsigned). See spec 2.2/2.3.
+pub(crate) const fn max_magnitude_for_bits(num_bits: u64, type_bits: u32, signed: bool) -> u64 {
+    let n_max = if num_bits >= 64 { u64::MAX } else { (1_u64 << num_bits) - 1 };
+    let t_bits = if signed { type_bits - 1 } else { type_bits };
+    let t_max = if t_bits >= 64 { u64::MAX } else { (1_u64 << t_bits) - 1 };
+    if n_max < t_max { n_max } else { t_max }
+}
 
 // ***
 pub trait IntegerBaseFunctions {
@@ -14,38 +72,83 @@ pub trait IntegerBaseFunctions {
     fn get_bits_num() -> u8;
 }
 macro_rules! impl_integer_signed {
-    ($type:ty, $num_bits: expr) => {
+    ($type:ty) => {
         impl IntegerBaseFunctions for $type {
             const IS_SIGNED: bool = true;
-            fn get_absolute_uint(self: &Self) -> u64 {
-                if *self < 0 { self.clone().neg() as u64 }
-                else { self.clone() as u64 }
-            }
+            fn get_absolute_uint(self: &Self) -> u64 { self.unsigned_abs() as u64 }
             fn is_val_negative(self: &Self) -> bool { *self < 0 }
-            fn switch_sign_if_possible(self: &Self) -> Self { return self.clone().neg() }
+            /// Negation; `MIN` stays `MIN` (never panics).
+            fn switch_sign_if_possible(self: &Self) -> Self { self.wrapping_neg() }
             fn get_zero() -> Self { 0 as $type }
-            fn get_bits_num() -> u8 { $num_bits as u8 }
+            fn get_bits_num() -> u8 { <$type>::BITS as u8 }
         }
 } }
 macro_rules! impl_integer_unsigned {
-    ($type:ty, $num_bits: expr) => {
+    ($type:ty) => {
         impl IntegerBaseFunctions for $type {
             const IS_SIGNED: bool = false;
             fn get_absolute_uint(self: &Self) -> u64 { self.clone() as u64 }
             fn is_val_negative(self: &Self) -> bool { false }
             fn switch_sign_if_possible(self: &Self) -> Self { return self.clone() }
             fn get_zero() -> Self { 0 as $type }
-            fn get_bits_num() -> u8 { $num_bits as u8 }
+            fn get_bits_num() -> u8 { <$type>::BITS as u8 }
         }
 } }
-impl_integer_signed!(i8, 8);
-impl_integer_signed!(i16, 16);
-impl_integer_signed!(i32, 32);
-impl_integer_signed!(i64, 64);
-impl_integer_unsigned!(u8, 8);
-impl_integer_unsigned!(u16, 16);
-impl_integer_unsigned!(u32, 16);
-impl_integer_unsigned!(u64, 16);
+impl_integer_signed!(i8);
+impl_integer_signed!(i16);
+impl_integer_signed!(i32);
+impl_integer_signed!(i64);
+impl_integer_unsigned!(u8);
+impl_integer_unsigned!(u16);
+impl_integer_unsigned!(u32);
+impl_integer_unsigned!(u64);
+
+// ***
+/// Value range of an integer base type used with `NUM_BITS` bits (`uint_X` / `int_X`,
+/// spec 2.2 and 2.3). Implemented for all primitive integer types.
+pub trait IntBoundsForBits<const NUM_BITS: u64>: Sized {
+    /// Smallest valid value (`0` for unsigned, `-MAX` for signed).
+    const MIN_FOR_BITS: Self;
+    /// Largest valid value: `min(2^NUM_BITS - 1, base type max)` (signed: base type max is `2^(B-1)-1`).
+    const MAX_FOR_BITS: Self;
+    /// Largest valid magnitude as `u64`.
+    const MAX_MAGNITUDE: u64;
+    /// `1 <= NUM_BITS <= bits of the base type`.
+    const VALID_NUM_BITS: bool;
+}
+/// Same as [`IntBoundsForBits`] for the `MAX_BITS` parameter of [`DynInteger`] (spec 2.4/2.5).
+pub trait IntBoundsForDynBits<const MAX_BITS: u8>: Sized {
+    const MIN_FOR_BITS: Self;
+    const MAX_FOR_BITS: Self;
+    const MAX_MAGNITUDE: u64;
+    const VALID_NUM_BITS: bool;
+}
+macro_rules! impl_int_bounds {
+    ($type:ty, $signed:expr) => {
+        impl<const N: u64> IntBoundsForBits<N> for $type {
+            const MIN_FOR_BITS: Self = if $signed {
+                (0 as $type).wrapping_sub(<Self as IntBoundsForBits<N>>::MAX_MAGNITUDE as $type) } else { 0 };
+            const MAX_FOR_BITS: Self = <Self as IntBoundsForBits<N>>::MAX_MAGNITUDE as $type;
+            const MAX_MAGNITUDE: u64 = max_magnitude_for_bits(N, <$type>::BITS, $signed);
+            const VALID_NUM_BITS: bool = N >= 1 && N <= <$type>::BITS as u64;
+        }
+        impl<const N: u8> IntBoundsForDynBits<N> for $type {
+            const MIN_FOR_BITS: Self = if $signed {
+                (0 as $type).wrapping_sub(<Self as IntBoundsForDynBits<N>>::MAX_MAGNITUDE as $type) } else { 0 };
+            const MAX_FOR_BITS: Self = <Self as IntBoundsForDynBits<N>>::MAX_MAGNITUDE as $type;
+            const MAX_MAGNITUDE: u64 = max_magnitude_for_bits(N as u64, <$type>::BITS, $signed);
+            const VALID_NUM_BITS: bool = N >= 1 && N as u32 <= <$type>::BITS;
+        }
+    };
+}
+impl_int_bounds!(i8, true);
+impl_int_bounds!(i16, true);
+impl_int_bounds!(i32, true);
+impl_int_bounds!(i64, true);
+impl_int_bounds!(u8, false);
+impl_int_bounds!(u16, false);
+impl_int_bounds!(u32, false);
+impl_int_bounds!(u64, false);
 
 // ***
 pub trait ValFromInto<T> {
@@ -60,6 +163,7 @@ pub struct Biseri {
     sub_byte_counter: u8,
     data_cache: Vec<u8>,
     final_total_bits: u64,
+    error: Option<EncodeError>,
 }
 
 fn bits_for_and(x: u8) -> u16 {
@@ -74,11 +178,16 @@ pub trait BiserdiTraitVarBitSize : Sized {
 #[allow(dead_code)]
 pub trait BiserdiTrait: Sized {
     fn bit_serialize(self: &Self, biseri: &mut Biseri) -> Option<u64>;
+    /// Returns `None` on any decoding error; the reason is recorded in [`Bides::error`].
     fn bit_deserialize(version_id: u16, bides: &mut Bides) -> Option<(Self, u64)>;
+    /// Lower bound of the encoded size in bits (spec section 4).
     fn min_bits() -> u64;
+    /// `Some(n)` if the encoding always has exactly `n` bits (fixed-size types and
+    /// messages consisting only of them), `None` otherwise.
+    fn max_bits() -> Option<u64> { None }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BiserSizes {
     pub total_bits: u64,
     pub total_bytes: u64
@@ -86,7 +195,14 @@ pub struct BiserSizes {
 #[allow(dead_code)]
 impl Biseri {
     pub fn new() -> Biseri {
-        Biseri { cur_cache_u8: 0, data_cache: Vec::new(), sub_byte_counter: 0, final_total_bits: 0 }
+        Biseri { cur_cache_u8: 0, data_cache: Vec::new(), sub_byte_counter: 0, final_total_bits: 0, error: None }
+    }
+
+    /// First encoding error that occurred (e.g. a value out of range that was truncated).
+    pub fn error(&self) -> Option<EncodeError> { self.error }
+    /// Records an encoding error; the first error wins.
+    pub fn set_error(&mut self, err: EncodeError) {
+        if self.error.is_none() { self.error = Some(err); }
     }
 
     pub fn data_size_bytes(&self) -> u64 {
@@ -98,14 +214,17 @@ impl Biseri {
     pub fn get_data(&self) -> Vec<u8> {
         self.data_cache.clone()
     }
+    /// Consumes the serializer and returns the data (call `finish_add_data` first).
+    pub fn into_data(self) -> Vec<u8> {
+        self.data_cache
+    }
 
     fn add_data_base_u8(&mut self, cur_u8: &u8, total_bits: u64) -> u64 {
         if total_bits > 0 {
             let cur_u16 = cur_u8.clone() as u16;
             let shift_by = self.sub_byte_counter & 7;
 
-            let cur_bit_size = std::cmp::min(8, total_bits as u8);
-            // println!("cur_bit_size: {}", cur_bit_size);
+            let cur_bit_size = std::cmp::min(8, total_bits) as u8;
             let cur_u16 = (cur_u16 & (bits_for_and(cur_bit_size))) << shift_by;
             self.cur_cache_u8 += cur_u16;
 
@@ -123,25 +242,34 @@ impl Biseri {
         else { 0 }
     }
 
+    /// Writes the low `total_bits` bits of `cur_data` (LSB first). If `total_bits` exceeds
+    /// the data, the remaining bits are written as zero.
     pub fn add_data(&mut self, cur_data: &Vec<u8>, total_bits: u64) -> Option<u64> {
-        // if (cur_data.len() as u64)*8 > total_bits {
-        //     // return None;
-        //     println!("")
-        // }
-        // if (cur_data.len() as u64)*8  < total_bits {
-        //     return None;
-        // }
         let mut cur_total_bits = total_bits;
         for cu8 in cur_data.iter() {
+            if cur_total_bits == 0 { break; }
             cur_total_bits = self.add_data_base_u8(cu8, cur_total_bits);
+        }
+        while cur_total_bits > 0 {
+            cur_total_bits = self.add_data_base_u8(&0, cur_total_bits);
         }
         Some(total_bits)
     }
 
+    /// Writes the low `total_bits` bits of `v` (zero bits above bit 63). No range check.
+    pub(crate) fn add_bits(&mut self, v: u64, total_bits: u64) {
+        let mut cur_total_bits = total_bits;
+        let mut v = v;
+        while cur_total_bits > 0 {
+            cur_total_bits = self.add_data_base_u8(&((v & 0xFF) as u8), cur_total_bits);
+            v >>= 8;
+        }
+    }
+
+    /// Appends the bits of another (finished) serializer; its error state is propagated.
     pub fn add_biseri_data(&mut self, data: &Biseri) -> Option<u64> {
+        if let Some(e) = data.error { self.set_error(e); }
         self.add_data(&data.data_cache, data.final_total_bits)
-        // self.add_data(&data.data_cache, ((data.data_cache.len() << 3) +
-        //     data.sub_byte_counter as usize) as u64)
     }
     pub fn finish_add_data(&mut self) -> Option<BiserSizes> {
         if self.final_total_bits > 0 {
@@ -160,40 +288,70 @@ impl Biseri {
     }
 }
 
+/// Bit reader. Reading past the end of `data_cache` fails (no implicit zero bits); the
+/// reason of the first failure is available via [`Bides::error`].
 #[derive(Debug, Clone)]
 pub struct Bides {
     cur_read_pos: u64,
     sub_byte_counter: u8,
     pub data_cache: Vec<u8>,
+    error: Option<DecodeError>,
 }
 #[allow(dead_code)]
 impl Bides {
-    pub fn new() -> Bides { Bides { cur_read_pos: 0, sub_byte_counter: 0, data_cache: Vec::new() } }
+    pub fn new() -> Bides { Bides { cur_read_pos: 0, sub_byte_counter: 0, data_cache: Vec::new(), error: None } }
     pub fn from_vec(data: &Vec<u8>) -> Bides {
-        Bides{sub_byte_counter: 0, data_cache: data.clone(), cur_read_pos: 0}
+        Self::from_slice(data)
+    }
+    pub fn from_slice(data: &[u8]) -> Bides {
+        Bides{sub_byte_counter: 0, data_cache: data.to_vec(), cur_read_pos: 0, error: None}
     }
     pub fn from_biseri(biseri: &Biseri) -> Bides {
-        Bides{sub_byte_counter: 0, data_cache: biseri.get_data().clone(), cur_read_pos: 0}
+        Self::from_slice(biseri.get_data_ref())
     }
 
     pub fn append_data(&mut self, data: &Vec<u8>) {
         self.data_cache.extend(data);
     }
 
+    /// Rewinds to the start of the data and clears the error state.
     pub fn reset_position(&mut self) {
         self.sub_byte_counter = 0;
         self.cur_read_pos = 0;
+        self.error = None;
     }
+
+    /// First decoding error since creation / the last `reset_position` (first error wins).
+    pub fn error(&self) -> Option<DecodeError> { self.error }
+    /// Records a decoding error; the first error wins.
+    pub fn set_error(&mut self, err: DecodeError) {
+        if self.error.is_none() { self.error = Some(err); }
+    }
+    /// Records `err` and returns `None` (helper for `bit_deserialize` implementations).
+    pub fn fail<T>(&mut self, err: DecodeError) -> Option<T> {
+        self.set_error(err);
+        None
+    }
+    /// Number of bits read so far.
+    pub fn position_bits(&self) -> u64 {
+        self.cur_read_pos.saturating_mul(8).saturating_add(self.sub_byte_counter as u64)
+    }
+    /// Number of bits that are still available.
+    pub fn remaining_bits(&self) -> u64 {
+        (self.data_cache.len() as u64).saturating_mul(8).saturating_sub(self.position_bits())
+    }
+
     pub fn decode_data_base_u8(&mut self, total_bits: u64) -> Option<(u8, u64)> {
-        if self.cur_read_pos as usize >= self.data_cache.len() { return None }
+        let cur_used_bits = std::cmp::min(total_bits, 8) as u8;
+        if self.remaining_bits() < cur_used_bits as u64 {
+            return self.fail(DecodeError::UnexpectedEnd);
+        }
+        if cur_used_bits == 0 { return Some((0, 0)); }
+
         let mut cur_u16: u16 = self.data_cache[self.cur_read_pos as usize] as u16;
         if (self.cur_read_pos + 1 < self.data_cache.len() as u64) && (self.sub_byte_counter > 0) {
             cur_u16 += (self.data_cache[(self.cur_read_pos + 1) as usize] as u16) << 8;
         }
-
-        let cur_used_bits = std::cmp::min(total_bits as u8, 8);
-
-        // println!("d cur_used_bits={} (total_bits={})", cur_used_bits, total_bits);
 
         let d = ((cur_u16 >> self.sub_byte_counter) & bits_for_and(cur_used_bits)) as u8;
 
@@ -206,41 +364,91 @@ impl Bides {
         Some((d, total_bits - cur_used_bits as u64))
     }
 
+    /// Reads `total_bits` bits into bytes (LSB first), padded with zero bytes up to
+    /// `expected_bytes`. Fails with `UnexpectedEnd` (nothing consumed) if not enough data.
     pub fn decode_data(&mut self, total_bits: u64, expected_bytes: u32) -> Option<Vec<u8>> {
-        if self.cur_read_pos >= self.data_cache.len() as u64 {
-            return None;
+        if total_bits > self.remaining_bits() {
+            return self.fail(DecodeError::UnexpectedEnd);
         }
         let mut cur_total_bits = total_bits;
-        let mut dv = Vec::new();
+        let mut dv = Vec::with_capacity(std::cmp::max(expected_bytes as usize, ((total_bits + 7) >> 3) as usize));
         while cur_total_bits > 0 {
             let d;
-            (d, cur_total_bits) = match self.decode_data_base_u8(cur_total_bits) {
-                Some(d) => d, None => { return None; }
-            };
+            (d, cur_total_bits) = self.decode_data_base_u8(cur_total_bits)?;
             dv.push(d);
         }
-        let num_add = expected_bytes - dv.len() as u32;
-        for _ in 0..num_add { dv.push(0); }
+        while dv.len() < expected_bytes as usize { dv.push(0); }
         Some(dv)
     }
 
+    /// Reads `total_bits` bits (LSB first) as unsigned value. Bits above bit 63 must be zero
+    /// (`InvalidValue` otherwise). Fails with `UnexpectedEnd` (nothing consumed) if not enough data.
+    pub(crate) fn decode_bits(&mut self, total_bits: u64) -> Option<u64> {
+        if total_bits > self.remaining_bits() {
+            return self.fail(DecodeError::UnexpectedEnd);
+        }
+        let mut v: u64 = 0;
+        let mut shift: u64 = 0;
+        let mut cur_total_bits = total_bits;
+        let mut excess = false;
+        while cur_total_bits > 0 {
+            let d;
+            (d, cur_total_bits) = self.decode_data_base_u8(cur_total_bits)?;
+            if shift < 64 { v |= (d as u64) << shift; }
+            else if d != 0 { excess = true; }
+            shift += 8;
+        }
+        if excess { return self.fail(DecodeError::InvalidValue); }
+        Some(v)
+    }
+
+    /// Skips `bits` bits. If not enough data is available, `UnexpectedEnd` is recorded and
+    /// the read position is moved to the end of the data (so that further reads fail).
     pub fn skip_bits(&mut self, bits: u64) {
+        if self.try_skip_bits(bits).is_none() {
+            self.cur_read_pos = self.data_cache.len() as u64;
+            self.sub_byte_counter = 0;
+        }
+    }
+    /// Skips `bits` bits; fails with `UnexpectedEnd` (nothing consumed) if not enough data.
+    pub fn try_skip_bits(&mut self, bits: u64) -> Option<()> {
+        if bits > self.remaining_bits() {
+            return self.fail(DecodeError::UnexpectedEnd);
+        }
         let bits_total_pos = bits + self.sub_byte_counter as u64;
-        self.sub_byte_counter = (bits_total_pos.clone() & 7) as u8;
+        self.sub_byte_counter = (bits_total_pos & 7) as u8;
         self.cur_read_pos += bits_total_pos >> 3;
+        Some(())
+    }
+
+    /// Spec section 3: a count `n` of elements with at least `elem_min_bits` bits each must
+    /// not exceed the remaining data (checked before allocating).
+    pub(crate) fn check_count(&mut self, n: u64, elem_min_bits: u64) -> Option<()> {
+        if n.saturating_mul(std::cmp::max(1, elem_min_bits)) > self.remaining_bits() {
+            return self.fail(DecodeError::UnexpectedEnd);
+        }
+        Some(())
     }
 }
 
-macro_rules! impl_biserdi_var_bitsize_trait {
-    ($type:ty, $num_bytes: expr) => {
-        impl BiserdiTraitVarBitSize for $type {
-            fn bit_serialize(self: &Self, total_bits: u64, biseri: &mut Biseri) -> Option<u64> {
-                if Self::IS_SIGNED { self.is_val_negative().bit_serialize(biseri)?; }
-                let v = self.get_absolute_uint();
-                let vv = &v.to_le_bytes().to_vec();
-                let bits = biseri.add_data(vv, total_bits)?;
+/// Upper bound for pre-allocated element capacity when decoding dynamic arrays.
+const MAX_PREALLOC_ELEMENTS: u64 = 1024;
 
-                let bits_with_sign = if Self::IS_SIGNED { bits+1 } else { bits };
+macro_rules! impl_biserdi_var_bitsize_trait {
+    ($type:ty) => {
+        impl BiserdiTraitVarBitSize for $type {
+            /// Writes the value with `total_bits` bits (signed: sign bit + magnitude, spec 2.3).
+            /// A value outside the valid range records `EncodeError::ValueOutOfRange` and is
+            /// written truncated to `total_bits` bits (legacy behaviour).
+            fn bit_serialize(self: &Self, total_bits: u64, biseri: &mut Biseri) -> Option<u64> {
+                let v = self.get_absolute_uint();
+                if v > max_magnitude_for_bits(total_bits, <$type>::BITS, Self::IS_SIGNED) {
+                    biseri.set_error(EncodeError::ValueOutOfRange);
+                }
+                if Self::IS_SIGNED { biseri.add_bits(self.is_val_negative() as u64, 1); }
+                biseri.add_bits(v, total_bits);
+
+                let bits_with_sign = if Self::IS_SIGNED { total_bits + 1 } else { total_bits };
                 Some(bits_with_sign)
             }
             fn bit_deserialize(version_id: u16, total_bits: u64, bides: &mut Bides) -> Option<(Self, u64)> {
@@ -248,8 +456,13 @@ macro_rules! impl_biserdi_var_bitsize_trait {
                     bool::bit_deserialize(version_id, bides)?.0 }
                 else { false };
 
-                let mut v = Self::from_le_bytes(
-                    bides.decode_data(total_bits, $num_bytes)?.try_into().ok()?);
+                let mag = bides.decode_bits(total_bits)?;
+                if mag > max_magnitude_for_bits(total_bits, <$type>::BITS, Self::IS_SIGNED) {
+                    return bides.fail(DecodeError::InvalidValue);
+                }
+                // mag fits into the type; negation of a valid magnitude cannot overflow,
+                // negative zero decodes to 0
+                let mut v = mag as $type;
                 if is_neg { v = v.switch_sign_if_possible() }
 
                 let bits_with_sign = if Self::IS_SIGNED { total_bits + 1 } else { total_bits };
@@ -270,12 +483,14 @@ macro_rules! impl_biserdi {
                 $num_bits))
             }
             fn min_bits() -> u64 { $num_bits as u64 }
+            fn max_bits() -> Option<u64> { Some($num_bits as u64) }
         }
     };
 }
 
 // ****************************************************************************
 pub fn call_min_bits<T: BiserdiTrait>() -> u64 { T::min_bits() }
+pub fn call_max_bits<T: BiserdiTrait>() -> Option<u64> { T::max_bits() }
 pub fn call_default<T: Default>() -> T { T::default() }
 
 // ****************************************************************************
@@ -287,10 +502,11 @@ impl BiserdiTrait for bool {
         Some(1)
     }
     fn bit_deserialize(_version_id: u16, bides: &mut Bides) -> Option<(Self, u64)> {
-        let vec = bides.decode_data(1, 1)?;
-        Some((if vec[0] == 0 { false } else { true }, 1))
+        let (v, _) = bides.decode_data_base_u8(1)?;
+        Some((v != 0, 1))
     }
     fn min_bits() -> u64 { 1 }
+    fn max_bits() -> Option<u64> { Some(1) }
 }
 impl ValFromInto<bool> for bool {
     fn val_into(self: &Self) -> bool { self.clone() }
@@ -299,14 +515,14 @@ impl ValFromInto<bool> for bool {
 
 // ****************************************************************************
 // integer
-impl_biserdi_var_bitsize_trait!(u8, u8::BITS>>3);
-impl_biserdi_var_bitsize_trait!(u16, u16::BITS>>3);
-impl_biserdi_var_bitsize_trait!(u32, u32::BITS>>3);
-impl_biserdi_var_bitsize_trait!(u64, u64::BITS>>3);
-impl_biserdi_var_bitsize_trait!(i8, i8::BITS>>3);
-impl_biserdi_var_bitsize_trait!(i16, i16::BITS>>3);
-impl_biserdi_var_bitsize_trait!(i32, i32::BITS>>3);
-impl_biserdi_var_bitsize_trait!(i64, i64::BITS>>3);
+impl_biserdi_var_bitsize_trait!(u8);
+impl_biserdi_var_bitsize_trait!(u16);
+impl_biserdi_var_bitsize_trait!(u32);
+impl_biserdi_var_bitsize_trait!(u64);
+impl_biserdi_var_bitsize_trait!(i8);
+impl_biserdi_var_bitsize_trait!(i16);
+impl_biserdi_var_bitsize_trait!(i32);
+impl_biserdi_var_bitsize_trait!(i64);
 
 // ****************************************************************************
 // floats
@@ -323,12 +539,31 @@ impl ValFromInto<f64> for f64 {
 }
 
 // ****************************************************************************
+/// `uint_X` / `int_X` (spec 2.2/2.3). `new`/`From` do not check the range; a value outside
+/// `MIN..=MAX` is truncated when serialized (legacy behaviour) and
+/// `EncodeError::ValueOutOfRange` is recorded. Use `try_new` for a checked construction.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IntWithGivenBitSize<T: Clone + IntegerBaseFunctions + Sized + BiserdiTraitVarBitSize + Default + Display + Debug, const NUM_BITS: u64> {
     pub val: T
 }
 impl<T: Clone + IntegerBaseFunctions + Sized + BiserdiTraitVarBitSize + Default + Display + Debug, const NUM_BITS: u64> IntWithGivenBitSize<T, NUM_BITS> {
     pub fn new(v: T) -> Self { IntWithGivenBitSize { val: v } }
+}
+impl<T: Clone + IntegerBaseFunctions + Sized + BiserdiTraitVarBitSize + Default + Display + Debug + IntBoundsForBits<NUM_BITS>,
+    const NUM_BITS: u64> IntWithGivenBitSize<T, NUM_BITS> {
+    /// Smallest valid value.
+    pub const MIN: T = <T as IntBoundsForBits<NUM_BITS>>::MIN_FOR_BITS;
+    /// Largest valid value.
+    pub const MAX: T = <T as IntBoundsForBits<NUM_BITS>>::MAX_FOR_BITS;
+    const CHECK_NUM_BITS: () = assert!(<T as IntBoundsForBits<NUM_BITS>>::VALID_NUM_BITS,
+        "IntWithGivenBitSize: NUM_BITS must be between 1 and the number of bits of the base type");
+
+    /// Checked construction: fails with `ValueOutOfRange` if `v` is not in `MIN..=MAX`.
+    pub fn try_new(v: T) -> Result<Self, EncodeError> {
+        let () = Self::CHECK_NUM_BITS;
+        if v.get_absolute_uint() <= <T as IntBoundsForBits<NUM_BITS>>::MAX_MAGNITUDE { Ok(Self{ val: v }) }
+        else { Err(EncodeError::ValueOutOfRange) }
+    }
 }
 impl<T: Clone + IntegerBaseFunctions + Sized + BiserdiTraitVarBitSize + Default + Display + Debug, const NUM_BITS: u64> From<T> for IntWithGivenBitSize<T, NUM_BITS> {
     fn from(val: T) -> Self {
@@ -339,15 +574,19 @@ impl<T: Clone + IntegerBaseFunctions + Sized + BiserdiTraitVarBitSize + Default 
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "{} |bits:{}", self.val, NUM_BITS)
     } }
-impl<T: Clone + IntegerBaseFunctions + Sized + BiserdiTraitVarBitSize + Default + Display + Debug, const NUM_BITS: u64> BiserdiTrait for IntWithGivenBitSize<T, NUM_BITS> {
+impl<T: Clone + IntegerBaseFunctions + Sized + BiserdiTraitVarBitSize + Default + Display + Debug + IntBoundsForBits<NUM_BITS>,
+    const NUM_BITS: u64> BiserdiTrait for IntWithGivenBitSize<T, NUM_BITS> {
     fn bit_serialize(self: &Self, biseri: &mut Biseri) -> Option<u64> {
+        let () = Self::CHECK_NUM_BITS;
         self.val.bit_serialize(NUM_BITS, biseri)
     }
     fn bit_deserialize(version_id: u16, bides: &mut Bides) -> Option<(Self, u64)> {
+        let () = Self::CHECK_NUM_BITS;
         let v = T::bit_deserialize(version_id, NUM_BITS, bides)?;
         Some((Self{val: v.0}, v.1))
     }
-    fn min_bits() -> u64 { NUM_BITS }
+    fn min_bits() -> u64 { if T::IS_SIGNED { NUM_BITS + 1 } else { NUM_BITS } }
+    fn max_bits() -> Option<u64> { Some(Self::min_bits()) }
 }
 impl<T: Clone + IntegerBaseFunctions + Sized + BiserdiTraitVarBitSize + Default + Display + Debug, const NUM_BITS: u64> Default for IntWithGivenBitSize<T, NUM_BITS> {
     fn default() -> Self { Self{val: Default::default()} }
@@ -358,6 +597,9 @@ impl<T: Clone + IntegerBaseFunctions + Sized + BiserdiTraitVarBitSize + Default 
 }
 
 // ****************************************************************************
+/// `uint_XdY` / `int_XdY` (spec 2.4/2.5) with `X = MAX_BITS`, `Y = BIT_PACKS`.
+/// `new`/`From` do not check the range; a value outside `MIN..=MAX` is serialized masked to
+/// `MAX_BITS` bits (legacy behaviour) and `EncodeError::ValueOutOfRange` is recorded.
 #[derive(Debug, Clone, PartialEq, Eq, Default, Copy)]
 pub struct DynInteger<
     T: Sized + Copy + BiserdiTraitVarBitSize + AddAssign + Shl<Output = T> + Shr + Ord + PartialEq //+ TryFrom<u64>
@@ -371,38 +613,56 @@ impl<T: Display + Sized + Copy + BiserdiTraitVarBitSize + AddAssign + Shl<Output
         DynInteger{val: v}
     }
 }
+impl<T: Sized + Copy + BiserdiTraitVarBitSize + AddAssign + Shl<Output = T> + Shr + Ord + PartialEq
++ IntegerBaseFunctions + Default + IntBoundsForDynBits<MAX_BITS>, const MAX_BITS: u8, const BIT_PACKS: u8> DynInteger<T, MAX_BITS, BIT_PACKS> {
+    /// Smallest valid value.
+    pub const MIN: T = <T as IntBoundsForDynBits<MAX_BITS>>::MIN_FOR_BITS;
+    /// Largest valid value.
+    pub const MAX: T = <T as IntBoundsForDynBits<MAX_BITS>>::MAX_FOR_BITS;
+    const CHECK_PARAMS: () = assert!(<T as IntBoundsForDynBits<MAX_BITS>>::VALID_NUM_BITS && BIT_PACKS >= 1,
+        "DynInteger: MAX_BITS must be between 1 and the number of bits of the base type and BIT_PACKS must be at least 1");
+
+    /// Checked construction: fails with `ValueOutOfRange` if `v` is not in `MIN..=MAX`.
+    pub fn try_new(v: T) -> Result<Self, EncodeError> {
+        let () = Self::CHECK_PARAMS;
+        if v.get_absolute_uint() <= <T as IntBoundsForDynBits<MAX_BITS>>::MAX_MAGNITUDE { Ok(Self{ val: v }) }
+        else { Err(EncodeError::ValueOutOfRange) }
+    }
+}
 impl<T: Display + Sized + Copy + BiserdiTraitVarBitSize + AddAssign + Shl<Output = T> + Shr + Ord + PartialEq + TryFrom<u64>
-+ IntegerBaseFunctions + Default, const MAX_BITS: u8, const BIT_PACKS: u8> BiserdiTrait for DynInteger<T, MAX_BITS, BIT_PACKS> {
++ IntegerBaseFunctions + Default + IntBoundsForDynBits<MAX_BITS>, const MAX_BITS: u8, const BIT_PACKS: u8> BiserdiTrait for DynInteger<T, MAX_BITS, BIT_PACKS> {
     fn bit_serialize(self: &Self, biseri: &mut Biseri) -> Option<u64> {
-        // let br = self.bits_required();
-        // let dyn_sections = br / Self::DYN_SIZE;
+        let () = Self::CHECK_PARAMS;
         let mut bit_size: u64 = 1;
         let mut val_work = self.val.get_absolute_uint();
+        if val_work > <T as IntBoundsForDynBits<MAX_BITS>>::MAX_MAGNITUDE {
+            biseri.set_error(EncodeError::ValueOutOfRange);
+            // legacy behaviour: truncate to MAX_BITS bits
+            val_work &= max_magnitude_for_bits(MAX_BITS as u64, 64, false);
+        }
 
         if T::IS_SIGNED { self.val.is_val_negative().bit_serialize(biseri)?; bit_size +=1; }
 
-        (val_work != 0).bit_serialize(biseri);
+        (val_work != 0).bit_serialize(biseri)?;
         let mut max_bits_num = MAX_BITS;
-        // println!("max_bits_num: {}, val_work: {}", max_bits_num, val_work);
         while val_work > 0 {
-            let cur_bitsize = std::cmp::min(max_bits_num, Self::BIT_PACKS);
+            let cur_bitsize = std::cmp::min(max_bits_num, BIT_PACKS);
 
-            val_work.bit_serialize(u64::from(cur_bitsize), biseri)?;
-            val_work >>= cur_bitsize;
+            biseri.add_bits(val_work, cur_bitsize as u64);
+            val_work = val_work.checked_shr(cur_bitsize as u32).unwrap_or(0);
             bit_size += cur_bitsize as u64;
 
             max_bits_num -= cur_bitsize;
-            // println!("max_bits_num: {}, val_work: {}", max_bits_num, val_work);
-            if max_bits_num > 0 {
-                let further_data = val_work > 0;
-                further_data.bit_serialize(biseri);
-                bit_size += 1;
-            }
+            // no continuation bit when MAX_BITS is used up
+            if max_bits_num == 0 { break; }
+            (val_work > 0).bit_serialize(biseri)?;
+            bit_size += 1;
         }
         Some(bit_size)
     }
     fn bit_deserialize(version_id: u16, bides: &mut Bides) -> Option<(Self, u64)> {
-        let mut cur_shift: u64 = 0;
+        let () = Self::CHECK_PARAMS;
+        let mut cur_shift: u32 = 0;
         let mut v: u64 = 0;
         let mut negative_sign = false;
 
@@ -412,34 +672,33 @@ impl<T: Display + Sized + Copy + BiserdiTraitVarBitSize + AddAssign + Shl<Output
         let mut further_data = bool::bit_deserialize(version_id, bides)?.0;
         let mut max_bits_num = MAX_BITS;
         while further_data {
-            let cur_bitsize = std::cmp::min(max_bits_num, Self::BIT_PACKS);
+            let cur_bitsize = std::cmp::min(max_bits_num, BIT_PACKS);
 
-            let vt = u64::bit_deserialize(version_id, cur_bitsize as u64, bides)?;
-            bit_size += vt.1 + 1;
-            v += vt.0 << cur_shift;
-            cur_shift += u64::from(cur_bitsize);
+            let vt = bides.decode_bits(cur_bitsize as u64)?;
+            bit_size += cur_bitsize as u64;
+            v |= vt.checked_shl(cur_shift).unwrap_or(0);
+            cur_shift += cur_bitsize as u32;
 
             max_bits_num -= cur_bitsize;
-
-            // println!("max_bits_num: {}, bit_size: {}", max_bits_num, bit_size);
-
-            if max_bits_num > 0 {
-                further_data = bool::bit_deserialize(version_id, bides)?.0;
-            }
-            else { further_data = false }
+            if max_bits_num == 0 { break; }
+            further_data = bool::bit_deserialize(version_id, bides)?.0;
+            bit_size += 1;
         }
-        let mut vv= T::try_from(v).ok()?;
+        if v > <T as IntBoundsForDynBits<MAX_BITS>>::MAX_MAGNITUDE {
+            return bides.fail(DecodeError::InvalidValue);
+        }
+        let mut vv = match T::try_from(v) { Ok(vv) => vv, Err(_) => { return bides.fail(DecodeError::InvalidValue) } };
         if negative_sign {
             vv = vv.switch_sign_if_possible();
         }
         Some((Self{val: vv}, bit_size))
     }
-    fn min_bits() -> u64 { 1 }
+    fn min_bits() -> u64 { if T::IS_SIGNED { 2 } else { 1 } }
 }
 impl<T: Display + Sized + Copy + BiserdiTraitVarBitSize + AddAssign + Shl<Output = T> + Shr + Ord + PartialEq + TryFrom<u64>
 + IntegerBaseFunctions + Default, const MAX_BITS: u8, const BIT_PACKS: u8> Display for DynInteger<T, MAX_BITS, BIT_PACKS> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{} |{}d{}]", self.val, MAX_BITS, BIT_PACKS)
+        write!(f, "{} |{}d{}", self.val, MAX_BITS, BIT_PACKS)
     } }
 impl<T: Display + Sized + Copy + BiserdiTraitVarBitSize + AddAssign + Shl<Output = T> + Shr + Ord + PartialEq + TryFrom<u64>
 + Default + IntegerBaseFunctions, const MAX_BITS: u8, const BIT_PACKS: u8> From<T> for DynInteger<T, MAX_BITS, BIT_PACKS> {
@@ -452,53 +711,75 @@ impl<T: Display + Sized + Copy + BiserdiTraitVarBitSize + AddAssign + Shl<Output
 }
 
 // ****************************************************************************
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub enum FixPrecisionVal {
     #[default]
     Overflow,
     Value(f64),
     Underflow
 }
+/// `fp_N[min, max]` (spec 2.7). Requires `2 <= NUM_BITS <= 53` and `MIN_IVALUE < MAX_IVALUE`
+/// (checked at compile time).
 #[derive(Debug, Clone, Default)]
 pub struct FixPrecisionMinMax<const NUM_BITS: u8, const MIN_IVALUE: i64, const MAX_IVALUE: i64> {
     pub val: FixPrecisionVal
 }
 impl<const NUM_BITS: u8, const MIN_IVALUE: i64, const MAX_IVALUE: i64> FixPrecisionMinMax<NUM_BITS, MIN_IVALUE, MAX_IVALUE> {
+    const CHECK_PARAMS: () = assert!(NUM_BITS >= 2 && NUM_BITS <= 53 && MIN_IVALUE < MAX_IVALUE,
+        "FixPrecisionMinMax: NUM_BITS must be between 2 and 53 and MIN_IVALUE < MAX_IVALUE");
     const MIN_VALUE: f64 = MIN_IVALUE as f64;
     const MAX_VALUE: f64 = MAX_IVALUE as f64;
     const RANGE_VALUE: f64 = Self::MAX_VALUE - Self::MIN_VALUE;
-    const MAX_INT_VALUE_FOR_BITS: u64 = (1_u64<<NUM_BITS) - 1_u64;
-    const MAX_VALUE_FOR_BITS: f64 = (Self::MAX_INT_VALUE_FOR_BITS - 2_u64) as f64;
+    const MAX_INT_VALUE_FOR_BITS: u64 = max_magnitude_for_bits(NUM_BITS as u64, 64, false);
+    const MAX_VALUE_FOR_BITS: f64 = Self::MAX_INT_VALUE_FOR_BITS.saturating_sub(2_u64) as f64;
 
     pub fn new(val: f64) -> Self {
         let mut obj = Self{val: FixPrecisionVal::Underflow};
         obj.set(val);
         obj
     }
+    /// Sets the value: `> max` is Overflow, `< min` and NaN are Underflow, otherwise the value
+    /// is quantized to the wire resolution.
     pub fn set(&mut self, val: f64) {
         self.val = Self::u64_to_val(Self::val_to_u64(&Self::val_to_enum(val)));
     }
+    /// The value, or `None` for Overflow/Underflow.
+    pub fn value(&self) -> Option<f64> {
+        match Self::normalized(&self.val) { FixPrecisionVal::Value(v) => Some(v), _ => None }
+    }
+    /// `true` if the value is above `max` (wire raw value `2^N - 1`).
+    pub fn is_overflow(&self) -> bool {
+        matches!(Self::normalized(&self.val), FixPrecisionVal::Overflow)
+    }
+    /// `true` if the value is below `min` or NaN (wire raw value `0`).
+    pub fn is_underflow(&self) -> bool {
+        matches!(Self::normalized(&self.val), FixPrecisionVal::Underflow)
+    }
+    fn normalized(v: &FixPrecisionVal) -> FixPrecisionVal {
+        match v { FixPrecisionVal::Value(v) => Self::val_to_enum(*v), o => o.clone() }
+    }
     fn val_to_enum(val: f64) -> FixPrecisionVal {
-        if val > Self::MAX_VALUE { FixPrecisionVal::Overflow }
+        if val.is_nan() { FixPrecisionVal::Underflow }
+        else if val > Self::MAX_VALUE { FixPrecisionVal::Overflow }
         else if val < Self::MIN_VALUE { FixPrecisionVal::Underflow }
         else { FixPrecisionVal::Value(val) }
     }
     fn val_to_u64(v: &FixPrecisionVal) -> u64 {
-        let vu = match v {
-            // i = (v-Min) / (Max-Min) * 253 + 1
+        let () = Self::CHECK_PARAMS;
+        match Self::normalized(v) {
+            // i = (v-Min) / (Max-Min) * (2^N-3) + 1
             FixPrecisionVal::Value(v) => {
                 let vv= (v - Self::MIN_VALUE) / Self::RANGE_VALUE * Self::MAX_VALUE_FOR_BITS + 1.0;
                 vv.round() as u64
             },
             FixPrecisionVal::Underflow => 0,
             FixPrecisionVal::Overflow => Self::MAX_INT_VALUE_FOR_BITS
-        };
-        // println!("vu: {}", vu);
-        vu
+        }
     }
     fn u64_to_val(v: u64) -> FixPrecisionVal {
+        let () = Self::CHECK_PARAMS;
         if v == 0 { FixPrecisionVal::Underflow }
-        else if v == Self::MAX_INT_VALUE_FOR_BITS { FixPrecisionVal::Overflow }
+        else if v >= Self::MAX_INT_VALUE_FOR_BITS { FixPrecisionVal::Overflow }
         else {
             FixPrecisionVal::Value(((v-1) as f64) / Self::MAX_VALUE_FOR_BITS
                 * Self::RANGE_VALUE + Self::MIN_VALUE)
@@ -508,15 +789,17 @@ impl<const NUM_BITS: u8, const MIN_IVALUE: i64, const MAX_IVALUE: i64> FixPrecis
 impl<const NUM_BITS: u8, const MIN_IVALUE: i64, const MAX_IVALUE: i64> BiserdiTrait for FixPrecisionMinMax<NUM_BITS, MIN_IVALUE, MAX_IVALUE> {
     fn bit_serialize(self: &Self, biseri: &mut Biseri) -> Option<u64> {
         let v = Self::val_to_u64(&self.val);
-        v.bit_serialize(NUM_BITS as u64, biseri)
+        biseri.add_bits(v, NUM_BITS as u64);
+        Some(NUM_BITS as u64)
     }
-    fn bit_deserialize(version_id: u16, bides: &mut Bides) -> Option<(Self, u64)> {
-        // v = (i-1)/253 * (Max-Min) + Min
-        let (v, bits) = u64::bit_deserialize(version_id, NUM_BITS as u64, bides)?;
+    fn bit_deserialize(_version_id: u16, bides: &mut Bides) -> Option<(Self, u64)> {
+        // v = (i-1)/(2^N-3) * (Max-Min) + Min
+        let v = bides.decode_bits(NUM_BITS as u64)?;
         let vv = Self::u64_to_val(v);
-        Some((Self{val: vv}, bits))
+        Some((Self{val: vv}, NUM_BITS as u64))
     }
     fn min_bits() -> u64 { NUM_BITS as u64 }
+    fn max_bits() -> Option<u64> { Some(NUM_BITS as u64) }
 }
 impl<const NUM_BITS: u8, const MIN_IVALUE: i64, const MAX_IVALUE: i64> Display for FixPrecisionMinMax<NUM_BITS, MIN_IVALUE, MAX_IVALUE> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -538,6 +821,8 @@ impl<const NUM_BITS: u8, const MIN_IVALUE: i64, const MAX_IVALUE: i64> PartialEq
     }
     fn ne(&self, other: &Self) -> bool { !self.eq(other) }
 }
+/// Legacy conversion: Underflow is returned as `min - 1`, Overflow as `max + 1`.
+/// Prefer [`FixPrecisionMinMax::value`], `is_overflow` and `is_underflow`.
 impl<const NUM_BITS: u8, const MIN_IVALUE: i64, const MAX_IVALUE: i64> Into<f64> for FixPrecisionMinMax<NUM_BITS, MIN_IVALUE, MAX_IVALUE> {
     fn into(self) -> f64 {
         match self.val {
@@ -547,6 +832,8 @@ impl<const NUM_BITS: u8, const MIN_IVALUE: i64, const MAX_IVALUE: i64> Into<f64>
         }
     }
 }
+/// Legacy conversion: `val_into` returns Underflow as `min - 1` and Overflow as `max + 1`.
+/// Prefer [`FixPrecisionMinMax::value`], `is_overflow` and `is_underflow`.
 impl<const NUM_BITS: u8, const MIN_IVALUE: i64, const MAX_IVALUE: i64> ValFromInto<f64> for FixPrecisionMinMax<NUM_BITS, MIN_IVALUE, MAX_IVALUE> {
     fn val_into(&self) -> f64 {
         match self.val {
@@ -561,6 +848,17 @@ impl<const NUM_BITS: u8, const MIN_IVALUE: i64, const MAX_IVALUE: i64> ValFromIn
 }
 
 // ****************************************************************************
+/// Serializes the element count of a dynamic container (`U32D(DYNSIZEBITS)`).
+/// A count above `u32::MAX` records `ValueOutOfRange` and is truncated.
+fn serialize_count<const DYNSIZEBITS: u8>(len: usize, biseri: &mut Biseri) -> Option<(u64, usize)> {
+    let n = match u32::try_from(len) {
+        Ok(n) => n,
+        Err(_) => { biseri.set_error(EncodeError::ValueOutOfRange); len as u32 }
+    };
+    let s = DynInteger::<u32, 32, DYNSIZEBITS>::new(n).bit_serialize(biseri)?;
+    Some((s, n as usize))
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Binary<const DYNSIZEBITS: u8> {
     pub val: Vec<u8>
@@ -575,22 +873,17 @@ impl<const DYNSIZEBITS: u8> Binary<DYNSIZEBITS> {
 }
 impl<const DYNSIZEBITS: u8> BiserdiTrait for Binary<DYNSIZEBITS> {
     fn bit_serialize(self: &Self, biseri: &mut Biseri) -> Option<u64> {
-        let mut s = 0;
-        s += DynInteger::<u32, 32, DYNSIZEBITS>::new(self.val.len() as u32).bit_serialize(biseri)?;
-        for d in self.val.iter() { s += d.bit_serialize(8, biseri)?; };
+        let (mut s, n) = serialize_count::<DYNSIZEBITS>(self.val.len(), biseri)?;
+        for d in self.val[..n].iter() { biseri.add_bits(*d as u64, 8); s += 8; };
         Some(s)
     }
     fn bit_deserialize(version_id: u16, bides: &mut Bides) -> Option<(Self, u64)> {
-        let mut s = 0;
         let (v, cs) =
             DynInteger::<u32, 32, DYNSIZEBITS>::bit_deserialize(version_id, bides)?;
-        let mut data = Vec::with_capacity(cs as usize);
-        for _ci in 0..v.val {
-            let (vi, si) = u8::bit_deserialize(version_id, 8, bides)?;
-            s += si;
-            data.push(vi);
-        }
-        Some((Self{ val: data }, s+cs))
+        let n = v.val as u64;
+        bides.check_count(n, 8)?;
+        let data = bides.decode_data(n * 8, 0)?;
+        Some((Self{ val: data }, n * 8 + cs))
     }
     fn min_bits() -> u64 { 1 }
 }
@@ -605,6 +898,7 @@ impl<const N: u8> Default for Binary<N> {
 }
 
 // *****
+/// `astr_dY` (spec 2.8): ASCII string. Decoding rejects bytes >= 0x80 (`InvalidValue`).
 #[derive(Clone, PartialEq)]
 pub struct BitisAString<const DYNSIZEBITS: u8> {
     val: Binary<DYNSIZEBITS>
@@ -613,17 +907,38 @@ impl<const DYNSIZEBITS: u8> BitisAString<DYNSIZEBITS> {
     pub fn from_str(data: AsciiString) -> Self {
         Self{ val: Binary::new(data.as_bytes().into()) }
     }
+    /// Checked construction; fails with `ValueOutOfRange` if `data` is not ASCII.
+    pub fn try_from_str(data: &str) -> Result<Self, EncodeError> {
+        match data.as_ascii_str() {
+            Ok(v) => Ok(Self::from_str(v.into())),
+            Err(_) => Err(EncodeError::ValueOutOfRange),
+        }
+    }
+    /// Checked construction; fails with `ValueOutOfRange` if `data` is not ASCII.
+    /// (`TryFrom<String>` is not available because of the legacy `From<String>`.)
+    pub fn try_from_string(data: String) -> Result<Self, EncodeError> {
+        match AsciiString::from_ascii(data) {
+            Ok(v) => Ok(Self::from_str(v)),
+            Err(_) => Err(EncodeError::ValueOutOfRange),
+        }
+    }
     pub fn empty() -> Self {
         Self{val: Binary::empty()}
     }
     pub fn set(&mut self, data: AsciiString) {
         self.val = Binary::new(data.as_bytes().into())
     }
+    /// Returns the string (never panics; a non-ASCII byte, which the API does not allow to
+    /// create, would be replaced by `?`).
     pub fn get (&self) -> AsciiString {
-        AsciiString::from_ascii(self.val.val.clone()).unwrap()
+        match AsciiString::from_ascii(self.val.val.clone()) {
+            Ok(v) => v,
+            Err(_) => AsciiString::from_ascii(self.val.val.iter()
+                .map(|c| if *c < 0x80 { *c } else { b'?' }).collect::<Vec<u8>>()).unwrap_or_default(),
+        }
     }
     pub fn get_string (&self) -> String {
-        AsciiString::from_ascii(self.val.val.clone()).unwrap().to_string()
+        self.get().to_string()
     }
 }
 impl<const DYNSIZEBITS: u8> BiserdiTrait for BitisAString<DYNSIZEBITS> {
@@ -632,6 +947,7 @@ impl<const DYNSIZEBITS: u8> BiserdiTrait for BitisAString<DYNSIZEBITS> {
     }
     fn bit_deserialize(version_id: u16, bides: &mut Bides) -> Option<(Self, u64)> {
         let (v, s) = Binary::bit_deserialize(version_id, bides)?;
+        if !v.val.is_ascii() { return bides.fail(DecodeError::InvalidValue); }
         Some((BitisAString{val: v}, s))
     }
     fn min_bits() -> u64 { Binary::<DYNSIZEBITS>::min_bits() }
@@ -652,13 +968,20 @@ impl<const DYNSIZEBITS: u8> Default for BitisAString<DYNSIZEBITS> {
 impl<const DYNSIZEBITS: u8> From<ascii::AsciiString> for BitisAString<DYNSIZEBITS> {
     fn from(data: ascii::AsciiString) -> Self { Self::from_str(data) }
 }
+/// Legacy conversion: a non-ASCII string silently becomes the EMPTY string.
+/// Use [`BitisAString::try_from_string`] or `TryFrom<&str>` for a checked conversion.
 impl<const DYNSIZEBITS: u8> From<String> for BitisAString<DYNSIZEBITS> {
     fn from(value: String) -> Self { Self::val_from(&value) }
 }
+impl<const DYNSIZEBITS: u8> TryFrom<&str> for BitisAString<DYNSIZEBITS> {
+    type Error = EncodeError;
+    fn try_from(value: &str) -> Result<Self, Self::Error> { Self::try_from_str(value) }
+}
+/// `val_from`: legacy conversion, a non-ASCII string silently becomes the EMPTY string.
 impl<const DYNSIZEBITS: u8> ValFromInto<String> for BitisAString<DYNSIZEBITS> {
     fn val_into(self: &Self) -> String { self.get().to_string() }
     fn val_from(val: &String) -> Self {
-        match val.clone().as_ascii_str() {
+        match val.as_ascii_str() {
             Ok(val) => Self::from_str(val.into()),
             Err(_) => Self::empty(),
         }
@@ -748,14 +1071,14 @@ impl<T, const N: usize> BiserdiTrait for FixedArray<T, N> where T: Sized + Clone
         Some(s)
     }
     fn bit_deserialize(version_id: u16, bides: &mut Bides) -> Option<(Self, u64)> {
-        //let mut v: [T; N] = vec![T::default(); N].try_into::<[T; N]>().unwrap_err_unchecked();
         let mut v: [T; N] = array_init::array_init(|_| T::default());
         let mut bits = 0;
         let mut cur_bits;
         for i in 0..N { (v[i], cur_bits) = T::bit_deserialize(version_id, bides)?; bits += cur_bits; }
         Some((Self{ val: v}, bits))
     }
-    fn min_bits() -> u64 { (N as u64) * T::min_bits() }
+    fn min_bits() -> u64 { (N as u64).saturating_mul(T::min_bits()) }
+    fn max_bits() -> Option<u64> { T::max_bits()?.checked_mul(N as u64) }
 }
 impl<T: Sized + Clone + BiserdiTrait + Default + Debug, const N: usize> Display for FixedArray<T, N> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -783,17 +1106,18 @@ impl<T: Sized + Clone + BiserdiTrait + Default + Debug + ValFromInto<U>, const N
 pub struct DynArray<T, const DYNSIZEBITS: u8> where T: BiserdiTrait + Default { pub val: Vec<T> }
 impl<T, const DYNSIZEBITS: u8> BiserdiTrait for DynArray<T, DYNSIZEBITS> where T: BiserdiTrait + Default + Clone {
     fn bit_serialize(self: &Self, biseri: &mut Biseri) -> Option<u64> {
-        let mut s = 0;
-        s += DynInteger::<u32, 32, DYNSIZEBITS>::new(self.val.len() as u32).bit_serialize(biseri)?;
-        for d in self.val.iter() { s += d.bit_serialize(biseri)?; };
+        let (mut s, n) = serialize_count::<DYNSIZEBITS>(self.val.len(), biseri)?;
+        for d in self.val[..n].iter() { s += d.bit_serialize(biseri)?; };
         Some(s)
     }
     fn bit_deserialize(version_id: u16, bides: &mut Bides) -> Option<(Self, u64)> {
         let mut s = 0;
         let (v, cs) =
             DynInteger::<u32, 32, DYNSIZEBITS>::bit_deserialize(version_id, bides)?;
-        let mut data = Vec::with_capacity(cs as usize);
-        for _ci in 0..v.val {
+        let n = v.val as u64;
+        bides.check_count(n, T::min_bits())?;
+        let mut data = Vec::with_capacity(std::cmp::min(n, MAX_PREALLOC_ELEMENTS) as usize);
+        for _ci in 0..n {
             let (vi, si) = T::bit_deserialize(version_id, bides)?;
             s += si;
             data.push(vi);
@@ -827,6 +1151,7 @@ impl<T: Sized + BiserdiTrait + Default + Debug +  ValFromInto<U>, const DYNSIZEB
     fn val_into(&self) -> Vec<U> { self.val.iter().map(|v| v.val_into()).collect() }
     fn val_from(val: &Vec<U>) -> Self { Self { val: val.iter().map(|v| { T::val_from(v).into() }).collect() } }
 }
+
 
 
 
