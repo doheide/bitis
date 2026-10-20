@@ -23,6 +23,7 @@ class EncodeError(ValueError):
 
 # CRC-32 helper: CRC-32/ISO-HDLC, same values as zlib.crc32 (not part of the wire format)
 def crc32(data: bytes | bytearray | memoryview) -> int: ...
+@_typing.final
 class Crc32:
   def __init__(self) -> None: ...
   def update(self, data: bytes | bytearray | memoryview) -> None: ...
@@ -36,6 +37,7 @@ class Crc32:
 # *** Enums
 {%- for ce in d.enums %}
 
+@_typing.final
 class {{ ce.name }}:
 {%- if let Some(c) = ce.comment +%}
 {{ c|py_doc("  ") -}}
@@ -47,7 +49,7 @@ class {{ ce.name }}:
 {%- endif %}
 {%- endfor +%}
   def __int__(self) -> int: ...
-  def __eq__(self, other: object) -> bool: ...
+  def __eq__(self, other: object, /) -> bool: ...
   def __hash__(self) -> int: ...
 {%- endfor %}
 
@@ -56,6 +58,7 @@ class {{ ce.name }}:
 # *** Oneofs
 {%- for (_, coo) in d.oos %}
 
+@_typing.final
 class {{ coo.name }}Enum:
   """
   Selected element of {{ coo.name }} (see the <oneof>_oo property of the message).
@@ -64,7 +67,7 @@ class {{ coo.name }}Enum:
   {{ ca.base.name|pascal_case }}: _typing.ClassVar[{{ coo.name }}Enum]
 {%- endfor +%}
   def __int__(self) -> int: ...
-  def __eq__(self, other: object) -> bool: ...
+  def __eq__(self, other: object, /) -> bool: ...
   def __hash__(self) -> int: ...
 
 class {{ coo.name }}:
@@ -83,11 +86,12 @@ class {{ coo.name }}:
 # *** Messages
 {%- for cm in d.msgs %}
 
+@_typing.final
 class {{ cm.name }}:
 {%- if let Some(c) = cm.comment +%}
 {{ c|py_doc("  ") -}}
 {%- endif +%}
-  def __init__(self{%- for ca in cm.attributes -%}, {{ca.base.name}}: {{ ca.py_type() }}{%- endfor -%}) -> None: ...
+  def __new__(cls{%- for ca in cm.attributes -%}, {{ca.base.name}}: {{ ca.py_type() }}{%- endfor -%}) -> {{ cm.name }}: ...
 {%- for ca in cm.attributes %}
 {%- if ca.is_oo %}
 {%- if let Some(coo) = d.oos.get(ca.rust_type_str) +%}

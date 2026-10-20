@@ -39,5 +39,6 @@ msg AllTypes {
     Color color_val;
     astr_d3 text;
     Empty nothing;
+    binary_d4 raw;
   }
 }

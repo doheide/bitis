@@ -23,6 +23,7 @@ class EncodeError(ValueError):
 
 # CRC-32 helper: CRC-32/ISO-HDLC, same values as zlib.crc32 (not part of the wire format)
 def crc32(data: bytes | bytearray | memoryview) -> int: ...
+@_typing.final
 class Crc32:
   def __init__(self) -> None: ...
   def update(self, data: bytes | bytearray | memoryview) -> None: ...
@@ -35,17 +36,19 @@ class Crc32:
 
 # *** Enums
 
+@_typing.final
 class E:
   A: _typing.ClassVar[E]
   B: _typing.ClassVar[E]
   def __int__(self) -> int: ...
-  def __eq__(self, other: object) -> bool: ...
+  def __eq__(self, other: object, /) -> bool: ...
   def __hash__(self) -> int: ...
 
 
 
 # *** Oneofs
 
+@_typing.final
 class OO_Top_OuterEnum:
   """
   Selected element of OO_Top_Outer (see the <oneof>_oo property of the message).
@@ -53,7 +56,7 @@ class OO_Top_OuterEnum:
   Leaf: _typing.ClassVar[OO_Top_OuterEnum]
   Inner: _typing.ClassVar[OO_Top_OuterEnum]
   def __int__(self) -> int: ...
-  def __eq__(self, other: object) -> bool: ...
+  def __eq__(self, other: object, /) -> bool: ...
   def __hash__(self) -> int: ...
 
 class OO_Top_Outer:
@@ -62,6 +65,7 @@ class OO_Top_Outer:
   @staticmethod
   def new_inner(inner: OO_Outer_Inner) -> OO_Top_Outer: ...
 
+@_typing.final
 class OO_Outer_InnerEnum:
   """
   Selected element of OO_Outer_Inner (see the <oneof>_oo property of the message).
@@ -69,7 +73,7 @@ class OO_Outer_InnerEnum:
   X: _typing.ClassVar[OO_Outer_InnerEnum]
   E: _typing.ClassVar[OO_Outer_InnerEnum]
   def __int__(self) -> int: ...
-  def __eq__(self, other: object) -> bool: ...
+  def __eq__(self, other: object, /) -> bool: ...
   def __hash__(self) -> int: ...
 
 class OO_Outer_Inner:
@@ -82,8 +86,9 @@ class OO_Outer_Inner:
 
 # *** Messages
 
+@_typing.final
 class Top:
-  def __init__(self, m: Middle, outer: OO_Top_Outer) -> None: ...
+  def __new__(cls, m: Middle, outer: OO_Top_Outer) -> Top: ...
   # Middle
   m: Middle
 
@@ -141,8 +146,9 @@ class Top:
     Upper bound of the encoded size in bits, None if unbounded.
     """
 
+@_typing.final
 class Middle:
-  def __init__(self, leaves: list[Leaf], e: E | None) -> None: ...
+  def __new__(cls, leaves: list[Leaf], e: E | None) -> Middle: ...
   # repeated_dyn_2 Leaf
   leaves: list[Leaf]
   # optional E
@@ -190,8 +196,9 @@ class Middle:
     Upper bound of the encoded size in bits, None if unbounded.
     """
 
+@_typing.final
 class Leaf:
-  def __init__(self, v: int) -> None: ...
+  def __new__(cls, v: int) -> Leaf: ...
   # uint_2
   v: int
 

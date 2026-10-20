@@ -4,7 +4,7 @@ import typing as _typing
 
 # Version of the bitis compiler that generated this module ("{BITIS_VERSION}").
 BITIS_VERSION: str
-# Schema hash (0x75e29d4c3b290c0e): first 8 bytes of SHA-256 over the canonical schema.
+# Schema hash (0xc10a57d77c346314): first 8 bytes of SHA-256 over the canonical schema.
 BITIS_SCHEMA_HASH: int
 
 class DecodeError(ValueError):
@@ -23,6 +23,7 @@ class EncodeError(ValueError):
 
 # CRC-32 helper: CRC-32/ISO-HDLC, same values as zlib.crc32 (not part of the wire format)
 def crc32(data: bytes | bytearray | memoryview) -> int: ...
+@_typing.final
 class Crc32:
   def __init__(self) -> None: ...
   def update(self, data: bytes | bytearray | memoryview) -> None: ...
@@ -35,18 +36,20 @@ class Crc32:
 
 # *** Enums
 
+@_typing.final
 class Color:
   Red: _typing.ClassVar[Color]
   Green: _typing.ClassVar[Color]
   BlueLight: _typing.ClassVar[Color]
   def __int__(self) -> int: ...
-  def __eq__(self, other: object) -> bool: ...
+  def __eq__(self, other: object, /) -> bool: ...
   def __hash__(self) -> int: ...
 
 
 
 # *** Oneofs
 
+@_typing.final
 class OO_AllTypes_ChoiceEnum:
   """
   Selected element of OO_AllTypes_Choice (see the <oneof>_oo property of the message).
@@ -57,8 +60,9 @@ class OO_AllTypes_ChoiceEnum:
   ColorVal: _typing.ClassVar[OO_AllTypes_ChoiceEnum]
   Text: _typing.ClassVar[OO_AllTypes_ChoiceEnum]
   Nothing: _typing.ClassVar[OO_AllTypes_ChoiceEnum]
+  Raw: _typing.ClassVar[OO_AllTypes_ChoiceEnum]
   def __int__(self) -> int: ...
-  def __eq__(self, other: object) -> bool: ...
+  def __eq__(self, other: object, /) -> bool: ...
   def __hash__(self) -> int: ...
 
 class OO_AllTypes_Choice:
@@ -74,13 +78,16 @@ class OO_AllTypes_Choice:
   def new_text(text: str) -> OO_AllTypes_Choice: ...
   @staticmethod
   def new_nothing(nothing: Empty) -> OO_AllTypes_Choice: ...
+  @staticmethod
+  def new_raw(raw: bytes) -> OO_AllTypes_Choice: ...
 
 
 
 # *** Messages
 
+@_typing.final
 class Inner:
-  def __init__(self, a: int) -> None: ...
+  def __new__(cls, a: int) -> Inner: ...
   # uint_3
   a: int
 
@@ -126,8 +133,9 @@ class Inner:
     Upper bound of the encoded size in bits, None if unbounded.
     """
 
+@_typing.final
 class Empty:
-  def __init__(self) -> None: ...
+  def __new__(cls) -> Empty: ...
 
   @staticmethod
   def default() -> Empty: ...
@@ -171,8 +179,9 @@ class Empty:
     Upper bound of the encoded size in bits, None if unbounded.
     """
 
+@_typing.final
 class AllTypes:
-  def __init__(self, b: bool, u1: int, u17: int, u64v: int, i5: int, i33: int, ud: int, id: int, f: float, d: float, fp: float, lat: float, s: str, data: bytes, color: Color, inner: Inner, empty: Empty, opt_u: int | None, opt_inner: Inner | None, opt_empty: Empty | None, rf_b: list[bool], rf_inner: list[Inner], rd_u: list[int], rd_color: list[Color], rd_inner: list[Inner], choice: OO_AllTypes_Choice) -> None: ...
+  def __new__(cls, b: bool, u1: int, u17: int, u64v: int, i5: int, i33: int, ud: int, id: int, f: float, d: float, fp: float, lat: float, s: str, data: bytes, color: Color, inner: Inner, empty: Empty, opt_u: int | None, opt_inner: Inner | None, opt_empty: Empty | None, rf_b: list[bool], rf_inner: list[Inner], rd_u: list[int], rd_color: list[Color], rd_inner: list[Inner], choice: OO_AllTypes_Choice) -> AllTypes: ...
   # bool
   b: bool
   # uint_1
@@ -251,6 +260,10 @@ class AllTypes:
   def choice_nothing(self) -> Empty | None: ...
   @choice_nothing.setter
   def choice_nothing(self, val: Empty) -> None: ...
+  @property
+  def choice_raw(self) -> bytes | None: ...
+  @choice_raw.setter
+  def choice_raw(self, val: bytes) -> None: ...
 
   @staticmethod
   def default() -> AllTypes: ...

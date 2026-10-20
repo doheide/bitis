@@ -119,6 +119,7 @@ pub enum OO_AllTypes_Choice {
   ColorVal(Color),
   Text(String),
   Nothing(Py<Empty>),
+  Raw(Vec<u8>),
 }
 
 #[pyclass(eq, eq_int, hash, frozen)]
@@ -130,6 +131,7 @@ pub enum OO_AllTypes_ChoiceEnum {
   ColorVal,
   Text,
   Nothing,
+  Raw,
 }
 
 #[pymethods]
@@ -158,6 +160,10 @@ impl OO_AllTypes_Choice {
   fn new_nothing(py: Python<'_>, nothing: Py<Empty>) -> PyResult<Py<Self>> {
     Py::new(py, Self::Nothing(nothing))
   }
+  #[staticmethod]
+  fn new_raw(py: Python<'_>, raw: Vec<u8>) -> PyResult<Py<Self>> {
+    Py::new(py, Self::Raw(raw))
+  }
   fn __repr__(&self) -> String { format!("{}", self) }
 }
 impl BitisPyCheck for OO_AllTypes_Choice {
@@ -169,6 +175,7 @@ impl BitisPyCheck for OO_AllTypes_Choice {
       Self::ColorVal(v) => v.bitis_ok(py),
       Self::Text(v) => v.bitis_ok(py),
       Self::Nothing(v) => v.bitis_ok(py),
+      Self::Raw(v) => v.bitis_ok(py),
     }
   }
 }
@@ -181,6 +188,7 @@ Self::InnerVal(v) => messages::OO_AllTypes_Choice::InnerVal(do_val_from(v)),
 Self::ColorVal(v) => messages::OO_AllTypes_Choice::ColorVal(do_val_from(v)),
 Self::Text(v) => messages::OO_AllTypes_Choice::Text(do_val_from(v)),
 Self::Nothing(v) => messages::OO_AllTypes_Choice::Nothing(do_val_from(v)),
+Self::Raw(v) => messages::OO_AllTypes_Choice::Raw(do_val_from(v)),
 
       }
     })
@@ -193,6 +201,7 @@ messages::OO_AllTypes_Choice::InnerVal(v) => Self::InnerVal(v.val_into()),
 messages::OO_AllTypes_Choice::ColorVal(v) => Self::ColorVal(v.val_into()),
 messages::OO_AllTypes_Choice::Text(v) => Self::Text(v.val_into()),
 messages::OO_AllTypes_Choice::Nothing(v) => Self::Nothing(v.val_into()),
+messages::OO_AllTypes_Choice::Raw(v) => Self::Raw(v.val_into()),
 
       }
     });
@@ -214,6 +223,7 @@ impl std::fmt::Display for OO_AllTypes_Choice {
         Python::attach(|py| {
           write!(f, "OO_AllTypes_Choice(Nothing({})", v.borrow(py).__repr__()) }
         )},
+      OO_AllTypes_Choice::Raw(v) => { write!(f, "OO_AllTypes_Choice(Raw({:?}))", v) },
     }
   }
 }
@@ -262,19 +272,19 @@ impl Inner {
   }
   /// Decodes from the start of data (trailing bytes are ignored); raises DecodeError.
   #[staticmethod]
-  pub fn deserialize(py: Python<'_>, data: Bound<'_, PyBytes>) -> PyResult<Self> {
+  pub fn deserialize(data: Bound<'_, PyBytes>) -> PyResult<Self> {
     let v = try_deserialize::<messages::Inner>(data.as_bytes()).map_err(|e| decode_err(e))?;
     Self::from_rust_obj(&v.0)
   }
   /// Like deserialize, but returns (value, total_bits, total_bytes) with the consumed size.
   #[staticmethod]
-  pub fn try_deserialize(py: Python<'_>, data: Bound<'_, PyBytes>) -> PyResult<(Self, u64, u64)> {
+  pub fn try_deserialize(data: Bound<'_, PyBytes>) -> PyResult<(Self, u64, u64)> {
     let v = try_deserialize::<messages::Inner>(data.as_bytes()).map_err(|e| decode_err(e))?;
     Ok((Self::from_rust_obj(&v.0)?, v.1.total_bits, v.1.total_bytes))
   }
   /// Like deserialize, but raises DecodeError (kind TrailingData) if data is longer than the message.
   #[staticmethod]
-  pub fn try_deserialize_exact(py: Python<'_>, data: Bound<'_, PyBytes>) -> PyResult<Self> {
+  pub fn try_deserialize_exact(data: Bound<'_, PyBytes>) -> PyResult<Self> {
     let v = try_deserialize_exact::<messages::Inner>(data.as_bytes()).map_err(|e| decode_err(e))?;
     Self::from_rust_obj(&v)
   }
@@ -351,19 +361,19 @@ impl Empty {
   }
   /// Decodes from the start of data (trailing bytes are ignored); raises DecodeError.
   #[staticmethod]
-  pub fn deserialize(py: Python<'_>, data: Bound<'_, PyBytes>) -> PyResult<Self> {
+  pub fn deserialize(data: Bound<'_, PyBytes>) -> PyResult<Self> {
     let v = try_deserialize::<messages::Empty>(data.as_bytes()).map_err(|e| decode_err(e))?;
     Self::from_rust_obj(&v.0)
   }
   /// Like deserialize, but returns (value, total_bits, total_bytes) with the consumed size.
   #[staticmethod]
-  pub fn try_deserialize(py: Python<'_>, data: Bound<'_, PyBytes>) -> PyResult<(Self, u64, u64)> {
+  pub fn try_deserialize(data: Bound<'_, PyBytes>) -> PyResult<(Self, u64, u64)> {
     let v = try_deserialize::<messages::Empty>(data.as_bytes()).map_err(|e| decode_err(e))?;
     Ok((Self::from_rust_obj(&v.0)?, v.1.total_bits, v.1.total_bytes))
   }
   /// Like deserialize, but raises DecodeError (kind TrailingData) if data is longer than the message.
   #[staticmethod]
-  pub fn try_deserialize_exact(py: Python<'_>, data: Bound<'_, PyBytes>) -> PyResult<Self> {
+  pub fn try_deserialize_exact(data: Bound<'_, PyBytes>) -> PyResult<Self> {
     let v = try_deserialize_exact::<messages::Empty>(data.as_bytes()).map_err(|e| decode_err(e))?;
     Self::from_rust_obj(&v)
   }
@@ -491,19 +501,19 @@ impl AllTypes {
   }
   /// Decodes from the start of data (trailing bytes are ignored); raises DecodeError.
   #[staticmethod]
-  pub fn deserialize(py: Python<'_>, data: Bound<'_, PyBytes>) -> PyResult<Self> {
+  pub fn deserialize(data: Bound<'_, PyBytes>) -> PyResult<Self> {
     let v = try_deserialize::<messages::AllTypes>(data.as_bytes()).map_err(|e| decode_err(e))?;
     Self::from_rust_obj(&v.0)
   }
   /// Like deserialize, but returns (value, total_bits, total_bytes) with the consumed size.
   #[staticmethod]
-  pub fn try_deserialize(py: Python<'_>, data: Bound<'_, PyBytes>) -> PyResult<(Self, u64, u64)> {
+  pub fn try_deserialize(data: Bound<'_, PyBytes>) -> PyResult<(Self, u64, u64)> {
     let v = try_deserialize::<messages::AllTypes>(data.as_bytes()).map_err(|e| decode_err(e))?;
     Ok((Self::from_rust_obj(&v.0)?, v.1.total_bits, v.1.total_bytes))
   }
   /// Like deserialize, but raises DecodeError (kind TrailingData) if data is longer than the message.
   #[staticmethod]
-  pub fn try_deserialize_exact(py: Python<'_>, data: Bound<'_, PyBytes>) -> PyResult<Self> {
+  pub fn try_deserialize_exact(data: Bound<'_, PyBytes>) -> PyResult<Self> {
     let v = try_deserialize_exact::<messages::AllTypes>(data.as_bytes()).map_err(|e| decode_err(e))?;
     Self::from_rust_obj(&v)
   }
@@ -526,6 +536,7 @@ impl AllTypes {
       OO_AllTypes_Choice::ColorVal(_) => OO_AllTypes_ChoiceEnum::ColorVal,
       OO_AllTypes_Choice::Text(_) => OO_AllTypes_ChoiceEnum::Text,
       OO_AllTypes_Choice::Nothing(_) => OO_AllTypes_ChoiceEnum::Nothing,
+      OO_AllTypes_Choice::Raw(_) => OO_AllTypes_ChoiceEnum::Raw,
   } }
   #[getter(choice_flag)]
   fn choice_get_flag(&self) -> Option<&bool> {
@@ -596,6 +607,18 @@ impl AllTypes {
   fn choice_set_nothing(&mut self, v:Py<Empty>) -> PyResult<()> {
     Python::attach(|py| {
       self.choice = Py::new(py, OO_AllTypes_Choice::Nothing(v))?;
+      Ok(())
+    })
+  }
+  #[getter(choice_raw)]
+  fn choice_get_raw(&self) -> Option<&Vec<u8>> {
+    match self.choice.get() {
+      OO_AllTypes_Choice::Raw(v) => Some(v), _ => None
+  } }
+  #[setter(choice_raw)]
+  fn choice_set_raw(&mut self, v:Vec<u8>) -> PyResult<()> {
+    Python::attach(|py| {
+      self.choice = Py::new(py, OO_AllTypes_Choice::Raw(v))?;
       Ok(())
     })
   }

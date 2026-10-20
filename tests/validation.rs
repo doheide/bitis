@@ -117,6 +117,7 @@ fn generated_member_collisions() {
     assert_error("msg Mm { bool msg_attr; }", "t.bitis:1:15: error: attribute name 'msg_attr' clashes");
     assert_error("msg Mm { bool serialize; }", "t.bitis:1:15: error: attribute name 'serialize' clashes");
     assert_error("msg Mm { bool to_rust; }", "t.bitis:1:15: error: attribute name 'to_rust' clashes with a generated method of the Python message class");
+    assert_error("msg Mm { bool min_bits; }", "t.bitis:1:15: error: attribute name 'min_bits' clashes with a generated method of the Python message class");
     assert_error("msg Mm { bool x; bool str_x; }", "t.bitis:1:23: error: attribute 'str_x' generates the member 'str_x' in the C++ message struct of message 'Mm'");
     assert_error("msg Mm { bool val_oo; oneof val(1) { *bool a; } }", "error: attribute 'val' generates the member 'val_oo' in the Python message class");
 }

@@ -1372,6 +1372,7 @@ impl AttributeEx {
             let _ = write!(s, "; above {}: Overflow, read back as {}.0; below {} or NaN: Underflow, read back as {}.0",
                            f.max_val, f.max_val as i128 + 1, f.min_val, f.min_val as i128 - 1);
         }
+        if self.is_bounded { s.push_str("; longer values raise EncodeError (constructor, setter)"); }
         s
     }
 }

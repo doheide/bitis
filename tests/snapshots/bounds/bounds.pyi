@@ -23,6 +23,7 @@ class EncodeError(ValueError):
 
 # CRC-32 helper: CRC-32/ISO-HDLC, same values as zlib.crc32 (not part of the wire format)
 def crc32(data: bytes | bytearray | memoryview) -> int: ...
+@_typing.final
 class Crc32:
   def __init__(self) -> None: ...
   def update(self, data: bytes | bytearray | memoryview) -> None: ...
@@ -35,17 +36,19 @@ class Crc32:
 
 # *** Enums
 
+@_typing.final
 class Kind:
   Small: _typing.ClassVar[Kind]
   Large: _typing.ClassVar[Kind]
   def __int__(self) -> int: ...
-  def __eq__(self, other: object) -> bool: ...
+  def __eq__(self, other: object, /) -> bool: ...
   def __hash__(self) -> int: ...
 
 
 
 # *** Oneofs
 
+@_typing.final
 class OO_Bounded_PayloadEnum:
   """
   Selected element of OO_Bounded_Payload (see the <oneof>_oo property of the message).
@@ -54,7 +57,7 @@ class OO_Bounded_PayloadEnum:
   Raw: _typing.ClassVar[OO_Bounded_PayloadEnum]
   P: _typing.ClassVar[OO_Bounded_PayloadEnum]
   def __int__(self) -> int: ...
-  def __eq__(self, other: object) -> bool: ...
+  def __eq__(self, other: object, /) -> bool: ...
   def __hash__(self) -> int: ...
 
 class OO_Bounded_Payload:
@@ -69,8 +72,9 @@ class OO_Bounded_Payload:
 
 # *** Messages
 
+@_typing.final
 class Point:
-  def __init__(self, x: int, y: int) -> None: ...
+  def __new__(cls, x: int, y: int) -> Point: ...
   # uint_8
   x: int
   # uint_8
@@ -118,25 +122,26 @@ class Point:
     Upper bound of the encoded size in bits, None if unbounded.
     """
 
+@_typing.final
 class Bounded:
   """
   Bounded strings, bytes and lists
   """
 
-  def __init__(self, name: str, blob: bytes, tags: list[str], note: str | None, points: list[Point], kinds: list[Kind], pair: list[bytes], unbounded: str, payload: OO_Bounded_Payload) -> None: ...
-  # astr_d4[16]
+  def __new__(cls, name: str, blob: bytes, tags: list[str], note: str | None, points: list[Point], kinds: list[Kind], pair: list[bytes], unbounded: str, payload: OO_Bounded_Payload) -> Bounded: ...
+  # astr_d4[16]; longer values raise EncodeError (constructor, setter)
   name: str
-  # binary_d3[8]
+  # binary_d3[8]; longer values raise EncodeError (constructor, setter)
   blob: bytes
-  # repeated_dyn_2[4] astr_d4[8]
+  # repeated_dyn_2[4] astr_d4[8]; longer values raise EncodeError (constructor, setter)
   tags: list[str]
-  # optional astr_d4[32]
+  # optional astr_d4[32]; longer values raise EncodeError (constructor, setter)
   note: str | None
-  # repeated_dyn_3[3] Point
+  # repeated_dyn_3[3] Point; longer values raise EncodeError (constructor, setter)
   points: list[Point]
-  # repeated_dyn_1[2] Kind
+  # repeated_dyn_1[2] Kind; longer values raise EncodeError (constructor, setter)
   kinds: list[Kind]
-  # repeated_fixed_2 binary_d2[3]
+  # repeated_fixed_2 binary_d2[3]; longer values raise EncodeError (constructor, setter)
   pair: list[bytes]
   # astr_d4
   unbounded: str

@@ -17,10 +17,10 @@ const String bitisVersion = '{BITIS_VERSION}';
 
 /// Schema hash as 16 lower case hex digits: the first 8 bytes of SHA-256 over
 /// the canonical schema (bitis docs/WIRE_FORMAT.md, section 5).
-const String bitisSchemaHashHex = '75e29d4c3b290c0e';
+const String bitisSchemaHashHex = 'c10a57d77c346314';
 
 /// Schema hash as 64-bit value (bit pattern of [bitisSchemaHashHex]).
-final Int64 bitisSchemaHash = Int64.fromInts(0x75e29d4c, 0x3b290c0e);
+final Int64 bitisSchemaHash = Int64.fromInts(0xc10a57d7, 0x7c346314);
 
 /// Enum `Color`.
 enum Color {
@@ -600,13 +600,14 @@ sealed class OO_AllTypes_Choice {
 
   /// Reads the element index and the value.
   static OO_AllTypes_Choice bitisRead(BitReader r) {
-    return switch (r.readOneOfIndex(6, 3)) {
+    return switch (r.readOneOfIndex(7, 3)) {
       0 => OO_AllTypes_Choice_Flag(r.readBool()),
       1 => OO_AllTypes_Choice_Number(r.readUint(12)),
       2 => OO_AllTypes_Choice_InnerVal(Inner.bitisRead(r)),
       3 => OO_AllTypes_Choice_ColorVal(Color.bitisRead(r)),
       4 => OO_AllTypes_Choice_Text(r.readAStr(3)),
       5 => OO_AllTypes_Choice_Nothing(Empty.bitisRead(r)),
+      6 => OO_AllTypes_Choice_Raw(r.readBinary(4)),
       _ => throw StateError('unreachable'),
     };
   }
@@ -625,6 +626,7 @@ sealed class OO_AllTypes_Choice {
       'nothing' => OO_AllTypes_Choice_Nothing(
         Empty.fromJson(BitisJson.objectFromJson(value)),
       ),
+      'raw' => OO_AllTypes_Choice_Raw(BitisJson.binaryFromJson(value)),
       _ =>
         throw FormatException('unknown element of OO_AllTypes_Choice', variant),
     };
@@ -647,7 +649,7 @@ final class OO_AllTypes_Choice_Flag extends OO_AllTypes_Choice {
 
   @override
   void bitisWrite(BitWriter w) {
-    w.writeOneOfIndex(0, 6, 3);
+    w.writeOneOfIndex(0, 7, 3);
     w.writeBool(value);
   }
 
@@ -675,7 +677,7 @@ final class OO_AllTypes_Choice_Number extends OO_AllTypes_Choice {
 
   @override
   void bitisWrite(BitWriter w) {
-    w.writeOneOfIndex(1, 6, 3);
+    w.writeOneOfIndex(1, 7, 3);
     w.writeUint(value, 12);
   }
 
@@ -703,7 +705,7 @@ final class OO_AllTypes_Choice_InnerVal extends OO_AllTypes_Choice {
 
   @override
   void bitisWrite(BitWriter w) {
-    w.writeOneOfIndex(2, 6, 3);
+    w.writeOneOfIndex(2, 7, 3);
     value.bitisWrite(w);
   }
 
@@ -731,7 +733,7 @@ final class OO_AllTypes_Choice_ColorVal extends OO_AllTypes_Choice {
 
   @override
   void bitisWrite(BitWriter w) {
-    w.writeOneOfIndex(3, 6, 3);
+    w.writeOneOfIndex(3, 7, 3);
     value.bitisWrite(w);
   }
 
@@ -759,7 +761,7 @@ final class OO_AllTypes_Choice_Text extends OO_AllTypes_Choice {
 
   @override
   void bitisWrite(BitWriter w) {
-    w.writeOneOfIndex(4, 6, 3);
+    w.writeOneOfIndex(4, 7, 3);
     w.writeAStr(value, 3);
   }
 
@@ -787,7 +789,7 @@ final class OO_AllTypes_Choice_Nothing extends OO_AllTypes_Choice {
 
   @override
   void bitisWrite(BitWriter w) {
-    w.writeOneOfIndex(5, 6, 3);
+    w.writeOneOfIndex(5, 7, 3);
     value.bitisWrite(w);
   }
 
@@ -803,4 +805,34 @@ final class OO_AllTypes_Choice_Nothing extends OO_AllTypes_Choice {
 
   @override
   String toString() => 'OO_AllTypes_Choice_Nothing($value)';
+}
+
+/// Element `raw` (index 6) of [OO_AllTypes_Choice].
+final class OO_AllTypes_Choice_Raw extends OO_AllTypes_Choice {
+  /// Creates the element; [value] defaults to the default of its type.
+  OO_AllTypes_Choice_Raw([Uint8List? value]) : value = value ?? Uint8List(0);
+
+  /// The value (`binary_d4 raw`).
+  final Uint8List value;
+
+  @override
+  void bitisWrite(BitWriter w) {
+    w.writeOneOfIndex(6, 7, 3);
+    w.writeBinary(value, 4);
+  }
+
+  @override
+  Map<String, Object?> toJson() => {'raw': BitisJson.binaryToJson(value)};
+
+  @override
+  bool operator ==(Object other) =>
+      other is OO_AllTypes_Choice_Raw &&
+      BitisEq.listEquals<int>(value, other.value);
+
+  @override
+  int get hashCode =>
+      Object.hash(OO_AllTypes_Choice_Raw, Object.hashAll(value));
+
+  @override
+  String toString() => 'OO_AllTypes_Choice_Raw($value)';
 }

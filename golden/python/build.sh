@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # Builds the Python module `golden` from golden/schema/golden.bitis with the bitis compiler of
 # this repository (bitis compile -l python, which runs `maturin develop`) and installs it into
-# the venv (see golden/README.md).
+# the venv (see golden/README.md). Then compiles (cargo check) the generated Python bindings
+# of the codegen snapshots tests/snapshots/<name>/py_*.rs, so that every snapshot is known to
+# build with the pyo3 version the compiler writes into Cargo.toml.
 #
-#   golden/python/build.sh
+#   golden/python/build.sh [--no-snapshots]
 #
 # Environment:
 #   BITIS_PYTHON_VENV       venv with maturin and pytest (default: the active venv, $VIRTUAL_ENV)
@@ -11,6 +13,14 @@
 #                           written to $BITIS_GOLDEN_BUILD_DIR/python/golden
 #   CARGO_FLAGS             extra cargo flags, e.g. "--offline"
 set -euo pipefail
+
+SNAPSHOTS=1
+for a in "$@"; do
+    case "$a" in
+        --no-snapshots) SNAPSHOTS=0 ;;
+        *) echo "unknown option $a" >&2; exit 2 ;;
+    esac
+done
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 BUILD=${BITIS_GOLDEN_BUILD_DIR:-$ROOT/target/golden}
@@ -67,3 +77,23 @@ echo "from .golden import *" > "$PROJ/golden/__init__.py"
 # runs maturin develop
 "$ROOT/target/debug/bitis" compile -l python -i "$ROOT/golden/schema/golden.bitis" -o "$PROJ" \
     --prevent-update-bitis-lib-in-crate
+
+[[ $SNAPSHOTS == 1 ]] || exit 0
+
+# --- compile check of the Python bindings in tests/snapshots (same Cargo.toml as above,
+# updated by the compiler's update of the golden project: pyo3 version, abi3, strum_macros)
+export PYO3_PYTHON="$VENV/bin/python"
+export CARGO_TARGET_DIR=$BUILD/python/target-snapshots
+for snap in "$ROOT"/tests/snapshots/*/py_lib.rs; do
+    dir=$(dirname "$snap")
+    name=$(basename "$dir")
+    crate=$BUILD/python/snapshot_$name
+    mkdir -p "$crate/src"
+    sed -e "s/^name = \"golden\"/name = \"$name\"/" "$PROJ/Cargo.toml" > "$crate/Cargo.toml"
+    cp "$dir/py_lib.rs" "$crate/src/lib.rs"
+    cp "$dir/py_pyrust.rs" "$crate/src/pyrust.rs"
+    cp "$dir/py_messages.rs" "$crate/src/messages.rs"
+    echo "--- cargo check: Python bindings of tests/snapshots/$name"
+    # shellcheck disable=SC2086
+    cargo check -q ${CARGO_FLAGS:-} --manifest-path "$crate/Cargo.toml"
+done

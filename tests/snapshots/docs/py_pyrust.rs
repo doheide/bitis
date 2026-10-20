@@ -226,19 +226,19 @@ impl Documented {
   }
   /// Decodes from the start of data (trailing bytes are ignored); raises DecodeError.
   #[staticmethod]
-  pub fn deserialize(py: Python<'_>, data: Bound<'_, PyBytes>) -> PyResult<Self> {
+  pub fn deserialize(data: Bound<'_, PyBytes>) -> PyResult<Self> {
     let v = try_deserialize::<messages::Documented>(data.as_bytes()).map_err(|e| decode_err(e))?;
     Self::from_rust_obj(&v.0)
   }
   /// Like deserialize, but returns (value, total_bits, total_bytes) with the consumed size.
   #[staticmethod]
-  pub fn try_deserialize(py: Python<'_>, data: Bound<'_, PyBytes>) -> PyResult<(Self, u64, u64)> {
+  pub fn try_deserialize(data: Bound<'_, PyBytes>) -> PyResult<(Self, u64, u64)> {
     let v = try_deserialize::<messages::Documented>(data.as_bytes()).map_err(|e| decode_err(e))?;
     Ok((Self::from_rust_obj(&v.0)?, v.1.total_bits, v.1.total_bytes))
   }
   /// Like deserialize, but raises DecodeError (kind TrailingData) if data is longer than the message.
   #[staticmethod]
-  pub fn try_deserialize_exact(py: Python<'_>, data: Bound<'_, PyBytes>) -> PyResult<Self> {
+  pub fn try_deserialize_exact(data: Bound<'_, PyBytes>) -> PyResult<Self> {
     let v = try_deserialize_exact::<messages::Documented>(data.as_bytes()).map_err(|e| decode_err(e))?;
     Self::from_rust_obj(&v)
   }

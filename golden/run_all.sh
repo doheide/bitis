@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Runs the golden vector tests of all runtimes (Rust, C++, Dart) against
+# Runs the golden vector tests of all runtimes (Rust, C++, Python, Dart) against
 # golden/vectors/manifest.txt (see golden/README.md).
 #
 #   golden/run_all.sh [--no-asan]
@@ -9,6 +9,9 @@
 #   FETCHCONTENT_SOURCE_DIR_GOOGLETEST local googletest checkout for offline C++ builds
 #   BITIS_GOLDEN_BUILD_DIR            C++ build directory (default: target/golden)
 #   CXX                               C++ compiler (cmake default otherwise)
+#   BITIS_PYTHON_VENV                 venv with maturin, pytest (and mypy) for the Python step
+#                                     (default: the active venv if it has maturin; the step
+#                                     is skipped otherwise)
 #   DART                              dart executable (default: dart on PATH, else
 #                                     /home/dheide/sdk/flutter/bin/dart if it exists;
 #                                     the Dart steps are skipped if none is found)
@@ -66,11 +69,25 @@ cpp_tests() {
     "$dir/tests/bitis_golden" --gtest_brief=1
 }
 
-# --- Python (bindings generated via maturin from the Rust code)
+# --- Python (bindings generated via maturin from the Rust code): module `golden` built by
+# golden/python/build.sh into a venv, then all tests in golden/python (pytest)
 python_tests() {
-    echo "SKIP: the Python bindings are built with maturin (not available here); they use the"
-    echo "      Rust runtime, see golden/README.md"
-    return 77
+    local venv=${BITIS_PYTHON_VENV:-}
+    if [[ -z "$venv" && -n "${VIRTUAL_ENV:-}" && -x "$VIRTUAL_ENV/bin/maturin" ]]; then venv=$VIRTUAL_ENV; fi
+    if [[ -z "$venv" ]]; then
+        echo "SKIP: no venv with maturin (set BITIS_PYTHON_VENV or activate a venv with maturin and pytest)"
+        return 77
+    fi
+    if [[ ! -x "$venv/bin/maturin" || ! -x "$venv/bin/python" ]]; then
+        echo "venv $venv has no maturin (pip install maturin pytest mypy)"
+        return 1
+    fi
+    if ! "$venv/bin/python" -c "import pytest" 2> /dev/null; then
+        echo "venv $venv has no pytest (pip install pytest)"
+        return 1
+    fi
+    CARGO_FLAGS=$CARGO_FLAGS BITIS_PYTHON_VENV=$venv BITIS_GOLDEN_BUILD_DIR=$BUILD "$ROOT/golden/python/build.sh" || return 1
+    BITIS_PY_MODULE=golden "$venv/bin/python" -m pytest -q -p no:cacheprovider "$ROOT/golden/python"
 }
 
 # --- Dart runtime (dart/bitis) and generated code (golden/gen/dart): package golden/dart,

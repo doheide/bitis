@@ -23,6 +23,7 @@ class EncodeError(ValueError):
 
 # CRC-32 helper: CRC-32/ISO-HDLC, same values as zlib.crc32 (not part of the wire format)
 def crc32(data: bytes | bytearray | memoryview) -> int: ...
+@_typing.final
 class Crc32:
   def __init__(self) -> None: ...
   def update(self, data: bytes | bytearray | memoryview) -> None: ...
@@ -35,6 +36,7 @@ class Crc32:
 
 # *** Enums
 
+@_typing.final
 class Kind:
   """
   Enum doc with special chars: <html> & "quotes" \\ 'single'
@@ -52,13 +54,14 @@ class Kind:
   """
 
   def __int__(self) -> int: ...
-  def __eq__(self, other: object) -> bool: ...
+  def __eq__(self, other: object, /) -> bool: ...
   def __hash__(self) -> int: ...
 
 
 
 # *** Oneofs
 
+@_typing.final
 class OO_Documented_SelEnum:
   """
   Selected element of OO_Documented_Sel (see the <oneof>_oo property of the message).
@@ -66,7 +69,7 @@ class OO_Documented_SelEnum:
   Flag: _typing.ClassVar[OO_Documented_SelEnum]
   Num: _typing.ClassVar[OO_Documented_SelEnum]
   def __int__(self) -> int: ...
-  def __eq__(self, other: object) -> bool: ...
+  def __eq__(self, other: object, /) -> bool: ...
   def __hash__(self) -> int: ...
 
 class OO_Documented_Sel:
@@ -87,12 +90,13 @@ class OO_Documented_Sel:
 
 # *** Messages
 
+@_typing.final
 class Documented:
   """
   Message doc
   """
 
-  def __init__(self, value: int, kind: Kind, sel: OO_Documented_Sel) -> None: ...
+  def __new__(cls, value: int, kind: Kind, sel: OO_Documented_Sel) -> Documented: ...
   # uint_4
   value: int
   """

@@ -6,7 +6,7 @@ use strum_macros::AsRefStr;
 /// Version of the bitis compiler that generated this file.
 pub const BITIS_VERSION: &str = "{BITIS_VERSION}";
 /// Schema hash: first 8 bytes of SHA-256 over the canonical schema (see bitis docs/WIRE_FORMAT.md).
-pub const BITIS_SCHEMA_HASH: u64 = 0x75e29d4c3b290c0e;
+pub const BITIS_SCHEMA_HASH: u64 = 0xc10a57d77c346314;
 
 // Enums
 #[derive(BiserdiEnum, Debug, Clone, PartialEq, Copy, Default, AsRefStr)]
@@ -30,6 +30,7 @@ pub enum OO_AllTypes_Choice {
   ColorVal(Color),
   Text(BitisAString<3>),
   Nothing(Empty),
+  Raw(Binary<4>),
 }
 impl Default for OO_AllTypes_Choice {
   fn default() -> Self { Self::Flag(call_default()) }
