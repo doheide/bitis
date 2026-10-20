@@ -64,3 +64,6 @@ based traits, crate split) will be coordinated with the backend/firmware agents.
 - `golden/`: one schema covering all types, value cases, committed expected
   bytes (produced by Rust), plus invalid inputs with the expected error kind.
   Rust, C++ and Dart tests must all pass against the same files.
+  Format, regeneration and how each runtime runs them: golden/README.md
+  (`golden/run_all.sh` runs the Rust and C++ tests; Dart is a placeholder until the
+  Dart codegen is merged).
