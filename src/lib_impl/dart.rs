@@ -11,7 +11,7 @@ use std::collections::HashMap;
 use stringcase::Caser;
 
 use super::compiler::{
-    canonical_simple_type, min_bits_details, AttributeDetails, Attribute, BitisProcessed, DynOrFixedType, Enum,
+    canonical_simple_type, min_bits_details, min_bits_message, AttributeDetails, Attribute, BitisProcessed, DynOrFixedType, Enum,
     FixedPrecisionProperties,
     Message, OneOfInfo, SimpleType,
 };
@@ -736,6 +736,8 @@ pub struct DartOneOf {
 #[derive(Clone, Debug)]
 pub struct DartMsg {
     pub name: String,
+    /// `min_bits` of the message (spec section 4).
+    pub min_bits: u64,
     pub class_header: String,
     pub comment: Option<String>,
     pub parent: Option<String>,
@@ -1056,7 +1058,8 @@ fn build_msg(ctx: &Ctx, m: &Message, oneofs: &[(String, OneOfInfo)]) -> DartMsg 
     }).collect();
 
     DartMsg {
-        name: name.clone(), class_header: class_header(&format!("final class {name}"), "implements", "BitisMessage"),
+        name: name.clone(), min_bits: min_bits_message(m, ctx.all_msgs),
+        class_header: class_header(&format!("final class {name}"), "implements", "BitisMessage"),
         comment: m.comment.clone(), parent: m.parent.clone(),
         fields: codes.into_iter().map(|c| c.field).collect(),
         ctor, write_body, read, to_bytes, from_bytes, from_bytes_exact, to_json, from_json, copy_with, eq, hash,

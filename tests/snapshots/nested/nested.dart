@@ -60,6 +60,10 @@ final class Top implements BitisMessage {
   /// Creates a [Top]; omitted attributes get their default values.
   const Top({this.m = const Middle(), this.outer = OO_Top_Outer.defaultValue});
 
+  /// Lower bound of the encoded size in bits (`min_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4).
+  static const int bitisMinBits = 5;
+
   /// Reads a [Top] from [r].
   static Top bitisRead(BitReader r) =>
       Top(m: Middle.bitisRead(r), outer: OO_Top_Outer.bitisRead(r));
@@ -306,6 +310,10 @@ final class Middle implements BitisMessage {
   /// Creates a [Middle]; omitted attributes get their default values.
   const Middle({this.leaves = const [], this.e});
 
+  /// Lower bound of the encoded size in bits (`min_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4).
+  static const int bitisMinBits = 2;
+
   /// Reads a [Middle] from [r].
   static Middle bitisRead(BitReader r) {
     return Middle(
@@ -377,6 +385,10 @@ final class Middle implements BitisMessage {
 final class Leaf implements BitisMessage {
   /// Creates a [Leaf]; omitted attributes get their default values.
   const Leaf({this.v = 0});
+
+  /// Lower bound of the encoded size in bits (`min_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4).
+  static const int bitisMinBits = 2;
 
   /// Reads a [Leaf] from [r].
   static Leaf bitisRead(BitReader r) => Leaf(v: r.readUint(2));

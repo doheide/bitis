@@ -635,7 +635,7 @@ const PY_MSG_MEMBERS: &[&str] = &["default", "serialize", "deserialize", "to_rus
 /// Members of every Dart message class (and members of `Object`), compared with the Dart field names
 /// (lowerCamelCase of the attribute names).
 const DART_MSG_MEMBERS: &[&str] = &[
-    "bitisWrite", "bitisRead", "toBytes", "fromBytes", "fromBytesExact", "toJson", "fromJson", "copyWith",
+    "bitisWrite", "bitisRead", "bitisMinBits", "toBytes", "fromBytes", "fromBytesExact", "toJson", "fromJson", "copyWith",
     "hashCode", "runtimeType", "toString", "noSuchMethod",
 ];
 /// Members of every Dart enum (and of `Enum`), compared with the Dart value names (lowerCamelCase).
@@ -1428,8 +1428,10 @@ pub fn render_python(p: &BitisProcessed, lib_name: &str) -> Result<PythonOutput,
 }
 /// Renders the Dart library for a schema (one file, imports only `package:bitis/bitis.dart` and `dart:typed_data`).
 pub fn render_dart(p: &BitisProcessed) -> Result<String, CompileError> {
-    DartDataObjects { d: super::dart::dart_data(p, schema_hash(p)), bitis_version: BITIS_COMPILER_VERSION.to_string(),
-        schema_hash: schema_hash_hex(p) }.render().map_err(render_err)
+    let mut s = DartDataObjects { d: super::dart::dart_data(p, schema_hash(p)),
+        bitis_version: BITIS_COMPILER_VERSION.to_string(), schema_hash: schema_hash_hex(p) }.render().map_err(render_err)?;
+    s.push('\n');
+    Ok(s)
 }
 /// Derives the identifier used in the C++ stamp namespace from a file name (non alphanumeric chars -> '_').
 pub fn stamp_name_from(file_stem: &str) -> String {

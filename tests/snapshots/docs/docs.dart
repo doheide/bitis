@@ -66,6 +66,10 @@ final class Documented implements BitisMessage {
     this.sel = OO_Documented_Sel.defaultValue,
   });
 
+  /// Lower bound of the encoded size in bits (`min_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4).
+  static const int bitisMinBits = 7;
+
   /// Reads a [Documented] from [r].
   static Documented bitisRead(BitReader r) {
     return Documented(

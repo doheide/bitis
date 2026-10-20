@@ -64,6 +64,10 @@ final class Inner implements BitisMessage {
   /// Creates a [Inner]; omitted attributes get their default values.
   const Inner({this.a = 0});
 
+  /// Lower bound of the encoded size in bits (`min_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4).
+  static const int bitisMinBits = 3;
+
   /// Reads a [Inner] from [r].
   static Inner bitisRead(BitReader r) => Inner(a: r.readUint(3));
 
@@ -113,6 +117,10 @@ final class Inner implements BitisMessage {
 final class Empty implements BitisMessage {
   /// Creates a [Empty]; omitted attributes get their default values.
   const Empty();
+
+  /// Lower bound of the encoded size in bits (`min_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4).
+  static const int bitisMinBits = 0;
 
   /// Reads a [Empty] from [r].
   static Empty bitisRead(BitReader r) => const Empty();
@@ -179,6 +187,10 @@ final class AllTypes implements BitisMessage {
     this.choice = OO_AllTypes_Choice.defaultValue,
   }) : u64V = u64V ?? BigInt.zero,
        data = data ?? Uint8List(0);
+
+  /// Lower bound of the encoded size in bits (`min_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4).
+  static const int bitisMinBits = 288;
 
   /// Reads a [AllTypes] from [r].
   static AllTypes bitisRead(BitReader r) {

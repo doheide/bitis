@@ -8,6 +8,10 @@
   /// Creates a [{{ m.name }}]; omitted attributes get their default values.
 {{ m.ctor }}
 
+  /// Lower bound of the encoded size in bits (`min_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4).
+  static const int bitisMinBits = {{ m.min_bits }};
+
   /// Reads a [{{ m.name }}] from [r].
 {{ m.read }}
 
