@@ -1,0 +1,94 @@
+// Test schema for the C++ runtime tests. Regenerate gen/test_msgs.h with
+//   bitis compile -l cpp -i test_msgs.bitis -o gen/test_msgs.h --prevent-write-bitis-header-lib
+// (gen/test_msgs.h includes "bitis_lib.h" from cpp_lib/)
+
+enum Mode(2) {
+  Off, *On, Standby
+}
+msg Point {
+  int_16 px;
+  int_32 py;
+  int_64 pz;
+  uint_64 pw;
+}
+msg Empty {
+}
+
+msg AllTypes {
+  bool flag;
+  uint_3 u3;
+  int_5 i5;
+  int_16 i16;
+  uint_32d4 ud;
+  int_16d3 sd;
+  float fl;
+  double db;
+  fp_10[-2,3] fp;
+  optional uint_7 ou;
+  repeated_fixed_2 int_4 fa;
+  repeated_dyn_3 uint_6 da;
+  Mode mode;
+  astr_d4 name;
+  repeated_dyn_2 Point points;
+  oneof payload(2) {
+    *bool none;
+    astr_d3 text;
+    double num;
+    Point pt;
+    Empty nothing;
+  }
+}
+
+// cross-language check (Rust reference bytes in test_xl.cpp)
+enum Color(2) {
+  Red, *Green, Blue, Cyan, Magenta, Yellow
+}
+msg Inner {
+  int_5 va;
+  bool vb;
+}
+msg XL {
+  uint_3 u3;
+  int_5 i5;
+  int_15 i15;
+  uint_13 u13;
+  uint_4d3 ud;
+  int_12d4 sd;
+  float fl;
+  double db;
+  fp_10[-2,3] fp;
+  fp_12[-2000,18000] fp2;
+  optional int_7 oi;
+  optional Inner oinner;
+  repeated_fixed_3 int_4 fa;
+  repeated_dyn_3 uint_6 da;
+  Color col;
+  astr_d4 str;
+  oneof val(3) {
+    *bool flag;
+    double num;
+    Inner inner;
+    int_32d7 big;
+  }
+}
+
+msg MsgKVSimple {
+  astr_d4 key;
+  astr_d4 value;
+}
+msg MsgKVMapSimple {
+  repeated_dyn_4 MsgKVSimple entries;
+}
+
+msg MsgKVOO {
+  astr_d4 key;
+  oneof value(2) {
+    astr_d4 str_val;
+    double num_val;
+    *bool bool_val;
+    int_32d7 int_val;
+  }
+}
+msg MsgKVMapOO {
+  repeated_dyn_2 MsgKVOO entries;
+}
