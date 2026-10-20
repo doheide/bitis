@@ -315,11 +315,25 @@ final class BitWriter {
     _putDyn(n, 0, 32, chunkBits);
   }
 
-  /// `astr_dY` (spec 2.8): `uint_32dY` byte count, then the ASCII bytes.
-  /// Throws [BitisEncodeException] if [value] contains a character >= 0x80.
-  void writeAStr(String value, int chunkBits) {
+  /// Spec 2.16: a length above [maxLength] is valueOutOfRange (nothing is
+  /// written).
+  static void _checkLength(int n, int? maxLength) {
+    if (maxLength == null) return;
+    if (maxLength < 1) {
+      throw ArgumentError.value(maxLength, 'maxLength', 'must be >= 1');
+    }
+    if (n > maxLength) {
+      _outOfRange('length $n exceeds the maximum length $maxLength');
+    }
+  }
+
+  /// `astr_dY` / `astr_dY[M]` (spec 2.8, 2.16): `uint_32dY` byte count,
+  /// then the ASCII bytes. Throws [BitisEncodeException] if [value] contains
+  /// a character >= 0x80 or is longer than [maxLength] (`M`, if given).
+  void writeAStr(String value, int chunkBits, {int? maxLength}) {
     _checkDyn(32, chunkBits, 32);
     final units = value.codeUnits;
+    _checkLength(units.length, maxLength);
     for (final c in units) {
       if (c >= 0x80) _outOfRange('astr contains non-ASCII character');
     }
@@ -329,10 +343,12 @@ final class BitWriter {
     }
   }
 
-  /// `binary_dY` (spec 2.9): `uint_32dY` byte count, then the bytes.
-  /// Elements of [value] must be in `0..255`.
-  void writeBinary(List<int> value, int chunkBits) {
+  /// `binary_dY` / `binary_dY[M]` (spec 2.9, 2.16): `uint_32dY` byte count,
+  /// then the bytes. Elements of [value] must be in `0..255`; more than
+  /// [maxLength] bytes (`M`, if given) throw [BitisEncodeException].
+  void writeBinary(List<int> value, int chunkBits, {int? maxLength}) {
     _checkDyn(32, chunkBits, 32);
+    _checkLength(value.length, maxLength);
     if (value is! Uint8List) {
       for (final b in value) {
         if (b < 0 || b > 255) _outOfRange('binary element $b is not a byte');
@@ -377,14 +393,17 @@ final class BitWriter {
     }
   }
 
-  /// `repeated_dyn_Y T` (spec 2.12): `uint_32dY` element count, then the
-  /// elements.
+  /// `repeated_dyn_Y T` / `repeated_dyn_Y[M] T` (spec 2.12, 2.16):
+  /// `uint_32dY` element count, then the elements. More than [maxLength]
+  /// elements (`M`, if given) throw [BitisEncodeException].
   void writeDynArray<T>(
     List<T> values,
     int chunkBits,
-    BitisWriteFn<T> writeElement,
-  ) {
+    BitisWriteFn<T> writeElement, {
+    int? maxLength,
+  }) {
     _checkDyn(32, chunkBits, 32);
+    _checkLength(values.length, maxLength);
     _putCount(values.length, chunkBits);
     for (final v in values) {
       writeElement(this, v);

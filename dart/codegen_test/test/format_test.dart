@@ -16,7 +16,7 @@ void main() {
           .toList()
         ..sort((a, b) => a.path.compareTo(b.path));
 
-  test('generated files exist', () => expect(files, hasLength(4)));
+  test('generated files exist', () => expect(files, hasLength(5)));
 
   for (final file in files) {
     test('${file.path} is formatted', () async {

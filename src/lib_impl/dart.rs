@@ -11,7 +11,7 @@ use std::collections::HashMap;
 use stringcase::Caser;
 
 use super::compiler::{
-    canonical_simple_type, min_bits_details, min_bits_message, AttributeDetails, Attribute, BitisProcessed, DynOrFixedType, Enum,
+    canonical_simple_type, max_bits_message, min_bits_details, min_bits_message, AttributeDetails, Attribute, BitisProcessed, DynOrFixedType, Enum,
     FixedPrecisionProperties,
     Message, OneOfInfo, SimpleType,
 };
@@ -414,8 +414,10 @@ enum Ty {
     Double,
     /// fixed point type and the name of the `FixedPointType` constant
     Fp(FixedPrecisionProperties, String),
-    AStr(u8),
-    Binary(u8),
+    /// `astr_dY[M]`: dyn bits and optional maximum length.
+    AStr(u8, Option<u16>),
+    /// `binary_dY[M]`: dyn bits and optional maximum length.
+    Binary(u8, Option<u16>),
     Enum(String),
     Msg(String),
     OneOf(String),
@@ -426,6 +428,7 @@ pub struct Ctx<'a> {
     msgs: HashMap<&'a str, &'a Message>,
     enums: HashMap<&'a str, &'a Enum>,
     all_msgs: &'a [Message],
+    all_enums: &'a [Enum],
     /// Oneof type name -> oneof.
     oneofs: HashMap<String, &'a OneOfInfo>,
     const_cache: std::cell::RefCell<HashMap<String, bool>>,
@@ -437,6 +440,7 @@ impl<'a> Ctx<'a> {
             msgs: p.msgs.iter().map(|m| (m.name.as_str(), m)).collect(),
             enums: p.enums.iter().map(|e| (e.name.as_str(), e)).collect(),
             all_msgs: &p.msgs,
+            all_enums: &p.enums,
             oneofs: p.oo_enums.iter().map(|(_, oo)| (oo.name.clone(), oo)).collect(),
             const_cache: Default::default(),
         }
@@ -459,7 +463,7 @@ impl<'a> Ctx<'a> {
     fn ty_is_const(&self, t: &Ty) -> bool {
         match t {
             Ty::UInt(b) | Ty::DynUInt(b, _) if uint_repr(*b) == IntRepr::Big => false,
-            Ty::Binary(_) => false,
+            Ty::Binary(..) => false,
             Ty::Msg(m) => self.msg_is_const(m),
             Ty::OneOf(o) => self.oneofs.get(o).map(|oo| self.oneof_is_const(oo)).unwrap_or(true),
             _ => true,
@@ -478,8 +482,8 @@ impl<'a> Ctx<'a> {
                 SimpleType::Float => Ty::Float,
                 SimpleType::Double => Ty::Double,
                 SimpleType::FixedPrecision(f) => Ty::Fp(*f, fp_const.to_string()),
-                SimpleType::AString(y, _) => Ty::AStr(*y),
-                SimpleType::Binary(y, _) => Ty::Binary(*y),
+                SimpleType::AString(y, m) => Ty::AStr(*y, *m),
+                SimpleType::Binary(y, m) => Ty::Binary(*y, *m),
             },
             AttributeDetails::AttributeEnumOrMsg(n) => {
                 if self.enums.contains_key(n.as_str()) { Ty::Enum(n.clone()) } else { Ty::Msg(n.clone()) }
@@ -488,6 +492,15 @@ impl<'a> Ctx<'a> {
         }
     }
 }
+
+/// Appends the named argument `maxLength: M` of a bounded type (spec 2.16).
+fn with_max_len(mut args: Vec<E>, max_len: Option<u16>) -> Vec<E> {
+    if let Some(m) = max_len { args.push(named("maxLength", atom(m.to_string()))); }
+    args
+}
+
+/// Largest integer that is exact on every Dart platform (2^53 - 1, JavaScript).
+const DART_MAX_SAFE_INT: u64 = (1 << 53) - 1;
 
 fn repr_type(r: IntRepr) -> &'static str {
     match r { IntRepr::Int => "int", IntRepr::Int64 => "Int64", IntRepr::Big => "BigInt" }
@@ -504,8 +517,8 @@ impl Ty {
             Ty::Int(b) | Ty::DynInt(b, _) => repr_type(int_repr(*b)).into(),
             Ty::Float | Ty::Double => "double".into(),
             Ty::Fp(..) => "FixedPoint".into(),
-            Ty::AStr(_) => "String".into(),
-            Ty::Binary(_) => "Uint8List".into(),
+            Ty::AStr(..) => "String".into(),
+            Ty::Binary(..) => "Uint8List".into(),
             Ty::Enum(n) | Ty::Msg(n) | Ty::OneOf(n) => n.clone(),
         }
     }
@@ -524,8 +537,8 @@ impl Ty {
             Ty::Float => call("w.writeFloat32", vec![a(v.into())]),
             Ty::Double => call("w.writeFloat64", vec![a(v.into())]),
             Ty::Fp(_, c) => call("w.writeFixedPoint", vec![a(v.into()), a(c.clone())]),
-            Ty::AStr(y) => call("w.writeAStr", vec![a(v.into()), a(y.to_string())]),
-            Ty::Binary(y) => call("w.writeBinary", vec![a(v.into()), a(y.to_string())]),
+            Ty::AStr(y, m) => call("w.writeAStr", with_max_len(vec![a(v.into()), a(y.to_string())], *m)),
+            Ty::Binary(y, m) => call("w.writeBinary", with_max_len(vec![a(v.into()), a(y.to_string())], *m)),
             Ty::Enum(_) | Ty::Msg(_) | Ty::OneOf(_) => call(format!("{v}.bitisWrite"), vec![a("w".into())]),
         }
     }
@@ -543,8 +556,8 @@ impl Ty {
             Ty::Float => call("r.readFloat32", vec![]),
             Ty::Double => call("r.readFloat64", vec![]),
             Ty::Fp(_, c) => call("r.readFixedPoint", vec![atom(c.clone())]),
-            Ty::AStr(y) => call("r.readAStr", vec![n(y)]),
-            Ty::Binary(y) => call("r.readBinary", vec![n(y)]),
+            Ty::AStr(y, m) => call("r.readAStr", with_max_len(vec![n(y)], *m)),
+            Ty::Binary(y, m) => call("r.readBinary", with_max_len(vec![n(y)], *m)),
             Ty::Enum(t) | Ty::Msg(t) | Ty::OneOf(t) => call(format!("{t}.bitisRead"), vec![atom("r")]),
         }
     }
@@ -559,7 +572,7 @@ impl Ty {
     fn to_json(&self, v: &str) -> Option<E> {
         let h = |f: &str| Some(call(format!("BitisJson.{f}"), vec![atom(v)]));
         match self {
-            Ty::Bool | Ty::AStr(_) => None,
+            Ty::Bool | Ty::AStr(..) => None,
             Ty::UInt(b) | Ty::DynUInt(b, _) => match uint_repr(*b) {
                 IntRepr::Int => None, IntRepr::Int64 => h("int64ToJson"), IntRepr::Big => h("bigIntToJson"),
             },
@@ -568,7 +581,7 @@ impl Ty {
             },
             Ty::Float | Ty::Double => h("doubleToJson"),
             Ty::Fp(..) => h("fixedPointToJson"),
-            Ty::Binary(_) => h("binaryToJson"),
+            Ty::Binary(..) => h("binaryToJson"),
             Ty::Enum(_) | Ty::Msg(_) | Ty::OneOf(_) => Some(call(format!("{v}.toJson"), vec![])),
         }
     }
@@ -597,8 +610,8 @@ impl Ty {
             Ty::Int(b) | Ty::DynInt(b, _) => if int_repr(*b) == IntRepr::Int { "intFromJson" } else { "int64FromJson" },
             Ty::Float | Ty::Double => "doubleFromJson",
             Ty::Fp(..) => "fixedPointFromJson",
-            Ty::AStr(_) => "astrFromJson",
-            Ty::Binary(_) => "binaryFromJson",
+            Ty::AStr(..) => "astrFromJson",
+            Ty::Binary(..) => "binaryFromJson",
             Ty::Enum(_) | Ty::Msg(_) | Ty::OneOf(_) => unreachable!(),
         };
         format!("BitisJson.{f}")
@@ -615,7 +628,7 @@ impl Ty {
     fn eq_fn(&self) -> Option<E> {
         match self {
             Ty::Fp(_, c) => Some(atom(format!("{c}.sameEncoding"))),
-            Ty::Binary(_) => Some(atom("BitisEq.listEquals<int>")),
+            Ty::Binary(..) => Some(atom("BitisEq.listEquals<int>")),
             _ => None,
         }
     }
@@ -629,7 +642,7 @@ impl Ty {
     fn hash_fn(&self) -> Option<E> {
         match self {
             Ty::Fp(_, c) => Some(atom(format!("{c}.encodeRaw"))),
-            Ty::Binary(_) => Some(atom("Object.hashAll")),
+            Ty::Binary(..) => Some(atom("Object.hashAll")),
             _ => None,
         }
     }
@@ -652,8 +665,8 @@ impl Ty {
             Ty::Float | Ty::Double => "0.0".into(),
             // Rust and C++ default: Overflow
             Ty::Fp(..) => format!("{k}FixedPoint.overflow()"),
-            Ty::AStr(_) => "''".into(),
-            Ty::Binary(_) => "Uint8List(0)".into(),
+            Ty::AStr(..) => "''".into(),
+            Ty::Binary(..) => "Uint8List(0)".into(),
             Ty::Enum(n) => {
                 let e = ctx.enums[n.as_str()];
                 format!("{n}.{}", e.default.to_camel_case())
@@ -738,6 +751,9 @@ pub struct DartMsg {
     pub name: String,
     /// `min_bits` of the message (spec section 4).
     pub min_bits: u64,
+    /// `max_bits` of the message (spec section 4) as Dart literal: the number or `null` if unbounded
+    /// (or larger than 2^53 - 1, which is not exact on the web).
+    pub max_bits: String,
     pub class_header: String,
     pub comment: Option<String>,
     pub parent: Option<String>,
@@ -780,7 +796,10 @@ fn schema_text(a: &Attribute) -> String {
     if a.is_optional { s.push_str("optional "); }
     match a.is_repeated_and_size {
         Some(DynOrFixedType::Fixed(n)) => s.push_str(&format!("repeated_fixed_{n} ")),
-        Some(DynOrFixedType::Dyn(n)) => s.push_str(&format!("repeated_dyn_{n} ")),
+        Some(DynOrFixedType::Dyn(n)) => match a.repeated_max_len {
+            None => s.push_str(&format!("repeated_dyn_{n} ")),
+            Some(m) => s.push_str(&format!("repeated_dyn_{n}[{m}] ")),
+        },
         None => (),
     }
     match &a.specific_details {
@@ -855,7 +874,8 @@ fn field_code(ctx: &Ctx, a: &Attribute) -> FieldCode {
     let write = match &modifier {
         _ if a.is_optional => call("w.writeOptional", vec![atom(&wname), ty.write_fn()]),
         Some(DynOrFixedType::Fixed(n)) => call("w.writeFixedArray", vec![atom(&wname), atom(n.to_string()), ty.write_fn()]),
-        Some(DynOrFixedType::Dyn(y)) => call("w.writeDynArray", vec![atom(&wname), atom(y.to_string()), ty.write_fn()]),
+        Some(DynOrFixedType::Dyn(y)) => call("w.writeDynArray",
+            with_max_len(vec![atom(&wname), atom(y.to_string()), ty.write_fn()], a.repeated_max_len)),
         None => ty.write(&wname),
     };
     let read = match &modifier {
@@ -863,7 +883,8 @@ fn field_code(ctx: &Ctx, a: &Attribute) -> FieldCode {
         Some(DynOrFixedType::Fixed(n)) => call("r.readFixedArray", vec![atom(n.to_string()), ty.read_fn()]),
         Some(DynOrFixedType::Dyn(y)) => {
             let mb = min_bits_details(&a.specific_details, ctx.all_msgs);
-            call("r.readDynArray", vec![atom(y.to_string()), atom(mb.to_string()), ty.read_fn()])
+            call("r.readDynArray", with_max_len(vec![atom(y.to_string()), atom(mb.to_string()), ty.read_fn()],
+                                                a.repeated_max_len))
         }
         None => ty.read(),
     };
@@ -1059,6 +1080,10 @@ fn build_msg(ctx: &Ctx, m: &Message, oneofs: &[(String, OneOfInfo)]) -> DartMsg 
 
     DartMsg {
         name: name.clone(), min_bits: min_bits_message(m, ctx.all_msgs),
+        max_bits: match max_bits_message(m, ctx.all_msgs, ctx.all_enums) {
+            Some(b) if b <= DART_MAX_SAFE_INT => b.to_string(),
+            _ => "null".to_string(),
+        },
         class_header: class_header(&format!("final class {name}"), "implements", "BitisMessage"),
         comment: m.comment.clone(), parent: m.parent.clone(),
         fields: codes.into_iter().map(|c| c.field).collect(),

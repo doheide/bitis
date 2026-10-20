@@ -408,7 +408,8 @@ the web (dart2js and dart2wasm). Generating code does not need a Dart toolchain.
   `const` if all defaults are constants), `bitisWrite` / `static bitisRead`, `toBytes()`, `static fromBytes(data)`
   (trailing bytes are ignored), `static fromBytesExact(data)`, `toJson()` / `factory fromJson(json)`, `copyWith`
   (pass `null` to clear an optional attribute), `==` / `hashCode` (element-wise for lists and `Uint8List`, fixed
-  point values compared on their wire value), `toString`, `static const bitisMinBits` and one
+  point values compared on their wire value), `toString`, `static const bitisMinBits`, `static const bitisMaxBits`
+  (spec section 4; type `int?` and `null` if the message is unbounded) and one
   `static const FixedPointType <attribute>FpType` per fixed point attribute.
 * Enum: Dart `enum` with the values in lowerCamelCase in declaration order (wire index = `index`),
   `bitisName` (the name as written in the schema, used in JSON), `static defaultValue`.

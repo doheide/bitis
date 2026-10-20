@@ -106,6 +106,10 @@ final class Papa implements BitisMessage {
   /// docs/WIRE_FORMAT.md section 4).
   static const int bitisMinBits = 9;
 
+  /// Upper bound of the encoded size in bits (`max_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4); `null` if unbounded (or above 2^53 - 1).
+  static const int bitisMaxBits = 36;
+
   /// Reads a [Papa] from [r].
   static Papa bitisRead(BitReader r) =>
       Papa(ooLala: OO_Papa_OoLala.bitisRead(r));
@@ -253,6 +257,10 @@ final class Pipi implements BitisMessage {
   /// docs/WIRE_FORMAT.md section 4).
   static const int bitisMinBits = 1;
 
+  /// Upper bound of the encoded size in bits (`max_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4); `null` if unbounded (or above 2^53 - 1).
+  static const int bitisMaxBits = 6;
+
   /// Reads a [Pipi] from [r].
   static Pipi bitisRead(BitReader r) => Pipi(num: Numbers.bitisRead(r));
 
@@ -321,6 +329,10 @@ final class Lala implements BitisMessage {
   /// Lower bound of the encoded size in bits (`min_bits`, bitis
   /// docs/WIRE_FORMAT.md section 4).
   static const int bitisMinBits = 101;
+
+  /// Upper bound of the encoded size in bits (`max_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4); `null` if unbounded (or above 2^53 - 1).
+  static const int? bitisMaxBits = null;
 
   /// Reads a [Lala] from [r].
   static Lala bitisRead(BitReader r) {
@@ -659,6 +671,10 @@ final class Lali implements BitisMessage {
   /// Lower bound of the encoded size in bits (`min_bits`, bitis
   /// docs/WIRE_FORMAT.md section 4).
   static const int bitisMinBits = 33;
+
+  /// Upper bound of the encoded size in bits (`max_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4); `null` if unbounded (or above 2^53 - 1).
+  static const int bitisMaxBits = 33;
 
   /// Reads a [Lali] from [r].
   static Lali bitisRead(BitReader r) =>

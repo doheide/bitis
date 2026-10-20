@@ -350,6 +350,10 @@ final class STD_Msg_Time implements BitisMessage {
   /// docs/WIRE_FORMAT.md section 4).
   static const int bitisMinBits = 32;
 
+  /// Upper bound of the encoded size in bits (`max_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4); `null` if unbounded (or above 2^53 - 1).
+  static const int bitisMaxBits = 32;
+
   /// Reads a [STD_Msg_Time] from [r].
   static STD_Msg_Time bitisRead(BitReader r) =>
       STD_Msg_Time(epochAfterFoj2025: r.readUint(32));
@@ -420,6 +424,10 @@ final class STD_Msg_BaseParameters implements BitisMessage {
   /// Lower bound of the encoded size in bits (`min_bits`, bitis
   /// docs/WIRE_FORMAT.md section 4).
   static const int bitisMinBits = 45;
+
+  /// Upper bound of the encoded size in bits (`max_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4); `null` if unbounded (or above 2^53 - 1).
+  static const int bitisMaxBits = 45;
 
   /// Reads a [STD_Msg_BaseParameters] from [r].
   static STD_Msg_BaseParameters bitisRead(BitReader r) {
@@ -606,6 +614,10 @@ final class STD_Msg_FunctionalityParameters implements BitisMessage {
   /// Lower bound of the encoded size in bits (`min_bits`, bitis
   /// docs/WIRE_FORMAT.md section 4).
   static const int bitisMinBits = 73;
+
+  /// Upper bound of the encoded size in bits (`max_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4); `null` if unbounded (or above 2^53 - 1).
+  static const int bitisMaxBits = 73;
 
   /// Reads a [STD_Msg_FunctionalityParameters] from [r].
   static STD_Msg_FunctionalityParameters bitisRead(BitReader r) {
@@ -810,6 +822,10 @@ final class STD_Msg_IP_OnlineOnlyForSending implements BitisMessage {
   /// docs/WIRE_FORMAT.md section 4).
   static const int bitisMinBits = 0;
 
+  /// Upper bound of the encoded size in bits (`max_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4); `null` if unbounded (or above 2^53 - 1).
+  static const int bitisMaxBits = 0;
+
   /// Reads a [STD_Msg_IP_OnlineOnlyForSending] from [r].
   static STD_Msg_IP_OnlineOnlyForSending bitisRead(BitReader r) =>
       const STD_Msg_IP_OnlineOnlyForSending();
@@ -854,6 +870,10 @@ final class STD_Msg_IP_StayOnlineIndefinetly implements BitisMessage {
   /// Lower bound of the encoded size in bits (`min_bits`, bitis
   /// docs/WIRE_FORMAT.md section 4).
   static const int bitisMinBits = 0;
+
+  /// Upper bound of the encoded size in bits (`max_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4); `null` if unbounded (or above 2^53 - 1).
+  static const int bitisMaxBits = 0;
 
   /// Reads a [STD_Msg_IP_StayOnlineIndefinetly] from [r].
   static STD_Msg_IP_StayOnlineIndefinetly bitisRead(BitReader r) =>
@@ -902,6 +922,10 @@ final class STD_Msg_MinOnlineTime implements BitisMessage {
   /// Lower bound of the encoded size in bits (`min_bits`, bitis
   /// docs/WIRE_FORMAT.md section 4).
   static const int bitisMinBits = 1;
+
+  /// Upper bound of the encoded size in bits (`max_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4); `null` if unbounded (or above 2^53 - 1).
+  static const int bitisMaxBits = 13;
 
   /// Reads a [STD_Msg_MinOnlineTime] from [r].
   static STD_Msg_MinOnlineTime bitisRead(BitReader r) =>
@@ -1132,6 +1156,10 @@ final class STD_Msg_InteractionParameters implements BitisMessage {
   /// docs/WIRE_FORMAT.md section 4).
   static const int bitisMinBits = 2;
 
+  /// Upper bound of the encoded size in bits (`max_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4); `null` if unbounded (or above 2^53 - 1).
+  static const int bitisMaxBits = 33;
+
   /// Reads a [STD_Msg_InteractionParameters] from [r].
   static STD_Msg_InteractionParameters bitisRead(BitReader r) {
     return STD_Msg_InteractionParameters(
@@ -1223,6 +1251,10 @@ final class STD_Msg_TempMinOnlineTime implements BitisMessage {
   /// docs/WIRE_FORMAT.md section 4).
   static const int bitisMinBits = 1;
 
+  /// Upper bound of the encoded size in bits (`max_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4); `null` if unbounded (or above 2^53 - 1).
+  static const int bitisMaxBits = 13;
+
   /// Reads a [STD_Msg_TempMinOnlineTime] from [r].
   static STD_Msg_TempMinOnlineTime bitisRead(BitReader r) {
     return STD_Msg_TempMinOnlineTime(
@@ -1294,6 +1326,10 @@ final class STD_Msg_DrawAttention implements BitisMessage {
   /// Lower bound of the encoded size in bits (`min_bits`, bitis
   /// docs/WIRE_FORMAT.md section 4).
   static const int bitisMinBits = 12;
+
+  /// Upper bound of the encoded size in bits (`max_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4); `null` if unbounded (or above 2^53 - 1).
+  static const int bitisMaxBits = 12;
 
   /// Reads a [STD_Msg_DrawAttention] from [r].
   static STD_Msg_DrawAttention bitisRead(BitReader r) {
@@ -1378,6 +1414,10 @@ final class DTS_Error implements BitisMessage {
   /// docs/WIRE_FORMAT.md section 4).
   static const int bitisMinBits = 2;
 
+  /// Upper bound of the encoded size in bits (`max_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4); `null` if unbounded (or above 2^53 - 1).
+  static const int? bitisMaxBits = null;
+
   /// Reads a [DTS_Error] from [r].
   static DTS_Error bitisRead(BitReader r) =>
       DTS_Error(err: DTS_Error_Enum.bitisRead(r), errMsg: r.readAStr(4));
@@ -1450,6 +1490,10 @@ final class DTS_Msg_DeviceState implements BitisMessage {
   /// Lower bound of the encoded size in bits (`min_bits`, bitis
   /// docs/WIRE_FORMAT.md section 4).
   static const int bitisMinBits = 51;
+
+  /// Upper bound of the encoded size in bits (`max_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4); `null` if unbounded (or above 2^53 - 1).
+  static const int bitisMaxBits = 57;
 
   /// Reads a [DTS_Msg_DeviceState] from [r].
   static DTS_Msg_DeviceState bitisRead(BitReader r) {
@@ -1600,6 +1644,10 @@ final class DTS_Msg_ClientPosStart implements BitisMessage {
   /// docs/WIRE_FORMAT.md section 4).
   static const int bitisMinBits = 32;
 
+  /// Upper bound of the encoded size in bits (`max_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4); `null` if unbounded (or above 2^53 - 1).
+  static const int bitisMaxBits = 32;
+
   /// Reads a [DTS_Msg_ClientPosStart] from [r].
   static DTS_Msg_ClientPosStart bitisRead(BitReader r) =>
       DTS_Msg_ClientPosStart(tsEpochAfterFoj2025: r.readUint(32));
@@ -1668,6 +1716,10 @@ final class DTS_Msg_ClientPosEnd implements BitisMessage {
   /// docs/WIRE_FORMAT.md section 4).
   static const int bitisMinBits = 11;
 
+  /// Upper bound of the encoded size in bits (`max_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4); `null` if unbounded (or above 2^53 - 1).
+  static const int bitisMaxBits = 11;
+
   /// Reads a [DTS_Msg_ClientPosEnd] from [r].
   static DTS_Msg_ClientPosEnd bitisRead(BitReader r) =>
       DTS_Msg_ClientPosEnd(tsAfterCps: r.readUint(11));
@@ -1730,6 +1782,10 @@ final class DTS_Msg_WLanInfo_Entry implements BitisMessage {
   /// Lower bound of the encoded size in bits (`min_bits`, bitis
   /// docs/WIRE_FORMAT.md section 4).
   static const int bitisMinBits = 57;
+
+  /// Upper bound of the encoded size in bits (`max_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4); `null` if unbounded (or above 2^53 - 1).
+  static const int bitisMaxBits = 57;
 
   /// Reads a [DTS_Msg_WLanInfo_Entry] from [r].
   static DTS_Msg_WLanInfo_Entry bitisRead(BitReader r) {
@@ -1818,6 +1874,10 @@ final class DTS_Msg_WLanInfos implements BitisMessage {
   /// Lower bound of the encoded size in bits (`min_bits`, bitis
   /// docs/WIRE_FORMAT.md section 4).
   static const int bitisMinBits = 12;
+
+  /// Upper bound of the encoded size in bits (`max_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4); `null` if unbounded (or above 2^53 - 1).
+  static const int? bitisMaxBits = null;
 
   /// Reads a [DTS_Msg_WLanInfos] from [r].
   static DTS_Msg_WLanInfos bitisRead(BitReader r) {
@@ -1913,6 +1973,10 @@ final class DTS_Msg_GNSSPosition implements BitisMessage {
   /// Lower bound of the encoded size in bits (`min_bits`, bitis
   /// docs/WIRE_FORMAT.md section 4).
   static const int bitisMinBits = 135;
+
+  /// Upper bound of the encoded size in bits (`max_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4); `null` if unbounded (or above 2^53 - 1).
+  static const int bitisMaxBits = 135;
 
   /// Reads a [DTS_Msg_GNSSPosition] from [r].
   static DTS_Msg_GNSSPosition bitisRead(BitReader r) {
@@ -2120,6 +2184,10 @@ final class DTS_Msg_Ping implements BitisMessage {
   /// docs/WIRE_FORMAT.md section 4).
   static const int bitisMinBits = 2;
 
+  /// Upper bound of the encoded size in bits (`max_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4); `null` if unbounded (or above 2^53 - 1).
+  static const int bitisMaxBits = 2;
+
   /// Reads a [DTS_Msg_Ping] from [r].
   static DTS_Msg_Ping bitisRead(BitReader r) =>
       DTS_Msg_Ping(dummy: r.readUint(2));
@@ -2176,6 +2244,10 @@ final class DTS_Msg_StateTimeAnchor implements BitisMessage {
   /// Lower bound of the encoded size in bits (`min_bits`, bitis
   /// docs/WIRE_FORMAT.md section 4).
   static const int bitisMinBits = 32;
+
+  /// Upper bound of the encoded size in bits (`max_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4); `null` if unbounded (or above 2^53 - 1).
+  static const int bitisMaxBits = 32;
 
   /// Reads a [DTS_Msg_StateTimeAnchor] from [r].
   static DTS_Msg_StateTimeAnchor bitisRead(BitReader r) =>
@@ -2245,6 +2317,10 @@ final class DTS_Msg_NotPlugedIn implements BitisMessage {
   /// docs/WIRE_FORMAT.md section 4).
   static const int bitisMinBits = 0;
 
+  /// Upper bound of the encoded size in bits (`max_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4); `null` if unbounded (or above 2^53 - 1).
+  static const int bitisMaxBits = 0;
+
   /// Reads a [DTS_Msg_NotPlugedIn] from [r].
   static DTS_Msg_NotPlugedIn bitisRead(BitReader r) =>
       const DTS_Msg_NotPlugedIn();
@@ -2289,6 +2365,10 @@ final class DTS_Msg_PlugedIn implements BitisMessage {
   /// Lower bound of the encoded size in bits (`min_bits`, bitis
   /// docs/WIRE_FORMAT.md section 4).
   static const int bitisMinBits = 1;
+
+  /// Upper bound of the encoded size in bits (`max_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4); `null` if unbounded (or above 2^53 - 1).
+  static const int bitisMaxBits = 1;
 
   /// Reads a [DTS_Msg_PlugedIn] from [r].
   static DTS_Msg_PlugedIn bitisRead(BitReader r) =>
@@ -2351,6 +2431,10 @@ final class DTS_Msg_BatteryState implements BitisMessage {
   /// Lower bound of the encoded size in bits (`min_bits`, bitis
   /// docs/WIRE_FORMAT.md section 4).
   static const int bitisMinBits = 18;
+
+  /// Upper bound of the encoded size in bits (`max_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4); `null` if unbounded (or above 2^53 - 1).
+  static const int bitisMaxBits = 28;
 
   /// Reads a [DTS_Msg_BatteryState] from [r].
   static DTS_Msg_BatteryState bitisRead(BitReader r) {
@@ -2613,6 +2697,10 @@ final class DTS_Msg_CircuitryState implements BitisMessage {
   /// docs/WIRE_FORMAT.md section 4).
   static const int bitisMinBits = 11;
 
+  /// Upper bound of the encoded size in bits (`max_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4); `null` if unbounded (or above 2^53 - 1).
+  static const int bitisMaxBits = 16;
+
   /// Reads a [DTS_Msg_CircuitryState] from [r].
   static DTS_Msg_CircuitryState bitisRead(BitReader r) {
     return DTS_Msg_CircuitryState(
@@ -2711,6 +2799,10 @@ final class DTS_Msg_GNSSState implements BitisMessage {
   /// Lower bound of the encoded size in bits (`min_bits`, bitis
   /// docs/WIRE_FORMAT.md section 4).
   static const int bitisMinBits = 16;
+
+  /// Upper bound of the encoded size in bits (`max_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4); `null` if unbounded (or above 2^53 - 1).
+  static const int bitisMaxBits = 25;
 
   /// Reads a [DTS_Msg_GNSSState] from [r].
   static DTS_Msg_GNSSState bitisRead(BitReader r) {
@@ -2828,6 +2920,10 @@ final class DTS_Msg_Acknowledge implements BitisMessage {
   /// docs/WIRE_FORMAT.md section 4).
   static const int bitisMinBits = 2;
 
+  /// Upper bound of the encoded size in bits (`max_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4); `null` if unbounded (or above 2^53 - 1).
+  static const int bitisMaxBits = 2;
+
   /// Reads a [DTS_Msg_Acknowledge] from [r].
   static DTS_Msg_Acknowledge bitisRead(BitReader r) =>
       DTS_Msg_Acknowledge(drawAttention: r.readBool(), params: r.readBool());
@@ -2903,6 +2999,10 @@ final class DTS_Msg_StateInformation implements BitisMessage {
   /// Lower bound of the encoded size in bits (`min_bits`, bitis
   /// docs/WIRE_FORMAT.md section 4).
   static const int bitisMinBits = 12;
+
+  /// Upper bound of the encoded size in bits (`max_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4); `null` if unbounded (or above 2^53 - 1).
+  static const int bitisMaxBits = 36;
 
   /// Reads a [DTS_Msg_StateInformation] from [r].
   static DTS_Msg_StateInformation bitisRead(BitReader r) {
@@ -3165,6 +3265,10 @@ final class DTS_DeviceAuthHandshake implements BitisMessage {
   /// docs/WIRE_FORMAT.md section 4).
   static const int bitisMinBits = 32;
 
+  /// Upper bound of the encoded size in bits (`max_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4); `null` if unbounded (or above 2^53 - 1).
+  static const int bitisMaxBits = 32;
+
   /// Reads a [DTS_DeviceAuthHandshake] from [r].
   static DTS_DeviceAuthHandshake bitisRead(BitReader r) {
     return DTS_DeviceAuthHandshake(
@@ -3279,6 +3383,10 @@ final class DTS_DeviceSendChallengeResponse implements BitisMessage {
   /// Lower bound of the encoded size in bits (`min_bits`, bitis
   /// docs/WIRE_FORMAT.md section 4).
   static const int bitisMinBits = 16;
+
+  /// Upper bound of the encoded size in bits (`max_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4); `null` if unbounded (or above 2^53 - 1).
+  static const int bitisMaxBits = 16;
 
   /// Reads a [DTS_DeviceSendChallengeResponse] from [r].
   static DTS_DeviceSendChallengeResponse bitisRead(BitReader r) {
@@ -3402,6 +3510,10 @@ final class STD_ResponseHandshakeOk implements BitisMessage {
   /// docs/WIRE_FORMAT.md section 4).
   static const int bitisMinBits = 3;
 
+  /// Upper bound of the encoded size in bits (`max_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4); `null` if unbounded (or above 2^53 - 1).
+  static const int bitisMaxBits = 3;
+
   /// Reads a [STD_ResponseHandshakeOk] from [r].
   static STD_ResponseHandshakeOk bitisRead(BitReader r) =>
       STD_ResponseHandshakeOk(connectionTimeout: r.readUint(3));
@@ -3466,6 +3578,10 @@ final class STD_ResponseGreeting implements BitisMessage {
   /// docs/WIRE_FORMAT.md section 4).
   static const int bitisMinBits = 0;
 
+  /// Upper bound of the encoded size in bits (`max_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4); `null` if unbounded (or above 2^53 - 1).
+  static const int bitisMaxBits = 0;
+
   /// Reads a [STD_ResponseGreeting] from [r].
   static STD_ResponseGreeting bitisRead(BitReader r) =>
       const STD_ResponseGreeting();
@@ -3512,6 +3628,10 @@ final class STD_HandshakeResponse implements BitisMessage {
   /// Lower bound of the encoded size in bits (`min_bits`, bitis
   /// docs/WIRE_FORMAT.md section 4).
   static const int bitisMinBits = 1;
+
+  /// Upper bound of the encoded size in bits (`max_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4); `null` if unbounded (or above 2^53 - 1).
+  static const int bitisMaxBits = 9;
 
   /// Reads a [STD_HandshakeResponse] from [r].
   static STD_HandshakeResponse bitisRead(BitReader r) =>
@@ -3728,6 +3848,10 @@ final class XTX_Msg_Header implements BitisMessage {
   /// docs/WIRE_FORMAT.md section 4).
   static const int bitisMinBits = 4;
 
+  /// Upper bound of the encoded size in bits (`max_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4); `null` if unbounded (or above 2^53 - 1).
+  static const int bitisMaxBits = 15;
+
   /// Reads a [XTX_Msg_Header] from [r].
   static XTX_Msg_Header bitisRead(BitReader r) {
     return XTX_Msg_Header(
@@ -3817,6 +3941,10 @@ final class DTS_MsgWrapper implements BitisMessage {
   /// Lower bound of the encoded size in bits (`min_bits`, bitis
   /// docs/WIRE_FORMAT.md section 4).
   static const int bitisMinBits = 3;
+
+  /// Upper bound of the encoded size in bits (`max_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4); `null` if unbounded (or above 2^53 - 1).
+  static const int? bitisMaxBits = null;
 
   /// Reads a [DTS_MsgWrapper] from [r].
   static DTS_MsgWrapper bitisRead(BitReader r) =>
@@ -4193,6 +4321,10 @@ final class DTS_Msg implements BitisMessage {
   /// docs/WIRE_FORMAT.md section 4).
   static const int bitisMinBits = 8;
 
+  /// Upper bound of the encoded size in bits (`max_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4); `null` if unbounded (or above 2^53 - 1).
+  static const int? bitisMaxBits = null;
+
   /// Reads a [DTS_Msg] from [r].
   static DTS_Msg bitisRead(BitReader r) {
     return DTS_Msg(
@@ -4271,6 +4403,10 @@ final class STD_MsgWrapper implements BitisMessage {
   /// Lower bound of the encoded size in bits (`min_bits`, bitis
   /// docs/WIRE_FORMAT.md section 4).
   static const int bitisMinBits = 2;
+
+  /// Upper bound of the encoded size in bits (`max_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4); `null` if unbounded (or above 2^53 - 1).
+  static const int bitisMaxBits = 79;
 
   /// Reads a [STD_MsgWrapper] from [r].
   static STD_MsgWrapper bitisRead(BitReader r) =>
@@ -4623,6 +4759,10 @@ final class STD_Msg implements BitisMessage {
   /// docs/WIRE_FORMAT.md section 4).
   static const int bitisMinBits = 2;
 
+  /// Upper bound of the encoded size in bits (`max_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4); `null` if unbounded (or above 2^53 - 1).
+  static const int? bitisMaxBits = null;
+
   /// Reads a [STD_Msg] from [r].
   static STD_Msg bitisRead(BitReader r) {
     return STD_Msg(
@@ -4708,6 +4848,10 @@ final class STS_Msg_OnlineStateChanged_Online implements BitisMessage {
   /// docs/WIRE_FORMAT.md section 4).
   static const int bitisMinBits = 1;
 
+  /// Upper bound of the encoded size in bits (`max_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4); `null` if unbounded (or above 2^53 - 1).
+  static const int bitisMaxBits = 1;
+
   /// Reads a [STS_Msg_OnlineStateChanged_Online] from [r].
   static STS_Msg_OnlineStateChanged_Online bitisRead(BitReader r) =>
       STS_Msg_OnlineStateChanged_Online(forceParameterToDevice: r.readBool());
@@ -4780,6 +4924,10 @@ final class STS_Msg_OnlineStateChanged_Offline implements BitisMessage {
   /// docs/WIRE_FORMAT.md section 4).
   static const int bitisMinBits = 0;
 
+  /// Upper bound of the encoded size in bits (`max_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4); `null` if unbounded (or above 2^53 - 1).
+  static const int bitisMaxBits = 0;
+
   /// Reads a [STS_Msg_OnlineStateChanged_Offline] from [r].
   static STS_Msg_OnlineStateChanged_Offline bitisRead(BitReader r) =>
       const STS_Msg_OnlineStateChanged_Offline();
@@ -4832,6 +4980,10 @@ final class STS_Msg_WLANPosReceived implements BitisMessage {
   /// Lower bound of the encoded size in bits (`min_bits`, bitis
   /// docs/WIRE_FORMAT.md section 4).
   static const int bitisMinBits = 175;
+
+  /// Upper bound of the encoded size in bits (`max_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4); `null` if unbounded (or above 2^53 - 1).
+  static const int? bitisMaxBits = null;
 
   /// Reads a [STS_Msg_WLANPosReceived] from [r].
   static STS_Msg_WLANPosReceived bitisRead(BitReader r) {
@@ -4962,6 +5114,10 @@ final class STS_Msg_PosGenData implements BitisMessage {
   /// Lower bound of the encoded size in bits (`min_bits`, bitis
   /// docs/WIRE_FORMAT.md section 4).
   static const int bitisMinBits = 168;
+
+  /// Upper bound of the encoded size in bits (`max_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4); `null` if unbounded (or above 2^53 - 1).
+  static const int bitisMaxBits = 318;
 
   /// Reads a [STS_Msg_PosGenData] from [r].
   static STS_Msg_PosGenData bitisRead(BitReader r) {
@@ -5182,6 +5338,10 @@ final class STS_Msg_GeoPosReady implements BitisMessage {
   /// docs/WIRE_FORMAT.md section 4).
   static const int bitisMinBits = 64;
 
+  /// Upper bound of the encoded size in bits (`max_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4); `null` if unbounded (or above 2^53 - 1).
+  static const int bitisMaxBits = 64;
+
   /// Reads a [STS_Msg_GeoPosReady] from [r].
   static STS_Msg_GeoPosReady bitisRead(BitReader r) =>
       STS_Msg_GeoPosReady(posContainerId: r.readUintBigInt(64));
@@ -5245,6 +5405,10 @@ final class STS_MsgWrapper implements BitisMessage {
   /// Lower bound of the encoded size in bits (`min_bits`, bitis
   /// docs/WIRE_FORMAT.md section 4).
   static const int bitisMinBits = 1;
+
+  /// Upper bound of the encoded size in bits (`max_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4); `null` if unbounded (or above 2^53 - 1).
+  static const int? bitisMaxBits = null;
 
   /// Reads a [STS_MsgWrapper] from [r].
   static STS_MsgWrapper bitisRead(BitReader r) =>
@@ -5977,6 +6141,10 @@ final class STS_Msg implements BitisMessage {
   /// Lower bound of the encoded size in bits (`min_bits`, bitis
   /// docs/WIRE_FORMAT.md section 4).
   static const int bitisMinBits = 28;
+
+  /// Upper bound of the encoded size in bits (`max_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4); `null` if unbounded (or above 2^53 - 1).
+  static const int? bitisMaxBits = null;
 
   /// Reads a [STS_Msg] from [r].
   static STS_Msg bitisRead(BitReader r) {
