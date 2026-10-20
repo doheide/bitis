@@ -538,10 +538,18 @@ final description = switch (back.msgs.first.value) {
 };
 ```
 
-## CRC-32 helper
+## CRC helpers
 
-Every runtime contains the same CRC-32 helper, e.g. to protect a bitis payload in a transport framing (the framing
-itself is not part of bitis, and the CRC is not part of the wire format). The CRC is **CRC-32/ISO-HDLC**: reflected
+Every runtime contains the same CRC helpers, e.g. to protect a bitis payload in a transport framing (the framing
+itself is not part of bitis, and the CRCs are not part of the wire format):
+
+- **CRC-32/ISO-HDLC** (zlib), see [CRC-32 helper](#crc-32-helper);
+- **CRC-8/AUTOSAR**, **CRC-16/IBM-3740** and the **transmission CRC rule** of the carachang transport framing
+  (`carachangprotocol/FRAMING.md`), see [CRC-8, CRC-16 and transmission CRC](#crc-8-crc-16-and-transmission-crc).
+
+### CRC-32 helper
+
+The CRC is **CRC-32/ISO-HDLC**: reflected
 polynomial `0xEDB88320`, init `0xFFFFFFFF`, xorout `0xFFFFFFFF`, reflected input and output -- the CRC of zlib /
 Python `zlib.crc32`, Ethernet, PNG and gzip. Check value `crc32("123456789") = 0xCBF43926`, `crc32("") = 0`. The
 input may be split arbitrarily between `update` calls; `finish()` / `value` does not change the state.
@@ -582,6 +590,65 @@ input may be split arbitrarily between `update` calls; `finish()` / `value` does
   `0xCBF43926`). On the device the ROM function is the natural choice; `bitis_crc32.h` is meant for host tools,
   tests and as a portable fallback.
 - Shared test vectors: `golden/vectors/crc32.txt` (see [golden/README.md](golden/README.md)).
+
+### CRC-8, CRC-16 and transmission CRC
+
+| CRC | Parameters (reveng catalogue) | check(`"123456789"`) | CRC of `""` |
+|---|---|---|---|
+| CRC-8/AUTOSAR | poly `0x2F`, init `0xFF`, xorout `0xFF`, refin/refout false | `0xDF` | `0x00` |
+| CRC-16/IBM-3740 (CCITT-FALSE) | poly `0x1021`, init `0xFFFF`, xorout `0x0000`, refin/refout false | `0x29B1` | `0xFFFF` |
+
+**Transmission CRC rule** (`carachangprotocol/FRAMING.md`, section 2; normative there): let `n` be the number of
+bytes of header + payload as on the wire (after encryption, if any), the CRC not counted. Frames with `n ≤ 14` get a
+1-byte CRC-8/AUTOSAR trailer, frames with `n ≥ 15` a 2-byte CRC-16/IBM-3740 trailer in **little-endian** byte order
+(low byte first: `0x29B1` is sent as `B1 29`). For a whole received frame of `L` bytes (trailer included) this
+means: `L ≤ 15` → CRC-8, `L ≥ 17` → CRC-16, `L = 16` is invalid (as are `L = 0` and `L = 1`). The receiver recomputes the CRC over
+header + payload and compares it with the trailer; the "CRC over frame + trailer = 0" residue check does **not**
+work with the little-endian trailer. Real frames always have a header, i.e. `n ≥ 1`: append accepts `n = 0` (trailer
+`0x00`), but verify / strip reject `L ≤ 1`, so a stray `0x00` byte is never a valid frame.
+
+| Runtime | CRC-8 / CRC-16 | Transmission CRC |
+|---|---|---|
+| Rust | `crc8_autosar(&[u8]) -> u8`, `Crc8Autosar`; `crc16_ibm3740(&[u8]) -> u16`, `Crc16Ibm3740` (`new()`, `update(&[u8])`, `finish()`, `reset()`) | `transmission_crc_len(n) -> usize`, `transmission_crc(&[u8]) -> u16`, `append_transmission_crc(&mut Vec<u8>)`, `with_transmission_crc(&[u8]) -> Vec<u8>`, `verify_transmission_crc(&[u8]) -> bool`, `strip_transmission_crc(&[u8]) -> Option<&[u8]>` (frame without trailer) |
+| C++ (`cpp_lib/bitis_crc8_16.h`) | `bitis_crc8_autosar(ptr, len) -> uint8_t`, `BitisCrc8Autosar`; `bitis_crc16_ibm3740(ptr, len) -> uint16_t`, `BitisCrc16Ibm3740` (`update(ptr, len)`, `finish()`, `reset()`) | `bitis_transmission_crc_len(n)`, `bitis_transmission_crc(frame, n) -> uint16_t`, `bitis_transmission_crc_trailer(frame, n, out_trailer) -> size_t` (writes 1 or 2 bytes), `bitis_append_transmission_crc(buf, n) -> size_t` (writes the trailer at `buf + n`, `buf` needs room for `n + 2` bytes, returns the new length), `bitis_verify_transmission_crc(data, len) -> bool`, `bitis_strip_transmission_crc(data, len, size_t *n) -> bool` (`*n` = length without trailer, only written on success) |
+| Dart | `crc8Autosar(List<int>) -> int`, `Crc8Autosar`; `crc16Ibm3740(List<int>) -> int`, `Crc16Ibm3740` (`update`, `value` / `finish()`, `reset()`) | `transmissionCrcLen(n)`, `transmissionCrc(frame)`, `appendTransmissionCrc(frame) -> Uint8List` (new list), `verifyTransmissionCrc(data) -> bool`, `stripTransmissionCrc(data) -> int?` (length without trailer, `null` on error) |
+| Python | `crc8_autosar(bytes) -> int`, `Crc8Autosar`; `crc16_ibm3740(bytes) -> int`, `Crc16Ibm3740` (`update`, `value` / `finish()`, `reset()`) | `transmission_crc_len(n)`, `transmission_crc(frame)`, `append_transmission_crc(frame) -> bytes`, `verify_transmission_crc(data) -> bool`, `strip_transmission_crc(data) -> bytes` (frame without trailer; `ValueError` for length 0 / 16 or a CRC mismatch) |
+
+`transmission_crc` is the CRC-8 (zero-extended) for `n ≤ 14` and the CRC-16 otherwise. `verify` is `false` exactly
+when `strip` fails (length 0, 1 or 16, or CRC mismatch). Stream receivers that read the header first take the trailer
+length from `transmission_crc_len(n)`; for header and payload in separate buffers use the incremental CRC classes.
+
+- **C++**: header only, independent of `bitis_lib.h` and `bitis_crc32.h`, not written by the compiler. C++17,
+  `constexpr` (also the transmission functions), no heap, exceptions or RTTI; `const void *` overloads for char
+  buffers. 16-entry nibble tables: 16 bytes (CRC-8) + 32 bytes (CRC-16) of read-only data, two lookups per byte.
+  There is no 256-entry variant: frames are at most about 2 KiB and the ESP32 can use the ROM for CRC-16. Built
+  for the ESP32 (`xtensa-esp32-elf-g++ -std=gnu++2b -Os -fno-exceptions -fno-rtti`): CRC-8 75 bytes and CRC-16 76
+  bytes of code (incl. literals), `bitis_append_transmission_crc` 43 bytes, `bitis_strip_transmission_crc` 80
+  bytes, plus the 48 bytes of tables.
+- **Rust / Dart**: 256-entry tables (256 + 512 bytes), like the CRC-32 helper. Dart is web-safe (dart2js,
+  dart2wasm) and only uses the low 8 bits of each element.
+- **Python**: part of every module generated with `bitis compile -l python` (implemented by the Rust runtime);
+  messages named `Crc8Autosar` / `Crc16Ibm3740` in the schema would shadow the classes.
+- **ESP32 firmware**: CRC-16/IBM-3740 is in the ROM (`esp_rom_crc.h`, also `esp_crc16_be` from `esp_crc.h`).
+  `esp_rom_crc16_be` inverts the register on entry and on exit, so start value **0** means register `0xFFFF`,
+  and the result has to be inverted once (xorout is 0):
+
+  ```c
+  #include "esp_rom_crc.h"
+  uint16_t crc = (uint16_t)~esp_rom_crc16_be(0, buf, len);   // == crc16_ibm3740(buf)
+  uint16_t r = 0;                                            // incremental, any split:
+  r = esp_rom_crc16_be(r, part1, len1);
+  r = esp_rom_crc16_be(r, part2, len2);
+  uint16_t crc2 = (uint16_t)~r;                              // == crc16_ibm3740(part1 + part2)
+  trailer[0] = crc & 0xFF; trailer[1] = crc >> 8;            // little-endian on the wire
+  ```
+
+  Keep the `(uint16_t)` cast: `~` promotes the `uint16_t` to `int`, so `~esp_rom_crc16_be(...) == crc` is always
+  false. (Checked against the esp-idf v5.5 C implementations `components/esp_rom/linux/esp_rom_crc.c` and
+  `patches/esp_rom_crc.c`; the C++ test models the ROM function.) There is no ROM function for CRC-8/AUTOSAR (the
+  ROM CRC-8 uses polynomial `0x07`): use `bitis_crc8_autosar`.
+- Shared test vectors: `golden/vectors/crc8_16.txt`, including all test frames of FRAMING.md section 5 (see
+  [golden/README.md](golden/README.md)).
 
 # Tutorial
 ## Install 

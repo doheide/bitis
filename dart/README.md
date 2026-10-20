@@ -20,7 +20,7 @@ dependencies:
     git:
       url: https://github.com/doheide/bitis.git
       path: dart/bitis
-      ref: v0.11.0
+      ref: v0.11.1
 ```
 
 From a local checkout:

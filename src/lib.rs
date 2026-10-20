@@ -12,6 +12,10 @@ extern crate self as bitis_lib;
 pub use lib_impl::berde::*;
 pub use lib_impl::compiler::*;
 pub use lib_impl::crc32::{crc32, Crc32};
+pub use lib_impl::crc8_16::{
+    crc8_autosar, Crc8Autosar, crc16_ibm3740, Crc16Ibm3740, transmission_crc_len, transmission_crc,
+    append_transmission_crc, with_transmission_crc, verify_transmission_crc, strip_transmission_crc,
+};
 pub use bitis_macros::{BiserdiMsg, BiserdiOneOf, BiserdiEnum};
 pub use std::result;
 

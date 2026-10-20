@@ -11,7 +11,10 @@
 /// * [MinBits], [MaxBits] (spec section 4) and [BitisJson] (JSON mapping
 ///   helpers),
 /// * [BitisEq], [bitisKeep], [bitisKeepOr] (used by generated code),
-/// * [crc32] / [Crc32]: CRC-32 helper (not part of the wire format).
+/// * [crc32] / [Crc32]: CRC-32 helper (not part of the wire format),
+/// * [crc8Autosar] / [Crc8Autosar], [crc16Ibm3740] / [Crc16Ibm3740] and the
+///   transmission CRC helpers [transmissionCrcLen], [transmissionCrc],
+///   [appendTransmissionCrc], [verifyTransmissionCrc], [stripTransmissionCrc].
 ///
 /// The wire format is specified in `docs/WIRE_FORMAT.md` of the bitis
 /// repository.
@@ -23,6 +26,7 @@ export 'src/bit_reader.dart';
 export 'src/bit_writer.dart';
 export 'src/codec.dart';
 export 'src/crc32.dart';
+export 'src/crc8_16.dart';
 export 'src/errors.dart';
 export 'src/fixed_point.dart' show FixedPoint, FixedPointState, FixedPointType;
 export 'src/json.dart';

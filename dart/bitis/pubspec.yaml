@@ -2,7 +2,7 @@ name: bitis
 description: >-
   Pure-Dart runtime for bitis, a bit-level serialization format. Web-safe
   (dart2js and dart2wasm). Used by code generated with `bitis -l dart`.
-version: 0.11.0
+version: 0.11.1
 publish_to: none
 repository: https://github.com/doheide/bitis
 

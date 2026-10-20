@@ -1,6 +1,6 @@
 [package]
 name = "bitis"
-version = "0.11.0"
+version = "0.11.1"
 edition = "2024"
 license = "MIT"
 keywords = ["interface", "serialization", "bitwise", "DSL"]
@@ -31,7 +31,7 @@ sha2 = "0.10"
 # bitis-macros = "0.5.3"
 array-init = "2.1"
 ascii = "1.1.0"
-bitis-macros = { version = "0.11.0", path = "./bitis-macros" }
+bitis-macros = { version = "0.11.1", path = "./bitis-macros" }
 #bitis-macros = { path = "./bitis-macros" }
 
 

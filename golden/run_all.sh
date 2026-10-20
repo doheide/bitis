@@ -51,10 +51,16 @@ check_manifest() {
     cargo run -q $CARGO_FLAGS --manifest-path "$ROOT/golden/gen_rust/Cargo.toml" -- --check
 }
 
+# --- CRC vector files (crc32.txt, crc8_16.txt and their Dart copies) up to date with their
+# Python generators
+check_crc_vectors() {
+    python3 "$ROOT/golden/vectors/crc32_gen.py" --check && python3 "$ROOT/golden/vectors/crc8_16_gen.py" --check
+}
+
 # --- Rust runtime
 rust_tests() {
     # shellcheck disable=SC2086
-    (cd "$ROOT" && cargo test -q $CARGO_FLAGS --test golden --test crc32)
+    (cd "$ROOT" && cargo test -q $CARGO_FLAGS --test golden --test crc32 --test crc8_16)
 }
 
 # --- C++ runtime: all targets of cpp_lib/tests (golden vectors in bitis_golden, unit tests,
@@ -139,6 +145,7 @@ dart_tests() {
 
 mkdir -p "$BUILD"
 run_step "manifest up to date" check_manifest
+run_step "crc vectors up to date" check_crc_vectors
 run_step "rust" rust_tests
 run_step "c++" cpp_tests "$BUILD/cpp"
 if [[ $ASAN == 1 ]]; then
