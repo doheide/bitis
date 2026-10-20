@@ -1,0 +1,15 @@
+# Generator of the golden vectors (golden/vectors/manifest.txt), see golden/README.md.
+#   cargo run --manifest-path golden/gen_rust/Cargo.toml            # (re)write the manifest
+#   cargo run --manifest-path golden/gen_rust/Cargo.toml -- --check # verify it is up to date
+[package]
+name = "bitis_golden_gen"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+bitis = { path = "../.." }
+strum_macros = "0.27.2"
+
+# standalone package (not part of a workspace)
+[workspace]

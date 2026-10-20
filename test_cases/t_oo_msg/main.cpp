@@ -37,8 +37,8 @@ int main(int argc, char *argv[]){
     {
         auto msg = MsgOOSimpleBase{
             .id = MsgOOSimpleBase::Id_T(54),
-            .value = MsgOOSimpleBase::Value_T().set_oo<MsgOOSimpleBase::Value_T::OO_Int>(
-                OO_MsgOoSimpleBase_Value::OO_Int::OOType(3))
+            .value = MsgOOSimpleBase::Value_T().set_oo<MsgOOSimpleBase::Value_T::OO_IntVal>(
+                OO_MsgOoSimpleBase_Value::OO_IntVal::OOType(3))
         };
         msg.print(0); printf("\n");
 
@@ -152,8 +152,8 @@ int main(int argc, char *argv[]){
     //     msg.value.values.emplace_back(MsgRepeatedDynOOBase::Value_T::ValT()
     //         .set_oo<OO_MsgRepeatedDynOoBase_Value::OO_TrueFalse>(true));
     //     msg.value.values.emplace_back(MsgRepeatedDynOOBase::Value_T::ValT()
-    //         .set_oo<OO_MsgRepeatedDynOoBase_Value::OO_Int>(
-    //             OO_MsgRepeatedDynOoBase_Value::OO_Int::OOType(34)));
+    //         .set_oo<OO_MsgRepeatedDynOoBase_Value::OO_IntVal>(
+    //             OO_MsgRepeatedDynOoBase_Value::OO_IntVal::OOType(34)));
     //     msg.print(0); printf("\n");
     //
     //     auto fn_name = "val_repeateddynoo_val1.cpp.dat";

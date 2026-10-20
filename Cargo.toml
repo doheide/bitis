@@ -40,4 +40,6 @@ bitis-macros = { version = "0.10.5", path = "./bitis-macros" }
 
 [dev-dependencies]
 rstest = "0.25.0"
+# used by the generated code compiled in tests/golden.rs
+strum_macros = "0.27.2"
 
