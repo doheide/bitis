@@ -78,7 +78,7 @@ What every runtime has to check:
 | `noncanon` | decoding `input_hex` (default and exact) succeeds and consumes `total_bits`; re-encoding gives `canonical_hex` |
 | `invalid` | decoding `hex` with the given decoder (`default`: `try_deserialize`, `exact`: `try_deserialize_exact`) fails with `error` |
 | `min_bits` | `min_bits()` of the message type (spec section 4) |
-| `max_bits` | `max_bits()` of the message type (spec section 4), `unbounded` if there is no upper bound (Rust `None`, C++ `BITIS_UNBOUNDED`, Dart `null`); every `valid` encoding is at most `max_bits` bits. The C++ test skips these lines for now (the C++ `max_bits()` of the existing types is added separately) |
+| `max_bits` | `max_bits()` of the message type (spec section 4), `unbounded` if there is no upper bound (Rust `None`, C++ `BITIS_UNBOUNDED`, Dart `null`); every `valid` encoding is at most `max_bits` bits. |
 
 Notes on the vectors:
 

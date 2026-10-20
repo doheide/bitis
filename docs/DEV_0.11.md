@@ -114,6 +114,30 @@ member functions keep their names and meaning. Everything else stays additive.
 - `print()` of all new types must be wrapped in `#ifndef BITIS_NO_PRINT`
   (with an empty `#else` variant).
 
+Done (branch wt/cppfoot), decisions:
+- Shared core: `namespace bitis_core` (`write_uint`/`read_uint`, `write_dyn`/
+  `read_dyn`, `read_enum`, `write_bytes`/`read_bytes`, `fp_to_raw`/`fp_from_raw`),
+  marked `BITIS_NOINLINE` (GCC/Clang `noinline`, overridable) like
+  `write_bits`/`read_bits`; the gain of `noinline` itself is small (it keeps
+  one copy per program).
+- Messages and oneofs use one fold expression per type and operation instead of
+  a recursive template chain (large gain at `-Og`). Nested messages, oneofs and
+  list elements are decoded in place (`bitis_helper::read_into`, containers get
+  a `read_into()` member) instead of being moved through temporaries; the bit
+  count of `deserialize()` is the consumed difference (identical on success).
+- One bit writer: `BitisSerializer` writes into `data_cache` or a caller buffer
+  (`out_buf`/`out_cap`); on `BufferTooSmall` the bit count continues, so `size`
+  reports the needed size.
+- Fixed point: new accessors `value()`, `state()`, `raw()`, `set_raw()`; the
+  old ones (`get_value()`, `get_state()`, `set()`, `val_to_u64`/`u64_to_val`)
+  are unchanged. The removed members were private already.
+- Not done: smaller `BitisEnum` storage (firmware prints `enum.value.value`
+  with `PRIu32`, so `value` stays `DynInteger<uint32_t, ...>`) and a smaller
+  oneof selector (moving it behind the union gains nothing, data members do not
+  reuse tail padding; would need the selector inside `UnionT`).
+- Validation: `min_bits` and `max_bits` are reserved C++ member names now;
+  `str_<attr>` is no longer reserved (the members are gone).
+
 ### Maximum lengths `[M]` (spec 2.16)
 - Schema syntax `astr_dY[M]`, `binary_dY[M]`, `repeated_dyn_Y[M] T`,
   `1 ≤ M ≤ 65535`; part of the canonical schema / hash.

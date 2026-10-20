@@ -254,8 +254,8 @@ underscores (`[A-Za-z][A-Za-z0-9_]*`). The compiler rejects:
 * duplicate names: message and enum names (shared namespace), attribute names within a message, oneof elements,
   enum elements, also if they only differ in the case conversion used by the generated code (e.g. `a_b` and `aB`),
 * names that are keywords in Rust, C++, Python or Dart (e.g. `type`, `class`, `from`, `new`, `int`), also after case
-  conversion, and attribute names that clash with generated members (e.g. `serialize`, `print`, `msg_attr`, and in
-  Dart `to_json`, `copy_with`, `hash_code`, or `x_fp_type` next to a fixed point attribute `x`),
+  conversion, and attribute names that clash with generated members (e.g. `serialize`, `print`, `msg_attr`,
+  `max_bits`, and in Dart `to_json`, `copy_with`, `hash_code`, or `x_fp_type` next to a fixed point attribute `x`),
 * enum values whose Dart name (lowerCamelCase) is a member of the generated Dart enum (e.g. `values`, `name`, `index`,
   `default_value`, `bitis_name`), attribute names whose Dart name equals a message or enum name,
 * type names reserved by the generated code / runtime (e.g. `Binary`, `String`, `BITIS_VERSION`, and for Dart
@@ -392,6 +392,27 @@ When compiling bitis messages to C++ code, by default the single header library 
 the c++ code for the messages. Writing / updating "bitis_lib.h" can be disabled with the compiler option 
 "--prevent-write-bitis-header-lib". If a custom header file is to be included, the header file can be specified using
 the option "--bitis-header-lib-file-name".
+
+The header is C++17 and works without exceptions and RTTI. Besides the legacy `serialize()` / `deserialize<T>()`
+there is a fallible API returning a `BitisError` (see the header comment of `bitis_lib.h`):
+```cpp
+std::vector<uint8_t> bytes;
+BitisError e = try_serialize(msg, bytes);                  // ValueOutOfRange if a value does not fit
+e = try_deserialize(bytes, msg_out);                       // or try_deserialize_exact (TrailingData)
+
+uint8_t buf[bitis_max_bytes<MsgWithInner>()];             // compile time bound, no heap for the output
+BitisSize size;
+e = try_serialize(msg, buf, sizeof(buf), &size);           // BufferTooSmall if buf is too small
+```
+`bitis_min_bits<T>()` / `bitis_max_bits<T>()` / `bitis_max_bytes<T>()` (and `T::min_bits()` / `T::max_bits()`) are
+`constexpr`; types containing unbounded strings, binaries or `repeated_dyn` lists give `BITIS_UNBOUNDED`.
+
+For small targets: define `BITIS_NO_PRINT` before including the generated header (or with `-DBITIS_NO_PRINT`) to
+turn every `print()` into an empty function; no names end up in the binary and `printf` is not referenced. Use the
+same setting in all translation units of a program. Fixed point values store their raw wire value (the smallest
+unsigned type holding N bits, default: overflow); use `value()` / `get_value()` (0 for under- and overflow),
+`state()` / `get_state()`, `has_value()`, `is_underflow()`, `is_overflow()`, `set(v)`, `set_underflow()`,
+`set_overflow()` and `raw()` / `set_raw(r)`; equality compares the raw values.
 
 
 ## Python

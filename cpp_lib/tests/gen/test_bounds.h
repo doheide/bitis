@@ -46,44 +46,44 @@ struct BLeaf {
     > MsgT;
 
     V_T v;
-    const char * str_v = "v";
-    const char *msg_attr[1] = {str_v};
-
-    //static const char *msg_attr[];
 
     std::size_t serialize(BitisSerializer &ser) const {
         return message_helper::msg_serialize(this, ser);
     }
     static constexpr std::size_t min_bits() { return message_helper::msg_min_bits<BLeaf>(); }
+    static constexpr std::size_t max_bits() { return message_helper::msg_max_bits<BLeaf>(); }
     static bitis_helper::BitiaDeserializerHelper<BLeaf> deserialize(BitisDeserializer &des) {
         return message_helper::msg_deserialize<BLeaf>(des);
     }
 
+#ifndef BITIS_NO_PRINT
+    static constexpr const char *msg_attr[1] = {"v"};
     void print(int16_t indent=0) const {
         printf("BLeaf{ ");
         if (indent>=0) printf("\n");
         message_helper::msg_print(this, (indent>=0) ? (2 + indent) : indent, msg_attr);
         print_indent(indent); printf("}");
-        // if (indent>=0) printf("\n");
     }
+#else
+    void print(int16_t =0) const { }
+#endif
 
     bool is_equal(const BLeaf &other) const {
         return v==other.v;}
     bool operator==(const BLeaf &other) const { return is_equal(other); }
     bool operator!=(const BLeaf &other) const { return !is_equal(other); }
 };
-//const char *BLeaf::msg_attr[] = {"v"};
 
 // ****** OO_Bounded_Choice *****
 
 
 struct OO_Bounded_Choice  {
     struct OO_Text {
-        static constexpr auto name = "Text"; typedef BoundedAString<3, 4> OOType; };
+        BITIS_NAME("Text") typedef BoundedAString<3, 4> OOType; };
     struct OO_Raw {
-        static constexpr auto name = "Raw"; typedef BoundedBinary<4, 2> OOType; };
+        BITIS_NAME("Raw") typedef BoundedBinary<4, 2> OOType; };
     struct OO_Leaf {
-        static constexpr auto name = "Leaf"; typedef BLeaf OOType; };
+        BITIS_NAME("Leaf") typedef BLeaf OOType; };
 
     typedef BitisEnum<bitis_helper::Collector<
         OO_Text, 
@@ -96,10 +96,8 @@ struct OO_Bounded_Choice  {
         OO_Text::OOType, OO_Raw::OOType, OO_Leaf::OOType
     > T_OOValue;
     T_OOValue oo_value;
-    //uint8_t *oo_value_ptr;
 
-    OO_Bounded_Choice() : oo_selector() /*, oo_value_ptr(nullptr)*/ {}
-    //~OO_Bounded_Choice() { delete [] oo_value_ptr; }
+    OO_Bounded_Choice() : oo_selector() {}
 
     template<typename OOT>
     OO_Bounded_Choice set_oo(typename OOT::OOType v) {
@@ -107,18 +105,12 @@ struct OO_Bounded_Choice  {
         oo_selector.set_enum<OOT>();
         oo_value.set(std::move(v));
         return *this;
-
-        //delete [] oo_value_ptr;
-        //oo_value_ptr = new uint8_t[sizeof(typename OOT::OOType)];
-        //memcpy(oo_value_ptr, &v, sizeof(v));
-        //return *this;
     }
     template<typename OOT>
     typename OOT::OOType *get_oo() const {
         static_assert(oneof_helper::ContainsType<OOT, T_OOEnum::EnumCollector>::value);
         if(oo_selector.is_enum<OOT>())
             return oo_value.get<typename OOT::OOType>();
-            //return (typename OOT::OOType*) oo_value_ptr;
         return nullptr;
     }
     template<typename OOT>
@@ -133,14 +125,19 @@ struct OO_Bounded_Choice  {
         return oneof_helper::oneof_serialize(this, ser);
     }
     static constexpr std::size_t min_bits() { return oneof_helper::oneof_min_bits<OO_Bounded_Choice>(); }
+    static constexpr std::size_t max_bits() { return oneof_helper::oneof_max_bits<OO_Bounded_Choice>(); }
     static bitis_helper::BitiaDeserializerHelper<OO_Bounded_Choice> deserialize(BitisDeserializer &des) {
         return oneof_helper::oneof_deserialize<OO_Bounded_Choice>(des);
     }
 
+#ifndef BITIS_NO_PRINT
     void print(const int16_t indent=0) const {
         printf("Oneof = ");
         oneof_helper::oneof_print(this, (indent>=0) ? indent + 2 : indent);
     }
+#else
+    void print(const int16_t =0) const { }
+#endif
 
     bool is_equal(const OO_Bounded_Choice &other) const {
         if (oo_selector != other.oo_selector) return false;
@@ -178,38 +175,30 @@ struct Bounded {
     Colors_T colors;
     Choice_T choice;
     Tail_T tail;
-    const char * str_name = "name";
-    const char * str_blob = "blob";
-    const char * str_tags = "tags";
-    const char * str_note = "note";
-    const char * str_pair = "pair";
-    const char * str_leaves = "leaves";
-    const char * str_colors = "colors";
-    const char * str_choice = "choice";
-    const char * str_tail = "tail";
-    const char *msg_attr[9] = {str_name, str_blob, str_tags, str_note, str_pair, str_leaves, str_colors, str_choice, str_tail};
-
-    //static const char *msg_attr[];
 
     std::size_t serialize(BitisSerializer &ser) const {
         return message_helper::msg_serialize(this, ser);
     }
     static constexpr std::size_t min_bits() { return message_helper::msg_min_bits<Bounded>(); }
+    static constexpr std::size_t max_bits() { return message_helper::msg_max_bits<Bounded>(); }
     static bitis_helper::BitiaDeserializerHelper<Bounded> deserialize(BitisDeserializer &des) {
         return message_helper::msg_deserialize<Bounded>(des);
     }
 
+#ifndef BITIS_NO_PRINT
+    static constexpr const char *msg_attr[9] = {"name", "blob", "tags", "note", "pair", "leaves", "colors", "choice", "tail"};
     void print(int16_t indent=0) const {
         printf("Bounded{ ");
         if (indent>=0) printf("\n");
         message_helper::msg_print(this, (indent>=0) ? (2 + indent) : indent, msg_attr);
         print_indent(indent); printf("}");
-        // if (indent>=0) printf("\n");
     }
+#else
+    void print(int16_t =0) const { }
+#endif
 
     bool is_equal(const Bounded &other) const {
         return name==other.name && blob==other.blob && tags==other.tags && note==other.note && pair==other.pair && leaves==other.leaves && colors==other.colors && choice==other.choice && tail==other.tail;}
     bool operator==(const Bounded &other) const { return is_equal(other); }
     bool operator!=(const Bounded &other) const { return !is_equal(other); }
 };
-//const char *Bounded::msg_attr[] = {"name", "blob", "tags", "note", "pair", "leaves", "colors", "choice", "tail"};

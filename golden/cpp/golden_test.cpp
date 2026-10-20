@@ -6,8 +6,7 @@
 //             fails with TrailingData,
 // - noncanon: decoding succeeds with total_bits, re-encoding gives the canonical bytes,
 // - invalid:  decoding fails with the given BitisError,
-// - min_bits: bitis_min_bits<T>() of every message type (max_bits records are skipped for now:
-//             the C++ max_bits() of all types is added separately; see golden/README.md),
+// - min_bits / max_bits: bitis_min_bits<T>() / bitis_max_bits<T>() of every message type,
 // plus spot checks of decoded values and of the encoder.
 //
 // The code under test is golden/gen/cpp/golden.h, generated from golden/schema/golden.bitis.
@@ -32,7 +31,7 @@ namespace golden_test {
 // manifest
 
 struct Record {
-    std::string kind;       // valid, noncanon, invalid, min_bits
+    std::string kind;       // valid, noncanon, invalid, min_bits, max_bits
     std::string name;       // case name (min_bits: the type)
     std::string type;
     std::size_t bits = 0;   // valid/noncanon: total_bits, min_bits: min_bits
@@ -84,7 +83,8 @@ inline std::vector<Record> load_manifest() {
             r.name = f[1]; r.type = f[1]; r.bits = std::stoul(f[2]);
         }
         else if (r.kind == "max_bits" && f.size() == 3) {
-            continue;   // TODO: check bitis_max_bits<T>() once every C++ type provides max_bits()
+            r.name = f[1]; r.type = f[1];
+            r.bits = (f[2] == "unbounded") ? BITIS_UNBOUNDED : std::stoul(f[2]);
         }
         else { ADD_FAILURE() << "malformed manifest line: " << line; continue; }
         recs.push_back(r);
@@ -131,11 +131,12 @@ Outcome roundtrip(const std::vector<uint8_t> &data, const bool exact) {
 }
 
 typedef Outcome (*RoundtripFn)(const std::vector<uint8_t> &, bool);
-typedef std::size_t (*MinBitsFn)();
-struct TypeEntry { RoundtripFn roundtrip; MinBitsFn min_bits; };
+typedef std::size_t (*SizeFn)();
+struct TypeEntry { RoundtripFn roundtrip; SizeFn min_bits; SizeFn max_bits; };
 
 template<typename T> std::size_t min_bits_of() { return bitis_min_bits<T>(); }
-template<typename T> TypeEntry entry() { return TypeEntry{&roundtrip<T>, &min_bits_of<T>}; }
+template<typename T> std::size_t max_bits_of() { return bitis_max_bits<T>(); }
+template<typename T> TypeEntry entry() { return TypeEntry{&roundtrip<T>, &min_bits_of<T>, &max_bits_of<T>}; }
 
 inline const std::map<std::string, TypeEntry> &types() {
     static const std::map<std::string, TypeEntry> t = {
@@ -210,6 +211,19 @@ TEST_P(GoldenMinBits, MinBits) {
     EXPECT_EQ(it->second.min_bits(), r.bits);
 }
 INSTANTIATE_TEST_SUITE_P(Golden, GoldenMinBits, testing::ValuesIn(records("min_bits")), record_name);
+
+class GoldenMaxBits : public testing::TestWithParam<Record> { };
+TEST_P(GoldenMaxBits, MaxBits) {
+    const Record &r = GetParam();
+    const auto it = types().find(r.type);
+    ASSERT_NE(it, types().end()) << r.type;
+    EXPECT_EQ(it->second.max_bits(), r.bits);
+    // every valid encoding of the type stays within the bound
+    for (const auto &v : records("valid")) {
+        if (v.type == r.type) { EXPECT_LE(v.bits, r.bits) << v.name; }
+    }
+}
+INSTANTIATE_TEST_SUITE_P(Golden, GoldenMaxBits, testing::ValuesIn(records("max_bits")), record_name);
 
 TEST(Golden, ManifestMatchesSchema) {
     char stamp[64];
@@ -491,6 +505,36 @@ TEST(GoldenSpotCheck, Bounds) {
     static_assert(Bounds::Blob_T::max_bits() == 5 + 32, "binary_d3[4]");
     static_assert(Bounds::Tags_T::max_bits() == 4 + 3 * (4 + 16), "repeated_dyn_2[3] astr_d2[2]");
     static_assert(bitis_min_bits<Bounds>() == 5, "min_bits");
+}
+
+// max_bits (docs/WIRE_FORMAT.md section 4), computed by hand from the schema
+TEST(GoldenMaxBits, HandComputed) {
+    // fixed size: max = min
+    EXPECT_EQ(bitis_max_bits<Ints>(), 360u);
+    EXPECT_EQ(bitis_max_bits<Floats>(), 96u);
+    EXPECT_EQ(bitis_max_bits<FixedPoints>(), 2u + 10u + 34u + 35u + 53u);
+    EXPECT_EQ(bitis_max_bits<Empty>(), 0u);
+    // dynmax(X, Y) = X + ceil(X / Y), signed + 1: u8d3 11, u32d4 40, u64d64 65, u64d7 74, i16d5 21, i64d8 73
+    EXPECT_EQ(bitis_max_bits<DynInts>(), 11u + 40u + 65u + 74u + 21u + 73u);
+    EXPECT_EQ(bitis_max_bytes<DynInts>(), 36u);
+    // enums: dyn(k - 1, 32, Y); Color 6 values Y=2: 5 -> 1+2+1+2+1, Level 3 values Y=1: 2 -> 1+1+1+1+1
+    EXPECT_EQ(bitis_max_bits<Color>(), 7u);
+    EXPECT_EQ(bitis_max_bits<Level>(), 5u);
+    // astr / binary / repeated_dyn without a maximum length are unbounded, and so is everything containing them
+    for (const std::size_t b : {bitis_max_bits<Texts>(), bitis_max_bits<Leaf>(), bitis_max_bits<Mid>(),
+                                bitis_max_bits<Nested>(), bitis_max_bits<Containers>(), bitis_max_bits<Enums>(),
+                                bitis_max_bits<IntList>(), bitis_max_bits<Choice>(), bitis_max_bits<Everything>()}) {
+        EXPECT_EQ(b, BITIS_UNBOUNDED);
+    }
+    EXPECT_EQ(bitis_max_bytes<Everything>(), BITIS_UNBOUNDED);
+    // never below min_bits; the encodings of the valid vectors stay within the bound
+    for (const auto &r : records("valid")) {
+        const auto it = types().find(r.type);
+        ASSERT_NE(it, types().end());
+        if (r.type == "Ints") { EXPECT_LE(r.bits, bitis_max_bits<Ints>()); }
+        if (r.type == "DynInts") { EXPECT_LE(r.bits, bitis_max_bits<DynInts>()); }
+        if (r.type == "FixedPoints") { EXPECT_EQ(r.bits, bitis_max_bits<FixedPoints>()); }
+    }
 }
 
 }

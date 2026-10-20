@@ -22,6 +22,7 @@ add_executable(
         test_xl.cpp
         test_fuzz.cpp
         test_bounds.cpp
+        test_footprint.cpp
        )
 target_include_directories(bitis_testing PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(bitis_testing GTest::gtest_main)
@@ -36,6 +37,18 @@ if (CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
 endif()
 add_test(NAME bitis_header_check COMMAND bitis_header_check)
 
+# BITIS_NO_PRINT: print() is empty and printf is not referenced (separate executable,
+# print() differs from the other test files)
+add_library(bitis_no_print_obj OBJECT no_print_check.cpp)
+target_include_directories(bitis_no_print_obj PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+add_executable(bitis_no_print_check $<TARGET_OBJECTS:bitis_no_print_obj>)
+if (CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(bitis_no_print_obj PRIVATE -Wall -Wextra -Wpedantic -Werror -fno-exceptions -fno-rtti)
+endif()
+add_test(NAME bitis_no_print_check COMMAND bitis_no_print_check)
+add_test(NAME bitis_no_print_symbols COMMAND ${CMAKE_COMMAND} -DNM=${CMAKE_NM}
+        "-DOBJECTS=$<TARGET_OBJECTS:bitis_no_print_obj>" -P ${CMAKE_CURRENT_SOURCE_DIR}/check_no_print_symbols.cmake)
+
 # golden vectors shared with the Rust and Dart runtimes (golden/README.md)
 set(BITIS_GOLDEN_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../golden)
 add_executable(bitis_golden ${BITIS_GOLDEN_DIR}/cpp/golden_test.cpp)
@@ -47,7 +60,7 @@ if (CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
 endif()
 
 if (BITIS_SANITIZE)
-    foreach(tgt bitis_testing bitis_header_check bitis_golden)
+    foreach(tgt bitis_testing bitis_header_check bitis_golden bitis_no_print_obj bitis_no_print_check)
         target_compile_options(${tgt} PRIVATE -fsanitize=address,undefined -fno-sanitize-recover=undefined -fno-omit-frame-pointer -g)
         target_link_options(${tgt} PRIVATE -fsanitize=address,undefined)
     endforeach()

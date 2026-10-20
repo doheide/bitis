@@ -18,8 +18,13 @@ static int roundtrip(const T &v) {
     if (!(out == v) || out != v) { return 1; }
     if (!(deserialize<T>(serialize(v)) == v)) { return 1; }
     if (deserialize_with_size<T>(bytes).bits != size.bits) { return 1; }
+    uint8_t buf[256];
+    BitisSize bsize{0, 0};
+    if (try_serialize(v, buf, sizeof(buf), &bsize) != BitisError::Ok || bsize.bytes != bytes.size()) { return 1; }
     v.print(-1); printf("\n");
     (void) bitis_min_bits<T>();
+    if (bitis_max_bits<T>() < bitis_min_bits<T>()) { return 1; }
+    (void) bitis_max_bytes<T>();
     return 0;
 }
 
