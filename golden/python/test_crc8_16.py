@@ -133,4 +133,7 @@ def test_transmission_lengths():
     with pytest.raises(ValueError, match="length 0"):
         mod.strip_transmission_crc(b"")
     assert mod.append_transmission_crc(b"") == b"\x00"
-    assert mod.strip_transmission_crc(b"\x00") == b""
+    # L = 1 (no header + payload) is rejected: a stray 0x00 byte is not a frame
+    assert not mod.verify_transmission_crc(b"\x00")
+    with pytest.raises(ValueError, match="length 1"):
+        mod.strip_transmission_crc(b"\x00")

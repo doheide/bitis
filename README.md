@@ -602,10 +602,10 @@ input may be split arbitrarily between `update` calls; `finish()` / `value` does
 bytes of header + payload as on the wire (after encryption, if any), the CRC not counted. Frames with `n ≤ 14` get a
 1-byte CRC-8/AUTOSAR trailer, frames with `n ≥ 15` a 2-byte CRC-16/IBM-3740 trailer in **little-endian** byte order
 (low byte first: `0x29B1` is sent as `B1 29`). For a whole received frame of `L` bytes (trailer included) this
-means: `L ≤ 15` → CRC-8, `L ≥ 17` → CRC-16, `L = 16` is invalid (as is `L = 0`). The receiver recomputes the CRC over
+means: `L ≤ 15` → CRC-8, `L ≥ 17` → CRC-16, `L = 16` is invalid (as are `L = 0` and `L = 1`). The receiver recomputes the CRC over
 header + payload and compares it with the trailer; the "CRC over frame + trailer = 0" residue check does **not**
-work with the little-endian trailer. The helpers also accept `n = 0` (an empty frame gets the CRC-8 trailer `0x00`,
-so `[0x00]` verifies); real frames always have a header, i.e. `n ≥ 1`.
+work with the little-endian trailer. Real frames always have a header, i.e. `n ≥ 1`: append accepts `n = 0` (trailer
+`0x00`), but verify / strip reject `L ≤ 1`, so a stray `0x00` byte is never a valid frame.
 
 | Runtime | CRC-8 / CRC-16 | Transmission CRC |
 |---|---|---|
@@ -615,7 +615,7 @@ so `[0x00]` verifies); real frames always have a header, i.e. `n ≥ 1`.
 | Python | `crc8_autosar(bytes) -> int`, `Crc8Autosar`; `crc16_ibm3740(bytes) -> int`, `Crc16Ibm3740` (`update`, `value` / `finish()`, `reset()`) | `transmission_crc_len(n)`, `transmission_crc(frame)`, `append_transmission_crc(frame) -> bytes`, `verify_transmission_crc(data) -> bool`, `strip_transmission_crc(data) -> bytes` (frame without trailer; `ValueError` for length 0 / 16 or a CRC mismatch) |
 
 `transmission_crc` is the CRC-8 (zero-extended) for `n ≤ 14` and the CRC-16 otherwise. `verify` is `false` exactly
-when `strip` fails (length 0 or 16, or CRC mismatch). Stream receivers that read the header first take the trailer
+when `strip` fails (length 0, 1 or 16, or CRC mismatch). Stream receivers that read the header first take the trailer
 length from `transmission_crc_len(n)`; for header and payload in separate buffers use the incremental CRC classes.
 
 - **C++**: header only, independent of `bitis_lib.h` and `bitis_crc32.h`, not written by the compiler. C++17,

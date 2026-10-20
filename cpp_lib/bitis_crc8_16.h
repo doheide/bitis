@@ -15,8 +15,8 @@
 // payload as on the wire, the CRC not counted) gets a 1-byte CRC-8/AUTOSAR trailer for
 // n <= 14 and a 2-byte CRC-16/IBM-3740 trailer, little-endian (low byte first: 0x29B1 is
 // sent as B1 29), for n >= 15. A received frame of L bytes (trailer included) uses CRC-8 for
-// L <= 15 and CRC-16 for L >= 17; L = 16 and L = 0 are invalid. n = 0 is allowed (trailer
-// 0x00); real frames always have a header. The receiver recomputes the CRC over header +
+// L <= 15 and CRC-16 for L >= 17; L = 16, L = 0 and L = 1 are invalid (real frames always have
+// a header; appending accepts n = 0, but a stray 0x00 byte never verifies). The receiver recomputes the CRC over header +
 // payload and compares it with the trailer (the "CRC over frame + trailer = 0" residue check
 // does not work with the little-endian trailer).
 //
@@ -226,12 +226,12 @@ inline std::size_t bitis_append_transmission_crc(void *buf, std::size_t n) {
     return bitis_append_transmission_crc(static_cast<uint8_t *>(buf), n);
 }
 
-// Checks a received frame of len bytes (trailer included). Returns false for len 0 or 16 and
+// Checks a received frame of len bytes (trailer included). Returns false for len 0, 1 or 16 and
 // for a CRC mismatch; on success stores the length without the trailer in *n (if n is not
 // null).
 constexpr bool bitis_strip_transmission_crc(const uint8_t *data, std::size_t len, std::size_t *n) {
     constexpr std::size_t kMax = bitis_crc8_16_detail::kCrc8MaxN;
-    if (len == 0 || len == kMax + 2) { return false; }
+    if (len <= 1 || len == kMax + 2) { return false; }
     std::size_t m = 0;
     if (len <= kMax + 1) {
         m = len - 1;

@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.11.1 (2026-10-20)
 
 The wire format is unchanged.
 
@@ -14,7 +14,8 @@ The wire format is unchanged.
   `crc8_autosar` / `Crc8Autosar`, `crc16_ibm3740` / `Crc16Ibm3740`.
 - Transmission CRC rule of the carachang transport framing (FRAMING.md): frames
   of n ≤ 14 bytes get a 1-byte CRC-8 trailer, longer frames a 2-byte CRC-16
-  trailer, little-endian; received frames of 16 bytes are invalid. Helpers
+  trailer, little-endian; received frames of 0, 1 or 16 bytes are invalid (a
+  stray `0x00` byte is never a valid frame). Helpers
   `transmission_crc_len`, `transmission_crc`, `append_transmission_crc`,
   `verify_transmission_crc`, `strip_transmission_crc` (Rust also
   `with_transmission_crc`; C++ `bitis_`-prefixed, heap free, writing into

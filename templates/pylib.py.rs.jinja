@@ -152,21 +152,21 @@ fn bitis_py_append_transmission_crc<'py>(frame: &Bound<'py, PyAny>) -> PyResult<
     Ok(pyo3::types::PyBytes::new(frame.py(), &out))
 }
 
-/// True if data (frame with trailer) has a valid length (not 0 or 16) and a matching CRC.
+/// True if data (frame with trailer) has a valid length (not 0, 1 or 16) and a matching CRC.
 #[pyfunction]
 #[pyo3(name = "verify_transmission_crc")]
 fn bitis_py_verify_transmission_crc(data: &Bound<'_, PyAny>) -> PyResult<bool> {
     bitis_py_bytes_of(data, bitis_lib::verify_transmission_crc)
 }
 
-/// The frame without its trailer; ValueError for an invalid length (0 or 16) or a CRC mismatch.
+/// The frame without its trailer; ValueError for an invalid length (0, 1 or 16) or a CRC mismatch.
 #[pyfunction]
 #[pyo3(name = "strip_transmission_crc")]
 fn bitis_py_strip_transmission_crc<'py>(data: &Bound<'py, PyAny>) -> PyResult<Bound<'py, pyo3::types::PyBytes>> {
     let py = data.py();
     bitis_py_bytes_of(data, |d| match bitis_lib::strip_transmission_crc(d) {
         Some(frame) => Ok(pyo3::types::PyBytes::new(py, frame)),
-        None if d.is_empty() || d.len() == 16 => Err(pyo3::exceptions::PyValueError::new_err(
+        None if d.len() <= 1 || d.len() == 16 => Err(pyo3::exceptions::PyValueError::new_err(
             format!("invalid transmission frame length {}", d.len()))),
         None => Err(pyo3::exceptions::PyValueError::new_err("transmission CRC mismatch")),
     })?

@@ -9,7 +9,7 @@
 // docs/WIRE_FORMAT.md). Always available as bitis_schema_test_bounds::BITIS_VERSION / ::BITIS_SCHEMA_HASH;
 // the unqualified names refer to the first generated header included in a translation unit.
 namespace bitis_schema_test_bounds {
-    constexpr const char* BITIS_VERSION = "0.11.0";
+    constexpr const char* BITIS_VERSION = "0.11.1";
     constexpr uint64_t BITIS_SCHEMA_HASH = 0xf7f9348cd3819475ULL;
 }
 #ifndef BITIS_SCHEMA_STAMP_DEFINED

@@ -5,7 +5,7 @@ import 'bit_writer.dart';
 import 'errors.dart';
 
 /// Version of this runtime package.
-const String bitisRuntimeVersion = '0.11.0';
+const String bitisRuntimeVersion = '0.11.1';
 
 /// A bitis message (spec 2.15). Generated message classes implement this
 /// and additionally provide `static Foo bitisRead(BitReader r)`.

@@ -10,9 +10,9 @@
 //!   `n = F.len()` bytes (header + payload as on the wire, without the CRC) gets a trailer of
 //!   1 byte CRC-8/AUTOSAR for `n <= 14` and of 2 bytes CRC-16/IBM-3740, little-endian (low
 //!   byte first, e.g. `0x29B1` goes on the wire as `B1 29`), for `n >= 15`. A received frame of `L` bytes (trailer included) therefore uses
-//!   CRC-8 for `L <= 15` and CRC-16 for `L >= 17`; `L = 16` (and `L = 0`) is invalid. The
-//!   rule itself allows `n = 0` (a frame consisting only of the CRC-8 trailer `0x00`); real
-//!   frames always have a header, i.e. `n >= 1`. The receiver recomputes the CRC over
+//!   CRC-8 for `L <= 15` and CRC-16 for `L >= 17`; `L = 16` (and `L = 0`, `L = 1`) is invalid. Real
+//!   frames always have a header, i.e. `n >= 1`: appending accepts `n = 0` (trailer `0x00`),
+//!   but verify / strip reject `L <= 1`, so a stray `0x00` byte is never a valid frame. The receiver recomputes the CRC over
 //!   header + payload and compares it with the trailer (with the little-endian trailer the
 //!   "CRC over frame + trailer = 0" residue check does not apply).
 //!
@@ -233,7 +233,7 @@ pub fn with_transmission_crc(frame: &[u8]) -> Vec<u8> {
 }
 
 /// Checks the transmission CRC of a received frame (trailer included) and returns the frame
-/// without the trailer, or `None` if the length is invalid (0 or 16) or the CRC does not
+/// without the trailer, or `None` if the length is invalid (0, 1 or 16) or the CRC does not
 /// match.
 ///
 /// ```
@@ -243,7 +243,7 @@ pub fn with_transmission_crc(frame: &[u8]) -> Vec<u8> {
 /// ```
 pub fn strip_transmission_crc(data: &[u8]) -> Option<&[u8]> {
     let l = data.len();
-    if l == 0 || l == CRC8_MAX_N + 2 {
+    if l <= 1 || l == CRC8_MAX_N + 2 {
         return None;
     }
     if l <= CRC8_MAX_N + 1 {
@@ -353,7 +353,8 @@ mod tests {
         assert_eq!(transmission_crc_len(14), 1);
         assert_eq!(transmission_crc_len(15), 2);
         assert_eq!(transmission_crc_len(2047 + 2), 2);
-        for n in 0..40usize {
+        // n >= 1: real frames always have a header (L = 1 is rejected, see below)
+        for n in 1..40usize {
             let frame: Vec<u8> = (0..n).map(|i| (i * 37 + 1) as u8).collect();
             let full = with_transmission_crc(&frame);
             assert_eq!(full.len(), n + transmission_crc_len(n));
@@ -370,7 +371,7 @@ mod tests {
             }
         }
         assert!(!verify_transmission_crc(&[]));
-        assert_eq!(strip_transmission_crc(&[0x00]), Some(&[][..]));
+        assert_eq!(strip_transmission_crc(&[0x00]), None);
         // L = 16 is invalid even with a CRC-16 trailer that would match its 14 bytes
         let mut l16: Vec<u8> = (0..14u8).collect();
         let c = crc16_ibm3740(&l16);

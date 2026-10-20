@@ -153,13 +153,13 @@ Uint8List appendTransmissionCrc(List<int> frame) {
 
 /// Checks the transmission CRC of a received frame (trailer included) and
 /// returns the length of the frame without the trailer, or `null` if the
-/// length is invalid (0 or 16) or the CRC does not match. The frame itself is
+/// length is invalid (0, 1 or 16) or the CRC does not match. The frame itself is
 /// `data.sublist(0, n)` (or `Uint8List.sublistView(data, 0, n)`). The CRC is
 /// recomputed over the frame and compared with the trailer (CRC-16 read as a
 /// little-endian 16-bit value).
 int? stripTransmissionCrc(List<int> data) {
   final l = data.length;
-  if (l == 0 || l == _crc8MaxN + 2) return null;
+  if (l <= 1 || l == _crc8MaxN + 2) return null;
   if (l <= _crc8MaxN + 1) {
     final n = l - 1;
     return (_update8(0xFF, data, 0, n) ^ 0xFF) == (data[n] & 0xFF) ? n : null;

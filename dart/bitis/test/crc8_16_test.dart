@@ -103,7 +103,8 @@ void main() {
     expect(transmissionCrcLen(0), 1);
     expect(transmissionCrcLen(14), 1);
     expect(transmissionCrcLen(15), 2);
-    for (var n = 0; n < 40; n++) {
+    // n >= 1: real frames always have a header (L = 1 is rejected, see below)
+    for (var n = 1; n < 40; n++) {
       final frame = List<int>.generate(n, (i) => (i * 37 + 1) & 0xFF);
       final full = appendTransmissionCrc(frame);
       expect(full.length, n + transmissionCrcLen(n));
@@ -131,7 +132,8 @@ void main() {
     expect(verifyTransmissionCrc(l16b), isFalse);
     expect(verifyTransmissionCrc(const []), isFalse);
     expect(appendTransmissionCrc(const []), [0x00]);
-    expect(stripTransmissionCrc([0x00]), 0);
+    // L = 1 (no header + payload) is rejected: a stray 0x00 byte is not a frame
+    expect(stripTransmissionCrc([0x00]), isNull);
     expect(transmissionCrc('123456789'.codeUnits), 0xDF);
     expect(
       transmissionCrc(List.filled(15, 0)),

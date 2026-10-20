@@ -276,8 +276,9 @@ TEST(Crc8_16, TransmissionLengths) {
     uint8_t one[2] = {0x55, 0x55};
     EXPECT_EQ(bitis_append_transmission_crc(one, 0), 1u);
     EXPECT_EQ(one[0], 0x00u);
-    EXPECT_TRUE(bitis_strip_transmission_crc(one, 1, &m));
-    EXPECT_EQ(m, 0u);
+    // L = 1 (no header + payload) is rejected: a stray 0x00 byte is not a frame
+    EXPECT_FALSE(bitis_strip_transmission_crc(one, 1, &m));
+    EXPECT_EQ(m, 99u);
     one[0] = 0x01;
     EXPECT_FALSE(bitis_verify_transmission_crc(one, 1));
 }

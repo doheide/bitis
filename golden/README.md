@@ -274,7 +274,7 @@ input followed by its CRC **big-endian** is 0 (the transmission rule does not us
 little-endian). For each `frame`: the trailer length (`transmission_crc_len`), the trailer value
 (`transmission_crc`, the CRC-8 / CRC-16 directly), append, verify, strip, and that every single-bit error of the
 frame with trailer is rejected. Unit tests additionally cover n = 14 / 15, L = 15 / 16 / 17 (L = 16 is rejected
-even if a CRC-8 or CRC-16 over its bytes would match), empty input and n = 0.
+even if a CRC-8 or CRC-16 over its bytes would match), empty input and L = 1 (rejected).
 
 | Runtime | Test | Run by run_all.sh |
 |---|---|---|

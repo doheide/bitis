@@ -184,6 +184,8 @@ fn transmission_lengths() {
     assert!(!verify_transmission_crc(&[]));
     assert_eq!(strip_transmission_crc(&[]), None);
     assert_eq!(with_transmission_crc(&[]), [0x00]);
-    assert_eq!(strip_transmission_crc(&[0x00]), Some(&[][..]));
+    // a frame without header + payload (L = 1) is rejected: a stray 0x00 byte is not a frame
+    assert_eq!(strip_transmission_crc(&[0x00]), None);
+    assert!(!verify_transmission_crc(&[0x00]));
     assert!(!verify_transmission_crc(&[0x01]));
 }
