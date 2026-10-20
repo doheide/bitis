@@ -86,3 +86,16 @@ foreach(variant nibble16 table256)
     add_test(NAME bitis_crc32_check_${variant} COMMAND bitis_crc32_check_${variant})
     add_dependencies(bitis_golden bitis_crc32_check_${variant})
 endforeach()
+
+# CRC-8/AUTOSAR, CRC-16/IBM-3740 and transmission CRC helpers bitis_crc8_16.h: gtests against
+# golden/vectors/crc8_16.txt are part of bitis_golden (run by golden/run_all.sh, also with
+# ASan/UBSan); the strict header check is built together with bitis_golden.
+target_sources(bitis_golden PRIVATE test_crc8_16.cpp)
+target_compile_definitions(bitis_golden PRIVATE BITIS_GOLDEN_CRC8_16="${BITIS_GOLDEN_DIR}/vectors/crc8_16.txt")
+add_executable(bitis_crc8_16_check crc8_16_header_check.cpp)
+target_include_directories(bitis_crc8_16_check PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
+if (CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(bitis_crc8_16_check PRIVATE -Wall -Wextra -Wpedantic -Werror -fno-exceptions -fno-rtti)
+endif()
+add_test(NAME bitis_crc8_16_check COMMAND bitis_crc8_16_check)
+add_dependencies(bitis_golden bitis_crc8_16_check)
