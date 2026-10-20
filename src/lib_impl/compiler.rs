@@ -112,8 +112,10 @@ pub enum SimpleType {
     Float,
     Double,
     FixedPrecision(FixedPrecisionProperties),
-    Binary(u8),
-    AString(u8),
+    /// `binary_dY` / `binary_dY[M]`: dyn bit size Y of the count, optional maximum length M (spec 2.16).
+    Binary(u8, Option<u16>),
+    /// `astr_dY` / `astr_dY[M]`: dyn bit size Y of the count, optional maximum length M (spec 2.16).
+    AString(u8, Option<u16>),
 }
 
 #[derive(Debug, Clone)]
@@ -136,6 +138,8 @@ pub struct Attribute {
     /// Doc comment (`//|` lines joined with '\n').
     pub comment: Option<String>,
     pub is_repeated_and_size: Option<DynOrFixedType>,
+    /// Maximum number of elements `M` of a `repeated_dyn_Y[M]` attribute (spec 2.16).
+    pub repeated_max_len: Option<u16>,
     pub is_optional: bool,
     pub specific_details: AttributeDetails,
     pub name_span: SrcSpan,
@@ -206,6 +210,11 @@ fn fp_properties(lex: &mut Lexer<Token>) -> Option<(u32, i128, i128)> {
           c[2].parse().unwrap_or(i128::MAX),
           c[3].parse().unwrap_or(i128::MAX)))
 }
+/// `[ 32 ]` -> 32 (maximum length, spec 2.16). Saturates on overflow (validated by the parser).
+fn max_len_value(lex: &mut Lexer<Token>) -> i64 {
+    let s = lex.slice().trim_matches(|c: char| c == '[' || c == ']' || c.is_whitespace());
+    s.parse().unwrap_or(if s.starts_with('-') { i64::MIN } else { i64::MAX })
+}
 /// `( 4 )` -> 4
 fn dyn_size(lex: &mut Lexer<Token>) -> u32 {
     let s = lex.slice().trim_matches(|c: char| c == '(' || c == ')' || c.is_whitespace());
@@ -247,6 +256,8 @@ pub enum Token {
     #[token("optional", priority = 30)] Optional,
     #[regex(r"[A-Za-z][A-Za-z0-9_]*", |lex| lex.slice().to_owned(), priority = 11)] StringVal(String),
     #[regex(r"\([ \t]*[0-9]+[ \t]*\)", dyn_size, priority = 40)] EnumDynSize(u32),
+    /// Maximum length `[M]` after `astr_dY`, `binary_dY` or `repeated_dyn_Y` (spec 2.16).
+    #[regex(r"\[[ \t]*-?[0-9]+[ \t]*\]", max_len_value, priority = 40)] MaxLen(i64),
 }
 
 fn token_desc(t: &Token) -> String {
@@ -262,6 +273,7 @@ fn token_desc(t: &Token) -> String {
         Token::Comma => "','".into(),
         Token::Star => "'*'".into(),
         Token::EnumDynSize(n) => format!("'({n})'"),
+        Token::MaxLen(n) => format!("maximum length '[{n}]'"),
         Token::StringVal(s) => format!("identifier '{s}'"),
         Token::Optional => "'optional'".into(),
         Token::RepeatedDyn(n) => format!("'repeated_dyn_{n}'"),
@@ -336,13 +348,35 @@ impl<'s> Parser<'s> {
             (t, span) => Err(unexpected(&t, span, &format!("dyn bit size for {what}, e.g. '(4)'"))),
         }
     }
+    /// Optional maximum length `[M]` (spec 2.16) directly after `astr_dY`, `binary_dY` or
+    /// `repeated_dyn_Y`; validates `1 <= M <= 65535`.
+    fn opt_max_len(&mut self, what: &str) -> Result<Option<u16>, CompileError> {
+        match self.next()? {
+            Some((Token::MaxLen(n), span)) => {
+                if !(1..=MAX_LEN_LIMIT as i64).contains(&n) {
+                    let n_str = if n == i64::MAX || n == i64::MIN { "a too large value".to_string() } else { n.to_string() };
+                    return Err(CompileError::new(span, format!(
+                        "maximum length [M] of {what} must be in 1..={MAX_LEN_LIMIT}, got {n_str}")));
+                }
+                Ok(Some(n as u16))
+            }
+            other => { self.peeked = other; Ok(None) }
+        }
+    }
     /// Doc comment lines collected since the last call.
     fn take_doc(&mut self) -> Option<String> {
         if self.docs.is_empty() { None } else { Some(std::mem::take(&mut self.docs).join("\n")) }
     }
 }
 
+/// Largest allowed maximum length `[M]` (spec 2.16).
+pub const MAX_LEN_LIMIT: u16 = 65535;
+
 fn unexpected(t: &Token, span: SrcSpan, expected: &str) -> CompileError {
+    if let Token::MaxLen(_) = t {
+        return CompileError::new(span, format!(
+            "a {} is only allowed directly after astr_dY, binary_dY or repeated_dyn_Y", token_desc(t)));
+    }
     CompileError::new(span, format!("expected {expected}, found {}", token_desc(t)))
 }
 fn check_range(n: u32, min: u32, max: u32, span: SrcSpan, what: &str) -> Result<u8, CompileError> {
@@ -419,6 +453,7 @@ fn parse_attribute(p: &mut Parser, first: Token, first_span: SrcSpan, comment: O
                    parent_name: &str, in_oneof: bool) -> Result<Attribute, CompileError> {
     let mut is_optional = false;
     let mut is_repeated_and_size: Option<DynOrFixedType> = None;
+    let mut repeated_max_len: Option<u16> = None;
     let (mut t, mut span) = (first, first_span);
     let ctx = if in_oneof { format!("oneof '{parent_name}'") } else { format!("message '{parent_name}'") };
 
@@ -430,25 +465,28 @@ fn parse_attribute(p: &mut Parser, first: Token, first_span: SrcSpan, comment: O
             Token::Optional | Token::RepeatedDyn(_) | Token::RepeatedFixed(_) if has_modifier =>
                 return Err(CompileError::new(span, "only one modifier (optional, repeated_fixed_N, repeated_dyn_N) is allowed per attribute")),
             Token::Optional => is_optional = true,
-            Token::RepeatedDyn(b) =>
-                is_repeated_and_size = Some(DynOrFixedType::Dyn(check_range(b, 1, 32, span, "dyn bit size of repeated_dyn")?)),
+            Token::RepeatedDyn(b) => {
+                is_repeated_and_size = Some(DynOrFixedType::Dyn(check_range(b, 1, 32, span, "dyn bit size of repeated_dyn")?));
+                repeated_max_len = p.opt_max_len("repeated_dyn_Y")?;
+            }
             Token::RepeatedFixed(n) =>
                 is_repeated_and_size = Some(DynOrFixedType::Fixed(check_range(n, 1, 255, span, "number of elements of repeated_fixed")?)),
             Token::OneOf if has_modifier =>
                 return Err(CompileError::new(span, "a oneof can not be used with modifiers (optional, repeated)")),
             Token::OneOf => return parse_oneof(p, span, comment, parent_name),
             Token::StringVal(s) => break AttributeDetails::AttributeEnumOrMsg(s),
-            t => break AttributeDetails::AttributeSimple(simple_type(t, span, &ctx)?),
+            t => break AttributeDetails::AttributeSimple(simple_type(p, t, span, &ctx)?),
         }
         (t, span) = p.expect_next(&format!("attribute type in {ctx}"))?;
     };
     let type_span = span;
     let (name, name_span) = p.expect_ident(&format!("attribute name in {ctx}"))?;
     p.expect(Token::SemiColon, &format!("';' after attribute '{name}'"))?;
-    Ok(Attribute { name, comment, is_repeated_and_size, is_optional, specific_details: details, name_span, type_span })
+    Ok(Attribute { name, comment, is_repeated_and_size, repeated_max_len, is_optional, specific_details: details,
+        name_span, type_span })
 }
 
-fn simple_type(t: Token, span: SrcSpan, ctx: &str) -> Result<SimpleType, CompileError> {
+fn simple_type(p: &mut Parser, t: Token, span: SrcSpan, ctx: &str) -> Result<SimpleType, CompileError> {
     let dyn_int = |x: u32, y: u32, kind: &str| -> Result<(u8, u8), CompileError> {
         let x = check_range(x, 1, 64, span, &format!("bit size of {kind}_XdY (X)"))?;
         let y = check_range(y, 1, x as u32, span, &format!("chunk bit size of {kind}_XdY (Y)"))?;
@@ -462,8 +500,14 @@ fn simple_type(t: Token, span: SrcSpan, ctx: &str) -> Result<SimpleType, Compile
         Token::IntDyn((x, y)) => SimpleType::IntDyn(dyn_int(x, y, "int")?),
         Token::Float => SimpleType::Float,
         Token::Double => SimpleType::Double,
-        Token::AStr(b) => SimpleType::AString(check_range(b, 1, 32, span, "dyn bit size of astr_dY")?),
-        Token::Binary(b) => SimpleType::Binary(check_range(b, 1, 32, span, "dyn bit size of binary_dY")?),
+        Token::AStr(b) => {
+            let y = check_range(b, 1, 32, span, "dyn bit size of astr_dY")?;
+            SimpleType::AString(y, p.opt_max_len("astr_dY")?)
+        }
+        Token::Binary(b) => {
+            let y = check_range(b, 1, 32, span, "dyn bit size of binary_dY")?;
+            SimpleType::Binary(y, p.opt_max_len("binary_dY")?)
+        }
         Token::FixedPoint((bits, min, max)) => {
             let bits = check_range(bits, 2, 53, span, "bit size of fp_N")?;
             let range = i64::MIN as i128..=i64::MAX as i128;
@@ -518,7 +562,7 @@ fn parse_oneof(p: &mut Parser, oneof_span: SrcSpan, comment: Option<String>, par
     };
 
     Ok(Attribute {
-        name: oo_name.clone(), comment, is_repeated_and_size: None, is_optional: false,
+        name: oo_name.clone(), comment, is_repeated_and_size: None, repeated_max_len: None, is_optional: false,
         specific_details: AttributeDetails::AttributeOneOf(OneOfInfo {
             name: oneof_type_name(parent_name, &oo_name), dyn_bits, attributes, default_attrib_name,
         }),
@@ -612,6 +656,7 @@ pub const RESERVED_TYPE_NAMES: &[&str] = &[
     "Biseri", "Bides", "BiserdiTrait", "BiserdiTraitVarBitSize", "BiserSizes", "IntegerBaseFunctions",
     "ValFromInto", "IntWithGivenBitSize", "DynInteger", "FixPrecisionMinMax", "FixPrecisionVal", "Binary",
     "BitisAString", "BitisOption", "FixedArray", "DynArray", "MessageManager", "DecodeError", "EncodeError",
+    "BoundedBinary", "BoundedAString", "BoundedDynArray",
     "BiserdiMsg", "BiserdiEnum", "BiserdiOneOf", "AsRefStr", "Option", "Some", "Result", "Ok", "Err", "Vec",
     "String", "Box", "Default", "Clone", "Debug", "PartialEq", "Copy",
     // C++ runtime
@@ -635,7 +680,7 @@ const PY_MSG_MEMBERS: &[&str] = &["default", "serialize", "deserialize", "to_rus
 /// Members of every Dart message class (and members of `Object`), compared with the Dart field names
 /// (lowerCamelCase of the attribute names).
 const DART_MSG_MEMBERS: &[&str] = &[
-    "bitisWrite", "bitisRead", "bitisMinBits", "toBytes", "fromBytes", "fromBytesExact", "toJson", "fromJson", "copyWith",
+    "bitisWrite", "bitisRead", "bitisMinBits", "bitisMaxBits", "toBytes", "fromBytes", "fromBytesExact", "toJson", "fromJson", "copyWith",
     "hashCode", "runtimeType", "toString", "noSuchMethod",
 ];
 /// Members of every Dart enum (and of `Enum`), compared with the Dart value names (lowerCamelCase).
@@ -1078,8 +1123,10 @@ pub fn canonical_simple_type(t: &SimpleType) -> String {
         SimpleType::Float => "float".into(),
         SimpleType::Double => "double".into(),
         SimpleType::FixedPrecision(f) => format!("fp_{}[{},{}]", f.bits, f.min_val, f.max_val),
-        SimpleType::Binary(b) => format!("binary_d{b}"),
-        SimpleType::AString(b) => format!("astr_d{b}"),
+        SimpleType::Binary(b, None) => format!("binary_d{b}"),
+        SimpleType::Binary(b, Some(m)) => format!("binary_d{b}[{m}]"),
+        SimpleType::AString(b, None) => format!("astr_d{b}"),
+        SimpleType::AString(b, Some(m)) => format!("astr_d{b}[{m}]"),
     }
 }
 fn canonical_attribute(a: &Attribute, out: &mut String) {
@@ -1097,7 +1144,11 @@ fn canonical_attribute(a: &Attribute, out: &mut String) {
             if a.is_optional { out.push_str("optional "); }
             match a.is_repeated_and_size {
                 Some(DynOrFixedType::Fixed(n)) => { let _ = write!(out, "repeated_fixed_{n} "); }
-                Some(DynOrFixedType::Dyn(n)) => { let _ = write!(out, "repeated_dyn_{n} "); }
+                Some(DynOrFixedType::Dyn(n)) => {
+                    let _ = write!(out, "repeated_dyn_{n}");
+                    if let Some(m) = a.repeated_max_len { let _ = write!(out, "[{m}]"); }
+                    out.push(' ');
+                }
                 None => (),
             }
             match d {
@@ -1114,7 +1165,8 @@ fn canonical_attribute(a: &Attribute, out: &mut String) {
 ///
 /// First line `bitis-schema-v1`, then one line per message / enum, sorted by name (byte order):
 /// `enum NAME(Y){A,*B,C}` and `msg NAME{ATTR;...}` / `msg NAME:PARENT{ATTR;...}` with
-/// `ATTR = [optional |repeated_fixed_N |repeated_dyn_Y ]TYPE NAME` or `oneof NAME(Y){[*]ATTR;...}`.
+/// `ATTR = [optional |repeated_fixed_N |repeated_dyn_Y[[M]] ]TYPE NAME` or `oneof NAME(Y){[*]ATTR;...}`
+/// (bounds `[M]` only where declared, so schemas without bounds keep their hash).
 /// Every line ends with '\n'. Comments, whitespace and the split into input files do not matter.
 pub fn canonical_schema(p: &BitisProcessed) -> String {
     let mut defs: Vec<(&str, String)> = vec![];
@@ -1161,7 +1213,7 @@ pub fn min_bits_simple(t: &SimpleType) -> u64 {
         SimpleType::Float => 32,
         SimpleType::Double => 64,
         SimpleType::FixedPrecision(f) => f.bits as u64,
-        SimpleType::AString(_) | SimpleType::Binary(_) => 1,
+        SimpleType::AString(..) | SimpleType::Binary(..) => 1,
     }
 }
 /// `min_bits` of a type without its modifier (an element of a `repeated_dyn`): simple types, enums (1),
@@ -1193,6 +1245,69 @@ pub fn min_bits_message(m: &Message, msgs: &[Message]) -> u64 {
 }
 
 // ************************************************************************
+// max_bits (docs/WIRE_FORMAT.md section 4)
+// ************************************************************************
+
+pub use super::berde::{dyn_bits, dyn_max_bits};
+
+/// `max_bits` of a simple type (spec section 4), `None` = unbounded.
+pub fn max_bits_simple(t: &SimpleType) -> Option<u64> {
+    Some(match t {
+        SimpleType::Bool => 1,
+        SimpleType::UIntFixed(x) => *x as u64,
+        SimpleType::IntFixed(x) => *x as u64 + 1,
+        SimpleType::UIntDyn((x, y)) => dyn_max_bits(*x, *y),
+        SimpleType::IntDyn((x, y)) => 1 + dyn_max_bits(*x, *y),
+        SimpleType::Float => 32,
+        SimpleType::Double => 64,
+        SimpleType::FixedPrecision(f) => f.bits as u64,
+        SimpleType::AString(y, m) | SimpleType::Binary(y, m) => {
+            let m = (*m)? as u64;
+            dyn_bits(m, 32, *y) + 8 * m
+        }
+    })
+}
+/// `max_bits` of a type without its modifier: simple types, enums (`dyn(k - 1, 32, Y)`),
+/// messages (sum of their attributes) and oneofs. `None` = unbounded (or overflow).
+/// The message graph must be acyclic (guaranteed by the validation).
+pub fn max_bits_details(d: &AttributeDetails, msgs: &[Message], enums: &[Enum]) -> Option<u64> {
+    match d {
+        AttributeDetails::AttributeSimple(t) => max_bits_simple(t),
+        AttributeDetails::AttributeEnumOrMsg(n) => match msgs.iter().find(|m| m.name == *n) {
+            Some(m) => max_bits_message(m, msgs, enums),
+            None => {
+                let e = enums.iter().find(|e| e.name == *n)?;
+                Some(dyn_bits(e.values.len().saturating_sub(1) as u64, 32, e.bit_size))
+            }
+        },
+        AttributeDetails::AttributeOneOf(oo) => {
+            let mut m: u64 = 0;
+            for a in &oo.attributes { m = m.max(max_bits_attribute(a, msgs, enums)?); }
+            dyn_bits(oo.attributes.len().saturating_sub(1) as u64, 32, oo.dyn_bits).checked_add(m)
+        }
+    }
+}
+/// `max_bits` of an attribute including its modifier, `None` = unbounded.
+pub fn max_bits_attribute(a: &Attribute, msgs: &[Message], enums: &[Enum]) -> Option<u64> {
+    let t = max_bits_details(&a.specific_details, msgs, enums)?;
+    let r = match a.is_repeated_and_size {
+        Some(DynOrFixedType::Dyn(y)) => {
+            let m = a.repeated_max_len? as u64;
+            dyn_bits(m, 32, y).checked_add(t.checked_mul(m)?)?
+        }
+        Some(DynOrFixedType::Fixed(n)) => t.checked_mul(n as u64)?,
+        None => t,
+    };
+    if a.is_optional { r.checked_add(1) } else { Some(r) }
+}
+/// `max_bits` of a message: the sum over its attributes, `None` = unbounded.
+pub fn max_bits_message(m: &Message, msgs: &[Message], enums: &[Enum]) -> Option<u64> {
+    let mut s: u64 = 0;
+    for a in &m.attributes { s = s.checked_add(max_bits_attribute(a, msgs, enums)?)?; }
+    Some(s)
+}
+
+// ************************************************************************
 // Data for the templates
 // ************************************************************************
 
@@ -1215,6 +1330,12 @@ pub struct AttributeEx {
     pub is_enum: bool,
     pub is_oo: bool,
     pub add_val: bool,
+    /// The attribute has a maximum length `[M]` (on the type or on its `repeated_dyn` modifier).
+    pub is_bounded: bool,
+    /// Full Rust type of the attribute including its modifier (e.g. `BitisOption<Binary<4>>`), with
+    /// message / enum / oneof types qualified as `messages::NAME` (used by the Python bindings);
+    /// only set for the Rust target.
+    pub rust_attr_type: String,
 }
 #[derive(Debug, Clone)]
 pub struct MessageR {
@@ -1222,6 +1343,8 @@ pub struct MessageR {
     pub comment: Option<String>,
     pub parent: Option<String>,
     pub attributes: Vec<AttributeEx>,
+    /// At least one attribute has a maximum length `[M]` (Python: checked setters).
+    pub has_bounds: bool,
 }
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
@@ -1277,10 +1400,15 @@ fn to_target_attribute(attribute: &Attribute, msg_names: &[String], lang: Target
                 (format!("FixPrecisionMinMax<{}, {}, {}>", fpp.bits, fpp.min_val, fpp.max_val),
                  if lang == TargetLang::Rust { "f64" } else { "double" }.to_string())
             }
-            SimpleType::Binary(b) => { add_val = true; (format!("Binary<{b}>"), "Vec<u8>".to_string()) }
-            SimpleType::AString(b) => {
+            SimpleType::Binary(b, max_len) => {
                 add_val = true;
-                (format!("BitisAString<{b}>"), if lang == TargetLang::Rust { "String" } else { "char *" }.to_string())
+                (match max_len { None => format!("Binary<{b}>"), Some(m) => format!("BoundedBinary<{b}, {m}>") },
+                 "Vec<u8>".to_string())
+            }
+            SimpleType::AString(b, max_len) => {
+                add_val = true;
+                (match max_len { None => format!("BitisAString<{b}>"), Some(m) => format!("BoundedAString<{b}, {m}>") },
+                 if lang == TargetLang::Rust { "String" } else { "char *" }.to_string())
             }
         },
         AttributeDetails::AttributeEnumOrMsg(em) => {
@@ -1295,15 +1423,31 @@ fn to_target_attribute(attribute: &Attribute, msg_names: &[String], lang: Target
             (ooi.name.clone(), ooi.name.clone())
         }
     };
+    let is_bounded = attribute.repeated_max_len.is_some()
+        || matches!(attribute.specific_details,
+                    AttributeDetails::AttributeSimple(SimpleType::AString(_, Some(_)) | SimpleType::Binary(_, Some(_))));
+    let rust_attr_type = if lang == TargetLang::Rust {
+        let rtype = if is_py_wrapped { format!("messages::{rtype}") } else { rtype.clone() };
+        let t = match (&attribute.is_repeated_and_size, attribute.repeated_max_len) {
+            (Some(DynOrFixedType::Dyn(y)), Some(m)) => format!("BoundedDynArray<{rtype}, {y}, {m}>"),
+            (Some(DynOrFixedType::Dyn(y)), None) => format!("DynArray<{rtype}, {y}>"),
+            (Some(DynOrFixedType::Fixed(n)), _) => format!("FixedArray<{rtype}, {n}>"),
+            (None, _) => rtype.clone(),
+        };
+        if attribute.is_optional { format!("BitisOption<{t}>") } else { t }
+    } else { String::new() };
     AttributeEx { base: attribute.clone(), rust_type_str: rtype, base_type_str: base_type,
-        is_py_wrapped, is_msg, is_enum, is_oo, add_val }
+        is_py_wrapped, is_msg, is_enum, is_oo, add_val, is_bounded, rust_attr_type }
 }
 
 fn to_target_messages(msgs: &[Message], lang: TargetLang) -> Vec<MessageR> {
     let msg_names: Vec<_> = msgs.iter().map(|m| m.name.clone()).collect();
-    msgs.iter().map(|msg| MessageR {
-        name: msg.name.clone(), comment: msg.comment.clone(), parent: msg.parent.clone(),
-        attributes: msg.attributes.iter().map(|a| to_target_attribute(a, &msg_names, lang)).collect(),
+    msgs.iter().map(|msg| {
+        let attributes: Vec<AttributeEx> = msg.attributes.iter().map(|a| to_target_attribute(a, &msg_names, lang)).collect();
+        MessageR {
+            name: msg.name.clone(), comment: msg.comment.clone(), parent: msg.parent.clone(),
+            has_bounds: attributes.iter().any(|a| a.is_bounded), attributes,
+        }
     }).collect()
 }
 fn to_target_oneofs(oos: &[(String, OneOfInfo)], msgs: &[Message], lang: TargetLang) -> IndexMap<String, OneOfInfoR> {
@@ -1586,7 +1730,8 @@ mod bitis_semantic {
         for (src, expected) in [
             ("float", SimpleType::Float), ("uint_12", SimpleType::UIntFixed(12)),
             ("uint_32d4", SimpleType::UIntDyn((32, 4))), ("int_64d64", SimpleType::IntDyn((64, 64))),
-            ("bool", SimpleType::Bool), ("binary_d4", SimpleType::Binary(4)), ("astr_d32", SimpleType::AString(32)),
+            ("bool", SimpleType::Bool), ("binary_d4", SimpleType::Binary(4, None)), ("astr_d32", SimpleType::AString(32, None)),
+            ("binary_d4[1]", SimpleType::Binary(4, Some(1))), ("astr_d32 [ 65535 ]", SimpleType::AString(32, Some(65535))),
             ("fp_10[ -2 , 3 ]", SimpleType::FixedPrecision(FixedPrecisionProperties { bits: 10, min_val: -2, max_val: 3 })),
         ] {
             let parsed = parse(&format!("msg Lala {{ {src} attr; }}"));
@@ -1618,6 +1763,58 @@ mod bitis_semantic {
         assert_eq!(schema_hash_hex(&pa).len(), 16);
         let c = parse("enum E(2) { A, *B }\nmsg M { optional uint_3 x; repeated_dyn_2 E e; oneof o(2) { *bool b; M2 m; } }\nmsg M2 { fp_8[-1,1] f; }");
         assert_ne!(schema_hash(&pa), schema_hash(&process_and_validate_bitis(&c).unwrap()));
+    }
+
+    #[test]
+    fn canonical_form_with_bounds() {
+        let a = parse("msg M { astr_d4 [ 32 ] s; binary_d2[7] b; repeated_dyn_2 [8] astr_d3[16] l; optional astr_d4[1] o; \
+                       repeated_dyn_3 bool u; oneof x(1) { *binary_d5[3] y; } }");
+        let pa = process_and_validate_bitis(&a).unwrap();
+        let canon = "bitis-schema-v1\nmsg M{astr_d4[32] s;binary_d2[7] b;repeated_dyn_2[8] astr_d3[16] l;optional astr_d4[1] o;\
+                     repeated_dyn_3 bool u;oneof x(1){*binary_d5[3] y;};}\n";
+        assert_eq!(canonical_schema(&pa), canon);
+        // sha256 of the canonical text above (independently computed with sha256sum)
+        assert_eq!(schema_hash_hex(&pa), "aab049e4128269e7");
+        // the bound is part of the hash, schemas without bounds keep their text
+        let unbounded = process_and_validate_bitis(&parse("msg M { astr_d4 s; }")).unwrap();
+        let bounded = process_and_validate_bitis(&parse("msg M { astr_d4[32] s; }")).unwrap();
+        let bounded2 = process_and_validate_bitis(&parse("msg M { astr_d4[33] s; }")).unwrap();
+        assert_eq!(canonical_schema(&unbounded), "bitis-schema-v1\nmsg M{astr_d4 s;}\n");
+        assert_ne!(schema_hash(&unbounded), schema_hash(&bounded));
+        assert_ne!(schema_hash(&bounded), schema_hash(&bounded2));
+        let rep_unbounded = process_and_validate_bitis(&parse("msg M { repeated_dyn_2 bool s; }")).unwrap();
+        let rep_bounded = process_and_validate_bitis(&parse("msg M { repeated_dyn_2[4] bool s; }")).unwrap();
+        assert_eq!(canonical_schema(&rep_unbounded), "bitis-schema-v1\nmsg M{repeated_dyn_2 bool s;}\n");
+        assert_ne!(schema_hash(&rep_unbounded), schema_hash(&rep_bounded));
+    }
+
+    #[test]
+    fn max_bits_rules() {
+        // dyn(v, X, Y) and dynmax(X, Y) = 1 + X + ceil(X / Y) - 1 (spec section 4)
+        assert_eq!(dyn_bits(0, 32, 3), 1);
+        assert_eq!(dyn_bits(10, 32, 3), 9);
+        assert_eq!(dyn_bits(32, 32, 4), 1 + 4 + 1 + 4 + 1);
+        for (x, y) in [(32_u8, 4_u8), (8, 3), (64, 64), (64, 7), (1, 1), (16, 5)] {
+            assert_eq!(dyn_max_bits(x, y), 1 + x as u64 + (x as u64).div_ceil(y as u64) - 1, "{x}d{y}");
+        }
+        let p = process_and_validate_bitis(&parse(
+            "enum E(2) { *A, B, C, D, E5 }\nenum One(3) { *A }\n\
+             msg Inner { uint_3 a; int_7 b; }\n\
+             msg M { astr_d4[32] s; repeated_dyn_2[3] Inner i; optional binary_d8[2] o; E e; One one; \
+                     oneof x(2) { *bool b; Inner inn; int_32d4 d; } repeated_fixed_2 uint_8d3 f; }\n\
+             msg U { repeated_dyn_2 bool u; }\nmsg V { U u; }")).unwrap();
+        let m = |n: &str| p.msgs.iter().find(|m| m.name == n).unwrap();
+        assert_eq!(max_bits_message(m("Inner"), &p.msgs, &p.enums), Some(3 + 8));
+        let expected = (dyn_bits(32, 32, 4) + 8 * 32)          // astr_d4[32]
+            + (dyn_bits(3, 32, 2) + 3 * 11)                     // repeated_dyn_2[3] Inner
+            + (1 + dyn_bits(2, 32, 8) + 16)                     // optional binary_d8[2]
+            + dyn_bits(4, 32, 2)                                // enum with 5 values
+            + 1                                                 // enum with 1 value: dyn(0) = 1
+            + (dyn_bits(2, 32, 2) + (1 + 32 + 8 - 1 + 1))       // oneof: max(1, 11, int_32d4 = 1 + dynmax)
+            + 2 * dyn_max_bits(8, 3);                           // repeated_fixed_2 uint_8d3
+        assert_eq!(max_bits_message(m("M"), &p.msgs, &p.enums), Some(expected));
+        assert_eq!(max_bits_message(m("U"), &p.msgs, &p.enums), None);
+        assert_eq!(max_bits_message(m("V"), &p.msgs, &p.enums), None);
     }
 
     #[test]

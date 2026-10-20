@@ -6,7 +6,8 @@
 //             fails with TrailingData,
 // - noncanon: decoding succeeds with total_bits, re-encoding gives the canonical bytes,
 // - invalid:  decoding fails with the given BitisError,
-// - min_bits: bitis_min_bits<T>() of every message type,
+// - min_bits: bitis_min_bits<T>() of every message type (max_bits records are skipped for now:
+//             the C++ max_bits() of all types is added separately; see golden/README.md),
 // plus spot checks of decoded values and of the encoder.
 //
 // The code under test is golden/gen/cpp/golden.h, generated from golden/schema/golden.bitis.
@@ -82,6 +83,9 @@ inline std::vector<Record> load_manifest() {
         else if (r.kind == "min_bits" && f.size() == 3) {
             r.name = f[1]; r.type = f[1]; r.bits = std::stoul(f[2]);
         }
+        else if (r.kind == "max_bits" && f.size() == 3) {
+            continue;   // TODO: check bitis_max_bits<T>() once every C++ type provides max_bits()
+        }
         else { ADD_FAILURE() << "malformed manifest line: " << line; continue; }
         recs.push_back(r);
     }
@@ -140,6 +144,7 @@ inline const std::map<std::string, TypeEntry> &types() {
         {"Leaf", entry<Leaf>()}, {"Mid", entry<Mid>()}, {"Nested", entry<Nested>()},
         {"Containers", entry<Containers>()}, {"Enums", entry<Enums>()}, {"IntList", entry<IntList>()},
         {"Choice", entry<Choice>()}, {"Everything", entry<Everything>()},
+        {"BoundsItem", entry<BoundsItem>()}, {"Bounds", entry<Bounds>()},
     };
     return t;
 }
@@ -436,6 +441,56 @@ TEST(GoldenSpotCheck, Encoder) {
     Texts bad_text;
     bad_text.text = Texts::Text_T("\xc3\xa4");
     EXPECT_EQ(try_serialize(bad_text, out), BitisError::ValueOutOfRange);
+}
+
+// maximum lengths (spec 2.16): heap-free containers that cannot exceed M
+TEST(GoldenSpotCheck, Bounds) {
+    auto m = decode<Bounds>("bounds_max");
+    EXPECT_STREQ(m.name.c_str(), "12345678");
+    EXPECT_EQ(m.blob, Bounds::Blob_T({0x00, 0x80, 0xff, 0x7f}));
+    ASSERT_EQ(m.tags.size(), 3u);
+    EXPECT_STREQ(m.tags[2].c_str(), "ef");
+    ASSERT_FALSE(m.note.is_none);
+    EXPECT_STREQ(m.note.value.c_str(), "note!");
+    ASSERT_EQ(m.items.size(), 2u);
+    EXPECT_EQ(m.items[1].val.value, 9);
+    ASSERT_FALSE(m.items[0].label.is_none);
+    EXPECT_STREQ(m.items[0].label.value.c_str(), "xyz");
+    m = decode<Bounds>("bounds_mixed");
+    EXPECT_STREQ(m.name.c_str(), "x");
+    EXPECT_TRUE(m.note.is_none);
+    EXPECT_EQ(m.tags.size(), 1u);
+
+    // encoder: values at M give the vector; the containers refuse to grow beyond M
+    Bounds b;
+    EXPECT_TRUE(b.name.set("12345678"));
+    EXPECT_FALSE(b.name.set("123456789"));
+    EXPECT_FALSE(b.name.push_back('9'));
+    EXPECT_STREQ(b.name.c_str(), "12345678");
+    const uint8_t blob[] = {0x00, 0x80, 0xff, 0x7f, 0x01};
+    EXPECT_FALSE(b.blob.set(blob, 5));
+    EXPECT_TRUE(b.blob.set(blob, 4));
+    EXPECT_FALSE(b.blob.push_back(1));
+    for (const char *t : {"ab", "cd", "ef"}) { EXPECT_TRUE(b.tags.push_back(Bounds::Tags_T::ValT(t))); }
+    EXPECT_FALSE(b.tags.push_back(Bounds::Tags_T::ValT("gh")));
+    EXPECT_FALSE(b.tags[0].set("abc"));
+    b.note = Bounds::Note_T(BoundedAString<4, 5>("note!"));
+    BoundsItem item;
+    item.val = BoundsItem::Val_T(15);
+    item.label = BoundsItem::Label_T(BoundedAString<2, 3>("xyz"));
+    EXPECT_TRUE(b.items.push_back(item));
+    item.val = BoundsItem::Val_T(9);
+    item.label = BoundsItem::Label_T(BoundedAString<2, 3>("~~~"));
+    EXPECT_TRUE(b.items.push_back(item));
+    EXPECT_FALSE(b.items.push_back(item));
+    EXPECT_EQ(enc(b), hex(case_bytes("bounds_max")));
+    EXPECT_EQ(b, decode<Bounds>("bounds_max"));
+    EXPECT_EQ(enc(Bounds()), hex(case_bytes("bounds_default")));
+    // min_bits / max_bits of the bounded containers (spec section 4)
+    static_assert(Bounds::Name_T::max_bits() == 6 + 64, "astr_d4[8]");
+    static_assert(Bounds::Blob_T::max_bits() == 5 + 32, "binary_d3[4]");
+    static_assert(Bounds::Tags_T::max_bits() == 4 + 3 * (4 + 16), "repeated_dyn_2[3] astr_d2[2]");
+    static_assert(bitis_min_bits<Bounds>() == 5, "min_bits");
 }
 
 }

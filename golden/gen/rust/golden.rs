@@ -6,7 +6,7 @@ use strum_macros::AsRefStr;
 /// Version of the bitis compiler that generated this file.
 pub const BITIS_VERSION: &str = "0.10.5";
 /// Schema hash: first 8 bytes of SHA-256 over the canonical schema (see bitis docs/WIRE_FORMAT.md).
-pub const BITIS_SCHEMA_HASH: u64 = 0xcd80ce13857000bf;
+pub const BITIS_SCHEMA_HASH: u64 = 0xb637cfeeccc2d168;
 
 // Enums
 #[derive(BiserdiEnum, Debug, Clone, PartialEq, Copy, Default, AsRefStr)]
@@ -163,6 +163,23 @@ pub struct IntList {
 pub struct Choice {
   pub value: OO_Choice_Value,
   pub tail: bool,
+}
+
+#[derive(BiserdiMsg, Debug, Clone, PartialEq, Default)]
+#[allow(nonstandard_style)]
+pub struct BoundsItem {
+  pub val: IntWithGivenBitSize<u16, 4>,
+  pub label: BitisOption<BoundedAString<2, 3>>,
+}
+
+#[derive(BiserdiMsg, Debug, Clone, PartialEq, Default)]
+#[allow(nonstandard_style)]
+pub struct Bounds {
+  pub name: BoundedAString<4, 8>,
+  pub blob: BoundedBinary<3, 4>,
+  pub tags: BoundedDynArray<BoundedAString<2, 2>,2,3>,
+  pub note: BitisOption<BoundedAString<4, 5>>,
+  pub items: BoundedDynArray<BoundsItem,3,2>,
 }
 
 #[derive(BiserdiMsg, Debug, Clone, PartialEq, Default)]

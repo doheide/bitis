@@ -24,6 +24,9 @@ enum RecordKind {
 
   /// `min_bits <MsgType> <min_bits>`
   minBits,
+
+  /// `max_bits <MsgType> <max_bits|unbounded>`
+  maxBits,
 }
 
 /// One line of the manifest.
@@ -34,6 +37,7 @@ final class Record {
     this.name,
     this.type, {
     this.bits = 0,
+    this.maxBits,
     Uint8List? data,
     Uint8List? canonical,
     this.error,
@@ -52,6 +56,9 @@ final class Record {
 
   /// valid/noncanon: total_bits, min_bits: min_bits.
   final int bits;
+
+  /// max_bits: max_bits, `null` = unbounded.
+  final int? maxBits;
 
   /// valid: the bytes, noncanon: the input, invalid: the input.
   final Uint8List data;
@@ -144,6 +151,15 @@ List<Record> _parse(String text) {
         );
       case ('min_bits', 3):
         recs.add(Record(RecordKind.minBits, f[1], f[1], bits: number(f[2])));
+      case ('max_bits', 3):
+        recs.add(
+          Record(
+            RecordKind.maxBits,
+            'max_bits_${f[1]}',
+            f[1],
+            maxBits: f[2] == 'unbounded' ? null : number(f[2]),
+          ),
+        );
       default:
         malformed();
     }
@@ -195,6 +211,7 @@ final class MessageType<T extends BitisMessage> {
     this.read,
     this.fromBytesExact,
     this.minBits,
+    this.maxBits,
     this.fromJson,
     this.toJson,
   );
@@ -210,6 +227,9 @@ final class MessageType<T extends BitisMessage> {
 
   /// `T.bitisMinBits`.
   final int minBits;
+
+  /// `T.bitisMaxBits` (`null` = unbounded).
+  final int? maxBits;
 
   /// `T.fromJson`.
   final T Function(Map<String, dynamic> json) fromJson;
@@ -244,7 +264,7 @@ final class MessageType<T extends BitisMessage> {
   }
 }
 
-/// The generated message class with the schema name [name] (all 14 message
+/// The generated message class with the schema name [name] (all 16 message
 /// types of golden/schema/golden.bitis).
 MessageType<BitisMessage> messageType(String name) => switch (name) {
   'Empty' => MessageType<Empty>(
@@ -252,6 +272,7 @@ MessageType<BitisMessage> messageType(String name) => switch (name) {
     Empty.bitisRead,
     Empty.fromBytesExact,
     Empty.bitisMinBits,
+    Empty.bitisMaxBits,
     Empty.fromJson,
     (m) => m.toJson(),
   ),
@@ -260,6 +281,7 @@ MessageType<BitisMessage> messageType(String name) => switch (name) {
     Ints.bitisRead,
     Ints.fromBytesExact,
     Ints.bitisMinBits,
+    Ints.bitisMaxBits,
     Ints.fromJson,
     (m) => m.toJson(),
   ),
@@ -268,6 +290,7 @@ MessageType<BitisMessage> messageType(String name) => switch (name) {
     DynInts.bitisRead,
     DynInts.fromBytesExact,
     DynInts.bitisMinBits,
+    DynInts.bitisMaxBits,
     DynInts.fromJson,
     (m) => m.toJson(),
   ),
@@ -276,6 +299,7 @@ MessageType<BitisMessage> messageType(String name) => switch (name) {
     Floats.bitisRead,
     Floats.fromBytesExact,
     Floats.bitisMinBits,
+    Floats.bitisMaxBits,
     Floats.fromJson,
     (m) => m.toJson(),
   ),
@@ -284,6 +308,7 @@ MessageType<BitisMessage> messageType(String name) => switch (name) {
     FixedPoints.bitisRead,
     FixedPoints.fromBytesExact,
     FixedPoints.bitisMinBits,
+    FixedPoints.bitisMaxBits,
     FixedPoints.fromJson,
     (m) => m.toJson(),
   ),
@@ -292,6 +317,7 @@ MessageType<BitisMessage> messageType(String name) => switch (name) {
     Texts.bitisRead,
     Texts.fromBytesExact,
     Texts.bitisMinBits,
+    Texts.bitisMaxBits,
     Texts.fromJson,
     (m) => m.toJson(),
   ),
@@ -300,6 +326,7 @@ MessageType<BitisMessage> messageType(String name) => switch (name) {
     Leaf.bitisRead,
     Leaf.fromBytesExact,
     Leaf.bitisMinBits,
+    Leaf.bitisMaxBits,
     Leaf.fromJson,
     (m) => m.toJson(),
   ),
@@ -308,6 +335,7 @@ MessageType<BitisMessage> messageType(String name) => switch (name) {
     Mid.bitisRead,
     Mid.fromBytesExact,
     Mid.bitisMinBits,
+    Mid.bitisMaxBits,
     Mid.fromJson,
     (m) => m.toJson(),
   ),
@@ -316,6 +344,7 @@ MessageType<BitisMessage> messageType(String name) => switch (name) {
     Nested.bitisRead,
     Nested.fromBytesExact,
     Nested.bitisMinBits,
+    Nested.bitisMaxBits,
     Nested.fromJson,
     (m) => m.toJson(),
   ),
@@ -324,6 +353,7 @@ MessageType<BitisMessage> messageType(String name) => switch (name) {
     Containers.bitisRead,
     Containers.fromBytesExact,
     Containers.bitisMinBits,
+    Containers.bitisMaxBits,
     Containers.fromJson,
     (m) => m.toJson(),
   ),
@@ -332,6 +362,7 @@ MessageType<BitisMessage> messageType(String name) => switch (name) {
     Enums.bitisRead,
     Enums.fromBytesExact,
     Enums.bitisMinBits,
+    Enums.bitisMaxBits,
     Enums.fromJson,
     (m) => m.toJson(),
   ),
@@ -340,6 +371,7 @@ MessageType<BitisMessage> messageType(String name) => switch (name) {
     IntList.bitisRead,
     IntList.fromBytesExact,
     IntList.bitisMinBits,
+    IntList.bitisMaxBits,
     IntList.fromJson,
     (m) => m.toJson(),
   ),
@@ -348,6 +380,7 @@ MessageType<BitisMessage> messageType(String name) => switch (name) {
     Choice.bitisRead,
     Choice.fromBytesExact,
     Choice.bitisMinBits,
+    Choice.bitisMaxBits,
     Choice.fromJson,
     (m) => m.toJson(),
   ),
@@ -356,7 +389,26 @@ MessageType<BitisMessage> messageType(String name) => switch (name) {
     Everything.bitisRead,
     Everything.fromBytesExact,
     Everything.bitisMinBits,
+    Everything.bitisMaxBits,
     Everything.fromJson,
+    (m) => m.toJson(),
+  ),
+  'BoundsItem' => MessageType<BoundsItem>(
+    name,
+    BoundsItem.bitisRead,
+    BoundsItem.fromBytesExact,
+    BoundsItem.bitisMinBits,
+    BoundsItem.bitisMaxBits,
+    BoundsItem.fromJson,
+    (m) => m.toJson(),
+  ),
+  'Bounds' => MessageType<Bounds>(
+    name,
+    Bounds.bitisRead,
+    Bounds.fromBytesExact,
+    Bounds.bitisMinBits,
+    Bounds.bitisMaxBits,
+    Bounds.fromJson,
     (m) => m.toJson(),
   ),
   _ => throw ArgumentError.value(name, 'name', 'unknown message type'),

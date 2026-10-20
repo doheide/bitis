@@ -286,12 +286,20 @@ final class BitReader {
   // ------------------------------------------------------ strings / bytes
 
   /// Reads a `uint_32dY` count of elements with at least [minBits] bits
-  /// each and checks `count * max(1, minBits) <= remainingBits`
-  /// (spec section 3), failing with unexpectedEnd before anything is
+  /// each. A count above [maxLength] (if given) is invalidValue (spec 2.16,
+  /// checked first); then `count * max(1, minBits) <= remainingBits` is
+  /// checked (spec section 3), failing with unexpectedEnd before anything is
   /// allocated.
-  int _readCount(int chunkBits, int minBits) {
+  int _readCount(int chunkBits, int minBits, int? maxLength) {
     _checkDyn(32, chunkBits, 32);
+    _checkMaxLength(maxLength);
     final (lo, _) = _takeDyn(32, chunkBits);
+    if (maxLength != null && lo > maxLength) {
+      _fail(
+        BitisDecodeErrorKind.invalidValue,
+        'count $lo exceeds the maximum length $maxLength',
+      );
+    }
     final per = minBits < 1 ? 1 : minBits;
     if (lo > remainingBits ~/ per) {
       _fail(
@@ -300,6 +308,12 @@ final class BitReader {
       );
     }
     return lo;
+  }
+
+  static void _checkMaxLength(int? maxLength) {
+    if (maxLength != null && maxLength < 1) {
+      throw ArgumentError.value(maxLength, 'maxLength', 'must be >= 1');
+    }
   }
 
   Uint8List _takeBytes(int n) {
@@ -315,10 +329,10 @@ final class BitReader {
     return out;
   }
 
-  /// `astr_dY` (spec 2.8). A byte >= 0x80 is
-  /// [BitisDecodeErrorKind.invalidValue].
-  String readAStr(int chunkBits) {
-    final n = _readCount(chunkBits, 8);
+  /// `astr_dY` / `astr_dY[M]` (spec 2.8, 2.16). A byte >= 0x80 or more than
+  /// [maxLength] bytes (`M`, if given) is [BitisDecodeErrorKind.invalidValue].
+  String readAStr(int chunkBits, {int? maxLength}) {
+    final n = _readCount(chunkBits, 8, maxLength);
     final bytes = _takeBytes(n);
     for (final b in bytes) {
       if (b >= 0x80) {
@@ -328,8 +342,10 @@ final class BitReader {
     return String.fromCharCodes(bytes);
   }
 
-  /// `binary_dY` (spec 2.9).
-  Uint8List readBinary(int chunkBits) => _takeBytes(_readCount(chunkBits, 8));
+  /// `binary_dY` / `binary_dY[M]` (spec 2.9, 2.16). More than [maxLength]
+  /// bytes (`M`, if given) is [BitisDecodeErrorKind.invalidValue].
+  Uint8List readBinary(int chunkBits, {int? maxLength}) =>
+      _takeBytes(_readCount(chunkBits, 8, maxLength));
 
   // ------------------------------------------------------------ composites
 
@@ -348,15 +364,18 @@ final class BitReader {
     return out;
   }
 
-  /// `repeated_dyn_Y T` (spec 2.12). [elementMinBits] is `min_bits(T)`
-  /// (see [MinBits]); the count is checked against the remaining input
-  /// before any element is read.
+  /// `repeated_dyn_Y T` / `repeated_dyn_Y[M] T` (spec 2.12, 2.16).
+  /// [elementMinBits] is `min_bits(T)` (see [MinBits]); a count above
+  /// [maxLength] (`M`, if given) is [BitisDecodeErrorKind.invalidValue], then
+  /// the count is checked against the remaining input before any element is
+  /// read.
   List<T> readDynArray<T>(
     int chunkBits,
     int elementMinBits,
-    BitisReadFn<T> readElement,
-  ) {
-    final n = _readCount(chunkBits, elementMinBits);
+    BitisReadFn<T> readElement, {
+    int? maxLength,
+  }) {
+    final n = _readCount(chunkBits, elementMinBits, maxLength);
     final out = <T>[];
     for (var i = 0; i < n; i++) {
       out.add(readElement(this));

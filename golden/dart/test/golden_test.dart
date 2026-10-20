@@ -9,6 +9,8 @@
 //             canonical bytes,
 // - invalid:  decoding fails with the given BitisDecodeErrorKind,
 // - min_bits: bitisMinBits of every message type,
+// - max_bits: bitisMaxBits of every message type (null = unbounded), and every
+//             valid encoding is within it,
 // plus a JSON round trip of every valid case (decode -> toJson -> JSON text ->
 // fromJson -> encode gives the same bytes).
 //
@@ -49,7 +51,8 @@ void main() {
     expect(records(RecordKind.valid).length, greaterThan(40));
     expect(records(RecordKind.noncanon), isNotEmpty);
     expect(records(RecordKind.invalid).length, greaterThan(40));
-    expect(records(RecordKind.minBits).length, 14);
+    expect(records(RecordKind.minBits).length, 16);
+    expect(records(RecordKind.maxBits).length, 16);
     expect(
       manifest.map((r) => r.name).toSet().length,
       manifest.length,
@@ -135,6 +138,20 @@ void main() {
         expect(messageType(r.type).minBits, r.bits);
       });
     }
+  });
+
+  group('max_bits', () {
+    for (final r in records(RecordKind.maxBits)) {
+      test(r.type, () {
+        expect(messageType(r.type).maxBits, r.maxBits);
+      });
+    }
+    test('valid encodings are within max_bits', () {
+      for (final r in records(RecordKind.valid)) {
+        final m = messageType(r.type).maxBits;
+        if (m != null) expect(r.bits, lessThanOrEqualTo(m), reason: r.name);
+      }
+    });
   });
 
   group('json roundtrip', () {

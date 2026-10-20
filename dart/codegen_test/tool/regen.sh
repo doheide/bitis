@@ -35,6 +35,7 @@ generate "$TMP/lib/test_schema.dart" -i $S/test.bitis
 generate "$TMP/lib/cara.dart" "${CARA[@]}"
 generate "$TMP/lib/all_types.dart" -i $S/all_types.bitis
 generate "$TMP/lib/stress.dart" -i $S/stress.bitis
+generate "$TMP/lib/bounds.dart" -i $S/bounds.bitis
 
 # registry of all messages for the tests
 {
@@ -42,6 +43,7 @@ generate "$TMP/lib/stress.dart" -i $S/stress.bitis
   echo "// ignore_for_file: lines_longer_than_80_chars"
   echo
   echo "import 'package:bitis_codegen_test/all_types.dart' as all_types;"
+  echo "import 'package:bitis_codegen_test/bounds.dart' as bounds;"
   echo "import 'package:bitis_codegen_test/cara.dart' as cara;"
   echo "import 'package:bitis_codegen_test/stress.dart' as stress;"
   echo "import 'package:bitis_codegen_test/test_schema.dart' as test_schema;"
@@ -50,12 +52,12 @@ generate "$TMP/lib/stress.dart" -i $S/stress.bitis
   echo
   echo "/// All generated messages: schema -> message name -> operations."
   echo "final messages = <String, Map<String, MessageOps>>{"
-  for lib in all_types cara stress test_schema; do
+  for lib in all_types bounds cara stress test_schema; do
     echo "  '$lib': {"
     # every message class has exactly one constructor documented like this
     sed -nE 's#^  /// Creates a \[([A-Za-z0-9_]+)\]; omitted attributes get their default values\.$#\1#p' "$TMP/lib/$lib.dart" \
       | while read -r m; do
-      echo "    '$m': MessageOps($lib.$m.new, $lib.$m.fromJson, $lib.$m.fromBytes, $lib.$m.fromBytesExact, $lib.$m.bitisMinBits, (m) => (m as $lib.$m).toJson()),"
+      echo "    '$m': MessageOps($lib.$m.new, $lib.$m.fromJson, $lib.$m.fromBytes, $lib.$m.fromBytesExact, $lib.$m.bitisMinBits, $lib.$m.bitisMaxBits, (m) => (m as $lib.$m).toJson()),"
     done
     echo "  },"
   done

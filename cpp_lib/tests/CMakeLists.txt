@@ -21,6 +21,7 @@ add_executable(
         test_oneof.cpp
         test_xl.cpp
         test_fuzz.cpp
+        test_bounds.cpp
        )
 target_include_directories(bitis_testing PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(bitis_testing GTest::gtest_main)

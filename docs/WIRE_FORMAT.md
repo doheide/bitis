@@ -143,6 +143,9 @@ loop forever or allocate memory proportional to a length field before the
 corresponding data is known to be present.
 
 - Reading past the end of the input is `UnexpectedEnd` (no implicit zero bits).
+- For `astr`, `binary` and `repeated_dyn` with a maximum length `[M]`: a count
+  `n > M` is `InvalidValue`, checked directly after decoding the count (section 2.16),
+  i.e. before the following check.
 - For `astr`, `binary` and `repeated_dyn`: after decoding the count `n`, if
   `n * max(1, min_bits(T)) > remaining_bits` the decoder fails with
   `UnexpectedEnd` before allocating anything (`min_bits(byte) = 8`). This rule
@@ -160,7 +163,7 @@ Error kinds (same names in every runtime):
 | Kind | Meaning |
 |---|---|
 | `UnexpectedEnd` | input ended before the message was complete (in a stream: wait for more data) |
-| `InvalidValue` | a field value is outside its valid range / non-ASCII string |
+| `InvalidValue` | a field value is outside its valid range / non-ASCII string / count above a maximum length `[M]` |
 | `InvalidDiscriminant` | unknown enum or oneof index |
 | `TrailingData` | strict decode only: more bytes than the message needs |
 
@@ -168,7 +171,7 @@ Encoding errors:
 
 | Kind | Meaning |
 |---|---|
-| `ValueOutOfRange` | an integer value does not fit its declared width / base type |
+| `ValueOutOfRange` | an integer value does not fit its declared width / base type, a string is not ASCII, or a length exceeds its maximum length `[M]` |
 
 ## 4. min_bits, max_bits
 
@@ -197,6 +200,9 @@ integers, so accepted inputs may be longer.
   enum with `k` values `dyn(k − 1, 32, Y)`;
   oneof with `k` variants `dyn(k − 1, 32, Y) + max over variants of max_bits(variant)`;
   msg Σ attributes. Anything containing an unbounded part is unbounded.
+- A result that the runtime cannot represent is reported as unbounded: Rust above
+  `u64::MAX` (`None`), C++ above `SIZE_MAX` (saturates to `BITIS_UNBOUNDED`), Dart above
+  `2^53 − 1` (`null`, not representable on the web). Realistic schemas stay far below.
 
 ## 5. Schema hash
 

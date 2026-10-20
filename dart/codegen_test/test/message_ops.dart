@@ -9,6 +9,7 @@ class MessageOps {
     this.fromBytes,
     this.fromBytesExact,
     this.minBits,
+    this.maxBits,
     this.toJson,
   );
 
@@ -26,6 +27,9 @@ class MessageOps {
 
   /// `bitisMinBits`.
   final int minBits;
+
+  /// `bitisMaxBits` (null: unbounded).
+  final int? maxBits;
 
   /// `toJson` of a message of this type.
   final Map<String, Object?> Function(BitisMessage message) toJson;
