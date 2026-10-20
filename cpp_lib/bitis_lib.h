@@ -1,7 +1,38 @@
-
+// bitis C++ runtime (header only)
+//
+// Wire format: docs/WIRE_FORMAT.md (normative). Requirements: C++17, works without
+// exceptions and RTTI (ESP32 firmware). Float/double must be IEEE 754; the bit
+// stream is produced arithmetically, so the code does not depend on the byte order
+// of the host.
+//
+// Error handling (bitis 0.11):
+//  - BitisDeserializer / BitisSerializer carry a sticky error (first error wins).
+//    Reads past the end of the input return 0 and set BitisError::UnexpectedEnd.
+//  - try_deserialize<T>(), try_deserialize_exact<T>() and try_serialize<T>() report a
+//    BitisError. The legacy functions serialize(), deserialize() and
+//    deserialize_with_size() keep their signatures: serialize() silently truncates
+//    out-of-range values, deserialize() returns a default constructed T on any error
+//    (deserialize_with_size() additionally reports 0 bits).
+//  - try_serialize(msg, buf, cap) writes into a caller-provided buffer and fails with
+//    BitisError::BufferTooSmall if the message does not fit (C++ only).
+//    bitis_max_bytes<T>() gives a buffer size that fits every valid value of T
+//    (BITIS_UNBOUNDED for types containing unbounded strings, binaries or lists).
+//
+// Footprint (ESP32 firmware):
+//  - BITIS_NO_PRINT: if defined before including this header (or a generated header),
+//    every print() is an empty inline function and no names (attributes, enum values,
+//    oneof elements, types) end up in the binary; printf is not referenced.
+//  - The per-type templates only forward their constants to shared non-template
+//    functions (namespace bitis_core), so the code exists once per program.
+//  - Fixed point values store the raw wire value (smallest unsigned type holding N
+//    bits); value(), state() and set() convert on access.
+#ifndef BITIS_LIB_H
+#define BITIS_LIB_H
 
 #include <cfloat>
 #include <cinttypes>
+#include <climits>
+#include <cstddef>
 #include <type_traits>
 #include <limits>
 #include <cstdint>
@@ -11,77 +42,249 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <new>
+#include <tuple>
+#include <utility>
 #include <inttypes.h>
 
+static_assert(CHAR_BIT == 8, "bitis requires 8 bit bytes");
+static_assert(std::numeric_limits<float>::is_iec559 && sizeof(float) == 4,
+    "bitis requires IEEE 754 binary32 float");
+static_assert(std::numeric_limits<double>::is_iec559 && sizeof(double) == 8,
+    "bitis requires IEEE 754 binary64 double");
 
+// keeps the shared functions out of line (can be defined empty before including)
+#ifndef BITIS_NOINLINE
+#if defined(__GNUC__) || defined(__clang__)
+#define BITIS_NOINLINE __attribute__((noinline))
+#else
+#define BITIS_NOINLINE
+#endif
+#endif
+
+// name of an enum value / oneof element (only used by print())
+#ifndef BITIS_NO_PRINT
+#define BITIS_NAME(n) static constexpr const char *name = n;
+#else
+#define BITIS_NAME(n)
+#endif
+
+#ifndef BITIS_NO_PRINT
 inline void print_indent(const int16_t indent) {
     for(int i=0; i < indent; i++) { printf(" "); }
 }
+#else
+inline void print_indent(const int16_t) { }
+#endif
 
 template<typename T>
-uint64_t calc_bitmask(T bits) {
+constexpr uint64_t calc_bitmask(T bits) {
     static_assert(std::is_integral<T>::value, "calc_bitmask(): T must be an integral type");
-
-    uint64_t val = 1;
-    if (bits == 0) return 0;
-    for (T i = 1; i < bits; ++i) {
-        val = (val << 1) + 1;
-    }
-    return val;
+    if (bits <= 0) return 0;
+    if (bits >= 64) return ~static_cast<uint64_t>(0);
+    return (static_cast<uint64_t>(1) << bits) - 1;
 }
-static const uint8_t bit_masks[] = {0, 1, 3, 7, 15, 31, 63, 127, 255};
-static const uint8_t max_bitmask = 8;
+inline constexpr uint8_t bit_masks[] = {0, 1, 3, 7, 15, 31, 63, 127, 255};   // one copy per program
+inline constexpr uint8_t max_bitmask = 8;
+
+// ***************************************************************
+enum class BitisError : uint8_t {
+    Ok = 0,
+    // decoding
+    UnexpectedEnd,          // input ended before the message was complete
+    InvalidValue,           // value outside of its valid range / non-ASCII string
+    InvalidDiscriminant,    // unknown enum or oneof index
+    TrailingData,           // strict decode only: more bytes than the message needs
+    // encoding
+    ValueOutOfRange,        // value does not fit its declared width / base type
+    BufferTooSmall,         // C++ only: caller-provided output buffer too small
+};
+
+inline const char *bitis_error_name(const BitisError e) {
+    switch (e) {
+        case BitisError::Ok: return "Ok";
+        case BitisError::UnexpectedEnd: return "UnexpectedEnd";
+        case BitisError::InvalidValue: return "InvalidValue";
+        case BitisError::InvalidDiscriminant: return "InvalidDiscriminant";
+        case BitisError::TrailingData: return "TrailingData";
+        case BitisError::ValueOutOfRange: return "ValueOutOfRange";
+        case BitisError::BufferTooSmall: return "BufferTooSmall";
+    }
+    return "Unknown";
+}
+
+// ***************************************************************
+// max_bits (docs/WIRE_FORMAT.md section 4): upper bound of the encoded size in bits
+// or BITIS_UNBOUNDED. Every bitis type provides static constexpr std::size_t max_bits().
+constexpr std::size_t BITIS_UNBOUNDED = std::numeric_limits<std::size_t>::max();
+namespace bitis_helper {
+    // saturating arithmetic for max_bits (BITIS_UNBOUNDED absorbs)
+    constexpr std::size_t max_bits_add(const std::size_t a, const std::size_t b) {
+        return (a == BITIS_UNBOUNDED || b == BITIS_UNBOUNDED || a > BITIS_UNBOUNDED - b) ? BITIS_UNBOUNDED : a + b;
+    }
+    constexpr std::size_t max_bits_mul(const std::size_t a, const std::size_t n) {
+        if (a == 0 || n == 0) { return 0; }
+        return (a == BITIS_UNBOUNDED || n == BITIS_UNBOUNDED || a > BITIS_UNBOUNDED / n) ? BITIS_UNBOUNDED : a * n;
+    }
+    // size of the uint_XdY encoding of v (spec 2.4)
+    constexpr std::size_t dyn_bits(uint64_t v, const uint8_t max_bits, const uint8_t bit_packs) {
+        if (v == 0) { return 1; }
+        std::size_t bits = 1;
+        int remaining = max_bits;
+        while (true) {
+            const int c = (bit_packs < remaining) ? bit_packs : remaining;
+            bits += static_cast<std::size_t>(c);
+            v = (c >= 64) ? 0 : (v >> c);
+            remaining -= c;
+            if (remaining == 0) { break; }
+            bits += 1;
+            if (v == 0) { break; }
+        }
+        return bits;
+    }
+}
 
 struct BitisSize {
     std::size_t bits;
     std::size_t bytes;
 };
 
+namespace bitis_helper {
+    template<typename T> struct dependent_false : std::false_type { };
 
+    // raw bit pattern of an arithmetic value (integers: two's complement of the
+    // given width, floats: IEEE bit pattern)
+    template<typename T>
+    inline uint64_t to_u64_bits(const T &v) {
+        if constexpr (std::is_same<T, bool>::value) { return v ? 1 : 0; }
+        else if constexpr (std::is_integral<T>::value) {
+            return static_cast<uint64_t>(static_cast<typename std::make_unsigned<T>::type>(v));
+        }
+        else if constexpr (std::is_same<T, float>::value) {
+            uint32_t u; std::memcpy(&u, &v, sizeof(u)); return u;
+        }
+        else if constexpr (std::is_same<T, double>::value) {
+            uint64_t u; std::memcpy(&u, &v, sizeof(u)); return u;
+        }
+        else {
+            static_assert(dependent_false<T>::value, "to_u64_bits(): unsupported type");
+            return 0;
+        }
+    }
+    template<typename T>
+    inline T from_u64_bits(const uint64_t u) {
+        if constexpr (std::is_same<T, bool>::value) { return u != 0; }
+        else if constexpr (std::is_integral<T>::value) {
+            return static_cast<T>(static_cast<typename std::make_unsigned<T>::type>(u));
+        }
+        else if constexpr (std::is_same<T, float>::value) {
+            const auto u32 = static_cast<uint32_t>(u); T v; std::memcpy(&v, &u32, sizeof(v)); return v;
+        }
+        else if constexpr (std::is_same<T, double>::value) {
+            T v; std::memcpy(&v, &u, sizeof(v)); return v;
+        }
+        else {
+            static_assert(dependent_false<T>::value, "from_u64_bits(): unsupported type");
+            return T();
+        }
+    }
+
+    // magnitude limits for sign-magnitude integers (spec 2.3)
+    template<typename T, uint8_t BITS>
+    constexpr uint64_t max_magnitude() {
+        return std::min<uint64_t>(calc_bitmask(BITS),
+            static_cast<uint64_t>(std::numeric_limits<T>::max()));
+    }
+    // mask used by the legacy (truncating) serialization; truncated values always decode
+    template<typename T, uint8_t BITS>
+    constexpr uint64_t truncation_mask() {
+        return calc_bitmask(std::min<int>(BITS, std::numeric_limits<T>::digits));
+    }
+    // |v| as unsigned value (no UB for the minimum of signed types)
+    template<typename T>
+    constexpr uint64_t magnitude(const T v) {
+        if constexpr (std::is_signed<T>::value) {
+            return (v < 0) ? static_cast<uint64_t>(0) - static_cast<uint64_t>(static_cast<int64_t>(v))
+                           : static_cast<uint64_t>(v);
+        }
+        else { return static_cast<uint64_t>(v); }
+    }
+    template<typename T>
+    constexpr T from_sign_magnitude(const bool is_negative, const uint64_t mag) {
+        // mag has to be <= numeric_limits<T>::max()
+        if constexpr (std::is_signed<T>::value) {
+            return is_negative ? static_cast<T>(-static_cast<int64_t>(mag)) : static_cast<T>(mag);
+        }
+        else { (void) is_negative; return static_cast<T>(mag); }
+    }
+}
+
+
+// ***************************************************************
+// Writes into data_cache (default) or into a caller-provided buffer (see
+// try_serialize(msg, buf, cap)); both use the same bit writer.
 struct BitisSerializer {
-    uint16_t cur_cache_u8;
-    uint8_t sub_byte_counter;
-    std::vector<uint8_t> data_cache;
-    std::size_t final_total_bits;
+    uint16_t cur_cache_u8 = 0;
+    uint8_t sub_byte_counter = 0;
+    std::vector<uint8_t> data_cache;    // output if no buffer is given
+    std::size_t final_total_bits = 0;
+    std::size_t total_bits = 0;
+    BitisError error = BitisError::Ok;
+    bool use_buf = false;               // output goes to out_buf (out_cap bytes)
+    uint8_t *out_buf = nullptr;
+    std::size_t out_cap = 0;
+    std::size_t out_len = 0;            // bytes produced (including those that did not fit)
+
+    BitisSerializer() = default;
+    // more than cap bytes of output set BitisError::BufferTooSmall (the bit count
+    // continues, finalize() reports the size the message needs)
+    BitisSerializer(uint8_t *buf, const std::size_t cap) : use_buf(true), out_buf(buf), out_cap(cap) { }
+
+    void set_error(const BitisError e) { if (error == BitisError::Ok) { error = e; } }
+    bool has_error() const { return error != BitisError::Ok; }
+
+    // write the low num_bits (<= 64) bits of v, LSB first
+    BITIS_NOINLINE void write_bits(uint64_t v, uint8_t num_bits) {
+        if (num_bits > 64) { num_bits = 64; }
+        total_bits += num_bits;
+        while (num_bits > 0) {
+            const uint8_t space = static_cast<uint8_t>(8 - sub_byte_counter);
+            const uint8_t take = (num_bits < space) ? num_bits : space;
+            cur_cache_u8 = static_cast<uint16_t>(cur_cache_u8 | ((static_cast<uint32_t>(v) & bit_masks[take]) << sub_byte_counter));
+            sub_byte_counter = static_cast<uint8_t>(sub_byte_counter + take);
+            num_bits = static_cast<uint8_t>(num_bits - take);
+            v >>= take;
+            if (sub_byte_counter >= 8) { flush_byte(); }
+        }
+    }
 
     template<typename T>
     std::size_t add_data_bits(const T *value, uint8_t bits_left) {
-        uint8_t bits_left_work = bits_left;
-        // ReSharper disable once CppCStyleCast
-        const auto data = (uint8_t*) value;
-
-        uint8_t data_index = 0;
-
-        while (bits_left_work > 0) {
-            const uint8_t bits_to_use = std::min(bits_left_work, max_bitmask);
-
-            const uint8_t masked_data = data[data_index] & bit_masks[bits_to_use];
-            cur_cache_u8 += masked_data << sub_byte_counter;
-
-            sub_byte_counter += bits_to_use;
-            if (sub_byte_counter >= 8) {
-                data_cache.push_back(static_cast<uint8_t>(cur_cache_u8 & 255));
-                sub_byte_counter -= 8;
-                cur_cache_u8 >>= 8;
-                data_index++;
-            }
-            bits_left_work -= bits_to_use;
-        }
+        write_bits(bitis_helper::to_u64_bits(*value), bits_left);
         return bits_left;
     }
 
     template<typename T, std::size_t BITS>
     std::size_t add_data(const T *value) {
+        static_assert(BITS <= 64, "add_data(): at most 64 bits");
         return add_data_bits(value, BITS);
     }
 
     BitisSize finalize() {
-        final_total_bits = data_cache.size() * 8;
-        if (sub_byte_counter > 0) {
-            data_cache.push_back(static_cast<uint8_t>(cur_cache_u8 & 255));
-            final_total_bits += sub_byte_counter;
-        }
-        return BitisSize{final_total_bits, data_cache.size()};
+        if (sub_byte_counter > 0) { flush_byte(); }
+        final_total_bits = total_bits;
+        return BitisSize{final_total_bits, (final_total_bits + 7) / 8};
+    }
+
+private:
+    void flush_byte() {
+        const auto b = static_cast<uint8_t>(cur_cache_u8 & 255);
+        sub_byte_counter = 0;
+        cur_cache_u8 = 0;
+        if (!use_buf) { data_cache.push_back(b); }
+        else if (out_len < out_cap) { out_buf[out_len] = b; }
+        else { set_error(BitisError::BufferTooSmall); }
+        out_len++;
     }
 };
 
@@ -100,51 +303,241 @@ namespace bitis_helper {
     template <class T> struct remove_const<T const>{ typedef T type; };
 }
 
+// ***************************************************************
 struct BitisDeserializer {
-    std::size_t cur_read_pos;
-    uint8_t sub_byte_counter;
-    std::vector<uint8_t> data_cache;
+    std::size_t cur_read_pos;           // byte index of the next bit
+    uint8_t sub_byte_counter;           // bit index (0..7) within that byte
+    std::vector<uint8_t> data_cache;    // owned copy of the input (vector constructor only)
+    const uint8_t *data_ptr;
+    std::size_t data_size;
+    BitisError error;
+    bool owns_data;
 
+    // copies the data
     explicit BitisDeserializer(const std::vector<uint8_t> &data)
-    : cur_read_pos(0), sub_byte_counter(0), data_cache(data) { }
+    : cur_read_pos(0), sub_byte_counter(0), data_cache(data), data_ptr(nullptr), data_size(0),
+      error(BitisError::Ok), owns_data(true) {
+        data_ptr = data_cache.data(); data_size = data_cache.size();
+    }
+    // non-owning: data has to outlive the deserializer
+    BitisDeserializer(const uint8_t *data, const std::size_t size)
+    : cur_read_pos(0), sub_byte_counter(0), data_cache(), data_ptr(data), data_size(data ? size : 0),
+      error(BitisError::Ok), owns_data(false) { }
+
+    BitisDeserializer(const BitisDeserializer &other)
+    : cur_read_pos(other.cur_read_pos), sub_byte_counter(other.sub_byte_counter), data_cache(other.data_cache),
+      data_ptr(other.owns_data ? data_cache.data() : other.data_ptr), data_size(other.data_size),
+      error(other.error), owns_data(other.owns_data) { }
+    BitisDeserializer(BitisDeserializer &&other) noexcept
+    : cur_read_pos(other.cur_read_pos), sub_byte_counter(other.sub_byte_counter), data_cache(std::move(other.data_cache)),
+      data_ptr(other.owns_data ? data_cache.data() : other.data_ptr), data_size(other.data_size),
+      error(other.error), owns_data(other.owns_data) { }
+    BitisDeserializer &operator=(const BitisDeserializer &other) {
+        if (this != &other) {
+            cur_read_pos = other.cur_read_pos; sub_byte_counter = other.sub_byte_counter;
+            data_cache = other.data_cache; owns_data = other.owns_data;
+            data_ptr = owns_data ? data_cache.data() : other.data_ptr;
+            data_size = other.data_size; error = other.error;
+        }
+        return *this;
+    }
+    BitisDeserializer &operator=(BitisDeserializer &&other) noexcept {
+        if (this != &other) {
+            cur_read_pos = other.cur_read_pos; sub_byte_counter = other.sub_byte_counter;
+            data_cache = std::move(other.data_cache); owns_data = other.owns_data;
+            data_ptr = owns_data ? data_cache.data() : other.data_ptr;
+            data_size = other.data_size; error = other.error;
+        }
+        return *this;
+    }
+
+    void set_error(const BitisError e) { if (error == BitisError::Ok) { error = e; } }
+    bool has_error() const { return error != BitisError::Ok; }
+    BitisError get_error() const { return error; }
+
+    std::size_t consumed_bits() const { return cur_read_pos * 8 + sub_byte_counter; }
+    std::size_t remaining_bits() const {
+        const std::size_t total = data_size * 8;
+        const std::size_t used = consumed_bits();
+        return (used < total) ? total - used : 0;
+    }
+
+    // read num_bits (<= 64) bits LSB first. Returns 0 if an error is set or the input
+    // is too short (-> UnexpectedEnd); nothing is consumed in that case.
+    BITIS_NOINLINE uint64_t read_bits(uint8_t num_bits) {
+        if (num_bits == 0 || error != BitisError::Ok) { return 0; }
+        if (num_bits > 64) { set_error(BitisError::InvalidValue); return 0; }
+        if (remaining_bits() < num_bits) { set_error(BitisError::UnexpectedEnd); return 0; }
+
+        uint64_t v = 0;
+        uint8_t got = 0;
+        while (got < num_bits) {
+            const uint8_t avail = static_cast<uint8_t>(8 - sub_byte_counter);
+            const uint8_t want = static_cast<uint8_t>(num_bits - got);
+            const uint8_t take = (want < avail) ? want : avail;
+            const uint64_t chunk = (data_ptr[cur_read_pos] >> sub_byte_counter) & bit_masks[take];
+            v |= chunk << got;
+            got = static_cast<uint8_t>(got + take);
+            sub_byte_counter = static_cast<uint8_t>(sub_byte_counter + take);
+            if (sub_byte_counter >= 8) {
+                cur_read_pos++;
+                sub_byte_counter = 0;
+            }
+        }
+        return v;
+    }
 
     bitis_helper::BitiaDeserializerUint8Helper decode_data_uint8(const uint8_t total_bits) {
-        // if (cur_read_pos >= total_bits) {
-        //     return bitis_helper::BitiaDeserializerUint8Helper{.bits = 0, .data = 0};
-        // }
-        uint16_t cur_u16 = data_cache[cur_read_pos];
-        if (cur_read_pos+1 < data_cache.size()) {
-            // todo what is this for?
-            cur_u16 += data_cache[cur_read_pos+1] << 8;
-        }
         const auto bits_to_use = std::min(total_bits, max_bitmask);
-        const auto d = (uint8_t) ((cur_u16 >> sub_byte_counter) & bit_masks[bits_to_use]);
-        sub_byte_counter += bits_to_use;
-        if (sub_byte_counter >= 8) {
-            cur_read_pos ++;
-            sub_byte_counter &= 7;
-        }
-        return bitis_helper::BitiaDeserializerUint8Helper{.bits = bits_to_use, .data = d};
+        const auto d = static_cast<uint8_t>(read_bits(bits_to_use));
+        return bitis_helper::BitiaDeserializerUint8Helper{bits_to_use, d};
     }
     template<typename T>
-    // bitis_helper::BitiaDeserializerHelper<T> decode_data(T & data, const uint8_t total_bits) {
-    std::size_t  decode_data(T & data, const uint8_t total_bits) {
-        uint8_t bits_left = total_bits;
-        // T data;
-        // ReSharper disable once CppCStyleCast
-        auto *data_ptr = (uint8_t *) &data;
-        uint8_t idx = 0;
-
-        while (bits_left > 0) {
-            const auto rd = decode_data_uint8(bits_left);
-            data_ptr[idx] = rd.data;
-            bits_left -= rd.bits;
-            idx++;
-        }
-        // return bitis_helper::BitiaDeserializerHelper<T>{.bits = total_bits, .data = data};
+    std::size_t decode_data(T & data, const uint8_t total_bits) {
+        data = bitis_helper::from_u64_bits<T>(read_bits(total_bits));
         return total_bits;
     }
 };
+
+// min_bits / max_bits (spec section 4) of any bitis type, including generated messages
+// and oneofs. bitis_max_bytes<T>() = ceil(max_bits / 8) (or BITIS_UNBOUNDED) can be used
+// to size an output buffer at compile time: uint8_t buf[bitis_max_bytes<Msg>()].
+template<typename T> constexpr std::size_t bitis_min_bits();
+template<typename T> constexpr std::size_t bitis_max_bits();
+template<typename T> constexpr std::size_t bitis_max_bytes();
+
+namespace bitis_helper {
+    // decodes into v, which has to be default constructed (nested messages, oneofs and
+    // list elements are decoded in place instead of being moved through temporaries)
+    template<typename T> void read_into(T &v, BitisDeserializer &des);
+}
+
+namespace bitis_helper {
+    // count check before allocating (spec section 3)
+    inline bool check_count(BitisDeserializer &des, const uint64_t count, std::size_t elem_min_bits) {
+        if (des.has_error()) { return false; }
+        if (elem_min_bits == 0) { elem_min_bits = 1; }
+        if (count > des.remaining_bits() / elem_min_bits) {
+            des.set_error(BitisError::UnexpectedEnd);
+            return false;
+        }
+        return true;
+    }
+}
+
+// ***************************************************************
+// Shared (non-template) implementation of the scalar types. The templates only pass
+// their constants; mag_bits = min(X, value bits of the C++ type), so 2^mag_bits - 1 is
+// the largest valid magnitude (and the mask of the legacy truncation). The parameter
+// order keeps 64 bit arguments in registers on 32 bit targets.
+namespace bitis_core {
+    // magnitude of uint_X / int_X (spec 2.2 / 2.3); the sign bit is written by the caller
+    BITIS_NOINLINE inline void write_uint(BitisSerializer &ser, const uint8_t bits, const uint64_t mag,
+                                          const uint8_t mag_bits) {
+        const uint64_t max_mag = calc_bitmask(mag_bits);
+        if (mag > max_mag) { ser.set_error(BitisError::ValueOutOfRange); }
+        ser.write_bits(mag & max_mag, bits);
+    }
+    BITIS_NOINLINE inline uint64_t read_uint(BitisDeserializer &des, const uint8_t bits, const uint8_t mag_bits) {
+        const uint64_t mag = des.read_bits(bits);
+        if (mag > calc_bitmask(mag_bits)) {
+            des.set_error(BitisError::InvalidValue);
+            return 0;
+        }
+        return mag;
+    }
+
+    // magnitude of uint_XdY / int_XdY (spec 2.4 / 2.5); returns the written bits
+    BITIS_NOINLINE inline std::size_t write_dyn(BitisSerializer &ser, const uint8_t max_bits, uint64_t mag,
+                                                const uint8_t bit_packs, const uint8_t mag_bits) {
+        const std::size_t start_bits = ser.total_bits;
+        const uint64_t max_mag = calc_bitmask(mag_bits);
+        if (mag > max_mag) {
+            // legacy behaviour: truncate (but never hang)
+            ser.set_error(BitisError::ValueOutOfRange);
+            mag &= max_mag;
+        }
+        // first marker
+        ser.write_bits((mag != 0) ? 1 : 0, 1);
+        if (mag != 0) {
+            uint8_t max_num_bits_left = max_bits;
+            while (true) {
+                const uint8_t cur_num_bits = std::min(max_num_bits_left, bit_packs);
+                ser.write_bits(mag, cur_num_bits);
+                mag = (cur_num_bits >= 64) ? 0 : (mag >> cur_num_bits);
+                max_num_bits_left = static_cast<uint8_t>(max_num_bits_left - cur_num_bits);
+                if (max_num_bits_left == 0) { break; }
+                ser.write_bits((mag != 0) ? 1 : 0, 1);
+                if (mag == 0) { break; }
+            }
+        }
+        return ser.total_bits - start_bits;
+    }
+    // returns the consumed bits; mag is 0 on error
+    BITIS_NOINLINE inline std::size_t read_dyn(BitisDeserializer &des, uint64_t &mag, const uint8_t max_bits,
+                                               const uint8_t bit_packs, const uint8_t mag_bits) {
+        const std::size_t start_bits = des.consumed_bits();
+        uint64_t tval = 0;
+        bool further_data_to_read = des.read_bits(1) != 0;
+        uint8_t shift_bits = 0;
+        uint8_t max_num_bits_left = max_bits;
+        while (further_data_to_read && !des.has_error()) {
+            const uint8_t cur_num_bits = std::min(max_num_bits_left, bit_packs);
+            const uint64_t cdata = des.read_bits(cur_num_bits);
+            tval |= cdata << shift_bits;   // shift_bits + cur_num_bits <= max_bits <= 64
+            shift_bits = static_cast<uint8_t>(shift_bits + cur_num_bits);
+            max_num_bits_left = static_cast<uint8_t>(max_num_bits_left - cur_num_bits);
+
+            if (max_num_bits_left > 0) { further_data_to_read = des.read_bits(1) != 0; }
+            else { further_data_to_read = false; }
+        }
+        if (tval > calc_bitmask(mag_bits)) {
+            des.set_error(BitisError::InvalidValue);
+            tval = 0;
+        }
+        mag = tval;
+        return des.consumed_bits() - start_bits;
+    }
+
+    // enum index (spec 2.9); returns the consumed bits, id is default_id on error
+    BITIS_NOINLINE inline std::size_t read_enum(BitisDeserializer &des, uint32_t &id, const uint8_t dyn_bits,
+                                                const uint32_t num_variants, const uint32_t default_id) {
+        uint64_t v = 0;
+        const std::size_t bits = read_dyn(des, v, 32, dyn_bits, 32);
+        if (!des.has_error() && v >= num_variants) {
+            des.set_error(BitisError::InvalidDiscriminant);
+        }
+        id = des.has_error() ? default_id : static_cast<uint32_t>(v);
+        return bits;
+    }
+
+    // fp_N[min, max] (spec 2.7): value -> raw wire value (NaN -> underflow)
+    BITIS_NOINLINE inline uint64_t fp_to_raw(const double value, const double min_v, const double max_v,
+                                             const uint8_t bits) {
+        const uint64_t max_value = calc_bitmask(bits);
+        if (std::isnan(value)) { return 0; }
+        if (value > max_v) { return max_value; }
+        if (value < min_v) { return 0; }
+
+        // t = (v - min) / R * S + 1.0, r = round_half_away_from_zero(t)
+        // (the volatile intermediate prevents FMA contraction, the spec requires
+        // separately rounded operations like the Rust reference)
+        const double range = max_v - min_v;
+        const double steps = static_cast<double>(max_value - 2);
+        const volatile double scaled = (value - min_v) / range * steps;
+        const double t = scaled + 1.0;
+        return static_cast<uint64_t>(std::round(t));
+    }
+    // raw wire value (1 .. 2^N - 2) -> value
+    BITIS_NOINLINE inline double fp_from_raw(const uint64_t raw, const double min_v, const double max_v,
+                                             const uint8_t bits) {
+        // v = (r - 1) / S * R + min
+        const double range = max_v - min_v;
+        const double steps = static_cast<double>(calc_bitmask(bits) - 2);
+        const volatile double scaled = static_cast<double>(raw - 1) / steps * range;
+        return scaled + min_v;
+    }
+}
 
 
 // ***************************************************************
@@ -154,20 +547,25 @@ struct BitisBool {
     BitisBool() : value(false) {}
     BitisBool(const bool value) : value(value) {}
 
+    static constexpr std::size_t min_bits() { return 1; }
+    static constexpr std::size_t max_bits() { return 1; }
+
     // ReSharper disable once CppDFAConstantFunctionResult
-    std::size_t serialize(BitisSerializer &ser) {
-        const uint8_t data = value ? 1 : 0;
-        return ser.add_data<uint8_t, 1>(&data);
+    std::size_t serialize(BitisSerializer &ser) const {
+        ser.write_bits(value ? 1 : 0, 1);
+        return 1;
     }
     static bitis_helper::BitiaDeserializerHelper<BitisBool> deserialize(BitisDeserializer &des) {
-        uint8_t data = 0;
-        des.decode_data<uint8_t>(data, 1);
-        return bitis_helper::BitiaDeserializerHelper<BitisBool>{.bits = 1, .data = BitisBool(data==1)
-        };
+        const auto data = des.read_bits(1);
+        return bitis_helper::BitiaDeserializerHelper<BitisBool>{1, BitisBool(data == 1)};
     }
-    void print(int16_t indent=0) const {
+#ifndef BITIS_NO_PRINT
+    void print(int16_t /*indent*/=0) const {
         printf("%s", (value) ? "true" : "false" );
     }
+#else
+    void print(int16_t =0) const { }
+#endif
     bool is_equal(const BitisBool &other) const {
         return value == other.value;
     }
@@ -176,10 +574,13 @@ struct BitisBool {
 };
 
 // ***************************************************************
+// uint_X (unsigned T) / int_X (signed T, sign-magnitude, X+1 bits)
 template <typename T, uint8_t BITS>
 struct IntgralWithGivenBitSize {
     static_assert(std::is_integral<T>::value, "Integral type required for IntgralWithGivenBitSize.");
-    static_assert(std::numeric_limits<T>::digits >= BITS, "BITS have to be lower or equal than the number of bits of the type.");
+    static_assert(BITS <= 64, "At most 64 bits are supported.");
+    static_assert(std::numeric_limits<T>::digits + (std::is_signed<T>::value ? 1 : 0) >= BITS,
+        "BITS have to be lower or equal than the number of bits of the type.");
 
     T value;
 
@@ -187,78 +588,91 @@ struct IntgralWithGivenBitSize {
     explicit IntgralWithGivenBitSize(T value) : value(value) {}
     // IntgralWithGivenBitSize(T &value) : value(value) {}
 
-    std::size_t serialize(BitisSerializer &ser) {
-        uint8_t num_bits = 0;
-        T tval = value;
-
-        if (std::is_signed<T>::value) {
-            uint8_t tdata;
-
-            if (tval < 0) {
-                tdata = 1;
-                tval = -tval;
-            }
-            else tdata = 0;
-
-            ser.add_data<uint8_t, 1>(&tdata);
-            num_bits += 1;
+    static constexpr std::size_t min_bits() { return BITS + (std::is_signed<T>::value ? 1 : 0); }
+    static constexpr std::size_t max_bits() { return min_bits(); }
+    // valid range (spec 2.2 / 2.3)
+    static constexpr T max_value() { return static_cast<T>(bitis_helper::max_magnitude<T, BITS>()); }
+    static constexpr T min_value() {
+        if constexpr (std::is_signed<T>::value) {
+            return bitis_helper::from_sign_magnitude<T>(true, bitis_helper::max_magnitude<T, BITS>());
         }
-        return ser.add_data<T, BITS>(&tval) + num_bits;
+        else { return T(0); }
+    }
+    static constexpr bool is_valid_value(const T v) {
+        return bitis_helper::magnitude(v) <= bitis_helper::max_magnitude<T, BITS>();
+    }
+    bool is_valid() const { return is_valid_value(value); }
+
+    std::size_t serialize(BitisSerializer &ser) const {
+        if constexpr (std::is_signed<T>::value) {
+            ser.write_bits((value < 0) ? 1 : 0, 1);
+        }
+        bitis_core::write_uint(ser, BITS, bitis_helper::magnitude(value), MAG_BITS);
+        return min_bits();
     }
     static bitis_helper::BitiaDeserializerHelper<IntgralWithGivenBitSize<T, BITS>>
     deserialize(BitisDeserializer &des) {
-        std::size_t num_bits = 0;
         bool is_negative = false;
-        if (std::is_signed<T>::value) {
-            const auto r = BitisBool::deserialize(des);
-            num_bits += r.bits;
-            is_negative = r.data.value;
+        if constexpr (std::is_signed<T>::value) {
+            is_negative = des.read_bits(1) != 0;
         }
-        T v(0);
-        auto dr = des.decode_data(v, BITS);
-        if (std::is_signed<T>::value) {
-            if (is_negative) {
-                v = -v;
-            }
-        }
-        return  bitis_helper::BitiaDeserializerHelper<IntgralWithGivenBitSize>{
-            .bits = num_bits+dr, .data = IntgralWithGivenBitSize(v)
+        const uint64_t mag = bitis_core::read_uint(des, BITS, MAG_BITS);
+        return bitis_helper::BitiaDeserializerHelper<IntgralWithGivenBitSize>{
+            min_bits(), IntgralWithGivenBitSize(bitis_helper::from_sign_magnitude<T>(is_negative, mag))
         };
     }
-    void print(int16_t indent=0) {
-        // ReSharper disable once CppCStyleCast
-        printf("%" PRIi64 " [%sint_%d]", (int64_t)value, (std::is_signed<T>::value) ? "" : "u", BITS);
+#ifndef BITIS_NO_PRINT
+    void print(int16_t /*indent*/=0) const {
+        if constexpr (std::is_signed<T>::value) {
+            printf("%" PRIi64 " [int_%d]", static_cast<int64_t>(value), BITS);
+        }
+        else {
+            printf("%" PRIu64 " [uint_%d]", static_cast<uint64_t>(value), BITS);
+        }
     }
+#else
+    void print(int16_t =0) const { }
+#endif
     bool is_equal(const IntgralWithGivenBitSize &other) const {
         return value == other.value;
     }
     bool operator==(const IntgralWithGivenBitSize& other) const { return is_equal(other); }
     bool operator!=(const IntgralWithGivenBitSize& other) const { return !is_equal(other); }
+
+private:
+    static constexpr uint8_t MAG_BITS = static_cast<uint8_t>(std::min<int>(BITS, std::numeric_limits<T>::digits));
 };
 
 template <typename T>
 struct BitisFloatingPoint {
-    static_assert(std::is_floating_point<T>::value, "Floating point type required for BitisFloatingPoint.");
+    static_assert(std::is_same<T, float>::value || std::is_same<T, double>::value,
+        "float or double required for BitisFloatingPoint.");
 
     T value;
 
     BitisFloatingPoint() : value() {}
     explicit BitisFloatingPoint(T v) : value(v) { }
 
-    std::size_t serialize(BitisSerializer &ser) {
-        return ser.add_data<T, sizeof(T)*8>(&value) ;
+    static constexpr std::size_t min_bits() { return sizeof(T)*8; }
+    static constexpr std::size_t max_bits() { return sizeof(T)*8; }
+
+    std::size_t serialize(BitisSerializer &ser) const {
+        ser.write_bits(bitis_helper::to_u64_bits(value), sizeof(T)*8);
+        return sizeof(T)*8;
     }
     static bitis_helper::BitiaDeserializerHelper<BitisFloatingPoint> deserialize(
         BitisDeserializer &des) {
-        T val(0.0);
-        auto r = des.decode_data(val, sizeof(T)*8);
+        const T val = bitis_helper::from_u64_bits<T>(des.read_bits(sizeof(T)*8));
         return bitis_helper::BitiaDeserializerHelper<BitisFloatingPoint>{
-        .bits = sizeof(T)*8, .data = BitisFloatingPoint(val)};
+            sizeof(T)*8, BitisFloatingPoint(val)};
     }
-    void print(int16_t indent=0) const {
-        // ReSharper disable once CppCStyleCast
-        printf("%f [%s]", value, (std::numeric_limits<T>::digits == FLT_MANT_DIG) ? "float" : "double");
+#ifndef BITIS_NO_PRINT
+    void print(int16_t /*indent*/=0) const {
+        printf("%f [%s]", static_cast<double>(value), (std::is_same<T, float>::value) ? "float" : "double");
     }
+#else
+    void print(int16_t =0) const { }
+#endif
     bool is_equal(const BitisFloatingPoint &other) const {
         return value == other.value;
     }
@@ -274,12 +688,15 @@ struct BitisOptional {
     bool is_none;
 
     BitisOptional() : value(), is_none(true) {}
-    BitisOptional(T val) : value(val), is_none(false) {}
-    explicit BitisOptional(T value, bool _is_none) : value(value), is_none(_is_none) {}
+    BitisOptional(T val) : value(std::move(val)), is_none(false) {}
+    explicit BitisOptional(T value, bool _is_none) : value(std::move(value)), is_none(_is_none) {}
     static BitisOptional create_none() { return BitisOptional(T(), true); }
-    static BitisOptional create_val(T v) { return BitisOptional(v, false); }
+    static BitisOptional create_val(T v) { return BitisOptional(std::move(v), false); }
 
-    std::size_t serialize(BitisSerializer &ser) {
+    static constexpr std::size_t min_bits() { return 1; }
+    static constexpr std::size_t max_bits() { return bitis_helper::max_bits_add(1, bitis_max_bits<T>()); }
+
+    std::size_t serialize(BitisSerializer &ser) const {
         std::size_t num_bits = 1;
         BitisBool(!is_none).serialize(ser);
         if (!is_none) {
@@ -288,26 +705,27 @@ struct BitisOptional {
         return num_bits;
     }
     static bitis_helper::BitiaDeserializerHelper<BitisOptional> deserialize(BitisDeserializer &des) {
-        std::size_t num_bits = 0;
-        const auto r = BitisBool::deserialize(des);
-        num_bits += r.bits;
-        const bool is_none = !r.data.value;
-        if (!is_none) {
-            auto rr = T::deserialize(des);
-            num_bits += rr.bits;
-            return bitis_helper::BitiaDeserializerHelper<BitisOptional>{.bits = num_bits,
-                .data = BitisOptional::create_val(rr.data)};
-        }
-        return bitis_helper::BitiaDeserializerHelper<BitisOptional>{.bits = num_bits,
-            .data = BitisOptional::create_none()};
+        const std::size_t start_bits = des.consumed_bits();
+        BitisOptional r;
+        r.read_into(des);
+        return bitis_helper::BitiaDeserializerHelper<BitisOptional>{des.consumed_bits() - start_bits, std::move(r)};
     }
-    void print(int16_t indent=0) {
+    // see bitis_helper::read_into()
+    void read_into(BitisDeserializer &des) {
+        is_none = des.read_bits(1) == 0;
+        if (!is_none) { bitis_helper::read_into(value, des); }
+    }
+#ifndef BITIS_NO_PRINT
+    void print(int16_t indent=0) const {
         if (is_none) { printf("None [Optional]"); }
         else {
             value.print(indent);
             printf("[Optional]");
         }
     }
+#else
+    void print(int16_t =0) const { }
+#endif
     bool is_equal(const BitisOptional &other) const {
         if (is_none != other.is_none) { return false; }
 
@@ -320,101 +738,79 @@ struct BitisOptional {
     bool operator!=(const BitisOptional &other) const { return !is_equal(other); }
 };
 // ***************************************************************
+// uint_XdY / int_XdY (spec 2.4 / 2.5)
 template <typename T, uint8_t MAX_BITS, uint8_t BIT_PACKS>
 struct DynInteger {
+    static_assert(std::is_integral<T>::value, "Integral type required for DynInteger.");
+    static_assert(MAX_BITS >= 1 && MAX_BITS <= 64, "MAX_BITS has to be in 1..64.");
+    static_assert(BIT_PACKS >= 1, "BIT_PACKS has to be at least 1.");
+    static_assert(std::numeric_limits<T>::digits + (std::is_signed<T>::value ? 1 : 0) >= MAX_BITS,
+        "MAX_BITS have to be lower or equal than the number of bits of the type.");
+
     T value;
 
     DynInteger() : value() {}
     explicit DynInteger(T value) : value(value) {}
 
-    std::size_t serialize(BitisSerializer &ser) {
-        int num_bits = 1;
-        uint8_t tdata;
-        T tvalue = value;
-        // indicator of the sign: send one if negative
-        if (std::is_signed<T>::value) {
-            if (value < 0) {
-                tdata = 1;
-                tvalue = -tvalue;
-            }
-            else tdata = 0;
-
-            ser.add_data<uint8_t, 1>(&tdata);
-            num_bits += 1;
+    static constexpr std::size_t min_bits() { return std::is_signed<T>::value ? 2 : 1; }
+    static constexpr std::size_t max_bits() {
+        return (std::is_signed<T>::value ? 1 : 0) + bitis_helper::dyn_bits(calc_bitmask(MAX_BITS), MAX_BITS, BIT_PACKS);
+    }
+    static constexpr T max_value() { return static_cast<T>(bitis_helper::max_magnitude<T, MAX_BITS>()); }
+    static constexpr T min_value() {
+        if constexpr (std::is_signed<T>::value) {
+            return bitis_helper::from_sign_magnitude<T>(true, bitis_helper::max_magnitude<T, MAX_BITS>());
         }
-        // tvalue is a positive value here
+        else { return T(0); }
+    }
+    static constexpr bool is_valid_value(const T v) {
+        return bitis_helper::magnitude(v) <= bitis_helper::max_magnitude<T, MAX_BITS>();
+    }
+    bool is_valid() const { return is_valid_value(value); }
 
-        // first marker
-        {   auto b = BitisBool(tvalue>0);
-            b.serialize(ser);
+    std::size_t serialize(BitisSerializer &ser) const {
+        // indicator of the sign: send one if negative (always written for signed types)
+        if constexpr (std::is_signed<T>::value) {
+            ser.write_bits((value < 0) ? 1 : 0, 1);
+            return 1 + bitis_core::write_dyn(ser, MAX_BITS, bitis_helper::magnitude(value), BIT_PACKS, MAG_BITS);
         }
-        //
-        uint64_t tval = tvalue; // should be always a positive value
-        uint8_t max_num_bits_left = MAX_BITS;
-        while (tval > 0) {
-            const auto cur_num_bits = std::min(max_num_bits_left, BIT_PACKS);
-            ser.add_data_bits(&tval, cur_num_bits);
-
-            tval >>= cur_num_bits;
-            num_bits += cur_num_bits;
-            max_num_bits_left -= cur_num_bits;
-
-            if (max_num_bits_left > 0) {
-                auto b = BitisBool(tval>0);
-                b.serialize(ser);
-                num_bits += 1;
-            }
+        else {
+            return bitis_core::write_dyn(ser, MAX_BITS, static_cast<uint64_t>(value), BIT_PACKS, MAG_BITS);
         }
-        return num_bits;
     }
     static bitis_helper::BitiaDeserializerHelper<DynInteger> deserialize(BitisDeserializer &des) {
-        bool is_negative = false;
-        uint8_t bits_num = 1;
-        uint64_t tval = 0;
-
-        if (std::is_signed<T>::value) {
-            auto rv = BitisBool::deserialize(des);
-            bits_num += rv.bits;
-            is_negative = rv.data.value;
+        uint64_t mag = 0;
+        if constexpr (std::is_signed<T>::value) {
+            const bool is_negative = des.read_bits(1) != 0;
+            const std::size_t bits = 1 + bitis_core::read_dyn(des, mag, MAX_BITS, BIT_PACKS, MAG_BITS);
+            return bitis_helper::BitiaDeserializerHelper<DynInteger>{bits,
+                DynInteger(bitis_helper::from_sign_magnitude<T>(is_negative, mag))};
         }
-
-        auto rv = BitisBool::deserialize(des);
-        bool further_data_to_read = rv.data.value;
-        uint8_t shift_bits = 0;
-        uint8_t max_num_bits_left = MAX_BITS;
-        while (further_data_to_read) {
-            const auto cur_num_bits = std::min(max_num_bits_left, BIT_PACKS);
-
-            uint64_t cdata = 0;
-            const auto r = des.decode_data(cdata, cur_num_bits);
-
-            bits_num += r;
-            tval += cdata << shift_bits;
-            shift_bits += cur_num_bits;
-            max_num_bits_left -= cur_num_bits;
-
-            if (max_num_bits_left > 0) {
-                rv = BitisBool::deserialize(des);
-                further_data_to_read = rv.data.value;
-                bits_num += 1;
-            }
-            else { further_data_to_read = false; }
+        else {
+            const std::size_t bits = bitis_core::read_dyn(des, mag, MAX_BITS, BIT_PACKS, MAG_BITS);
+            return bitis_helper::BitiaDeserializerHelper<DynInteger>{bits, DynInteger(static_cast<T>(mag))};
         }
-        if (is_negative) {
-            tval = -tval;
-        }
-        // ReSharper disable once CppCStyleCast
-        return bitis_helper::BitiaDeserializerHelper<DynInteger>{.bits=bits_num, .data=DynInteger((T)tval)};
     }
-    void print(int16_t indent=0) {
-        // ReSharper disable once CppCStyleCast
-        printf("%" PRIi64 " [%sint_%dd%d]", (int64_t)value, (std::is_signed<T>::value) ? "" : "u", MAX_BITS, BIT_PACKS);
+#ifndef BITIS_NO_PRINT
+    void print(int16_t /*indent*/=0) const {
+        if constexpr (std::is_signed<T>::value) {
+            printf("%" PRIi64 " [int_%dd%d]", static_cast<int64_t>(value), MAX_BITS, BIT_PACKS);
+        }
+        else {
+            printf("%" PRIu64 " [uint_%dd%d]", static_cast<uint64_t>(value), MAX_BITS, BIT_PACKS);
+        }
     }
+#else
+    void print(int16_t =0) const { }
+#endif
     bool is_equal(const DynInteger &other) const {
         return value == other.value;
     }
     bool operator==(const DynInteger &other) const { return is_equal(other); }
     bool operator!=(const DynInteger &other) const { return !is_equal(other); }
+
+private:
+    static constexpr uint8_t MAG_BITS = static_cast<uint8_t>(std::min<int>(MAX_BITS, std::numeric_limits<T>::digits));
 };
 
 // ***************************************************************
@@ -430,7 +826,10 @@ struct FixedArray {
         // for (std::size_t i = 0; i < ARRAY_SIZE; i++) { values[i] = v[i]; }
     }
 
-    std::size_t serialize(BitisSerializer &ser) {
+    static constexpr std::size_t min_bits() { return ARRAY_SIZE * bitis_min_bits<T>(); }
+    static constexpr std::size_t max_bits() { return bitis_helper::max_bits_mul(bitis_max_bits<T>(), ARRAY_SIZE); }
+
+    std::size_t serialize(BitisSerializer &ser) const {
         std::size_t num_bits = 0;
         for (std::size_t i=0; i < ARRAY_SIZE; i++) {
             num_bits += values[i].serialize(ser);
@@ -438,19 +837,20 @@ struct FixedArray {
         return num_bits;
     }
     static bitis_helper::BitiaDeserializerHelper<FixedArray> deserialize(BitisDeserializer &des) {
-        std::size_t num_bits = 0;
-        //T values[ARRAY_SIZE];
-        std::array<T, ARRAY_SIZE> values;
-
-        for (std::size_t i=0; i < ARRAY_SIZE; i++) {
-            auto dr = T::deserialize(des);
-            values[i] = dr.data;
-            num_bits += dr.bits;
-        }
-        return bitis_helper::BitiaDeserializerHelper<FixedArray>{.bits = num_bits, .data = FixedArray(values)};
+        const std::size_t start_bits = des.consumed_bits();
+        FixedArray r;
+        r.read_into(des);
+        return bitis_helper::BitiaDeserializerHelper<FixedArray>{des.consumed_bits() - start_bits, std::move(r)};
     }
-    void print(int16_t indent=0) {
-        // ReSharper disable once CppCStyleCast
+    // see bitis_helper::read_into()
+    void read_into(BitisDeserializer &des) {
+        for (std::size_t i=0; i < ARRAY_SIZE; i++) {
+            bitis_helper::read_into(values[i], des);
+            if (des.has_error()) { break; }
+        }
+    }
+#ifndef BITIS_NO_PRINT
+    void print(int16_t indent=0) const {
         printf("[");
         for (std::size_t i=0; i < ARRAY_SIZE; i++) {
             values[i].print(indent);
@@ -458,8 +858,11 @@ struct FixedArray {
         }
         printf("]{%zu}", ARRAY_SIZE);
     }
+#else
+    void print(int16_t =0) const { }
+#endif
     bool is_equal(const FixedArray &other) const {
-        for (int i = 0; i < ARRAY_SIZE; i++) {
+        for (std::size_t i = 0; i < ARRAY_SIZE; i++) {
             if (values[i] != other.values[i]) { return false; }
         }
         return true;
@@ -468,7 +871,7 @@ struct FixedArray {
     bool operator!=(const FixedArray& other) const { return !is_equal(other); }
 };
 
-#define ENUM_INSTANCE(x) struct x { static constexpr const char* name = #x; }
+#define ENUM_INSTANCE(x) struct x { BITIS_NAME(#x) }
 
 
 // ***************************************************************
@@ -476,40 +879,45 @@ template <typename T, uint8_t DYN_BITS>
 struct DynArray {
     std::vector<T> values;
     typedef T ValT;
+    typedef DynInteger<uint32_t, 32, DYN_BITS> SizeT;
 
     DynArray() : values() { }
     explicit DynArray(const std::vector<T> &v) : values(v) { }
 
-    std::size_t serialize(BitisSerializer &ser) {
+    static constexpr std::size_t min_bits() { return 1; }
+    static constexpr std::size_t max_bits() { return BITIS_UNBOUNDED; }
+
+    std::size_t serialize(BitisSerializer &ser) const {
         std::size_t num_bits = 0;
-        auto data_size = DynInteger<uint32_t, 32, DYN_BITS>(values.size());
+        if (values.size() > UINT32_MAX) { ser.set_error(BitisError::ValueOutOfRange); }
+        auto data_size = SizeT(static_cast<uint32_t>(values.size()));
         num_bits += data_size.serialize(ser);
-        for (std::size_t i=0; i < values.size(); i++) {
-            // num_bits += ser.add_data(values[i].serialize(ser));
+        for (std::size_t i=0; i < static_cast<uint32_t>(values.size()); i++) {
             num_bits += values[i].serialize(ser);
         }
         return num_bits;
     }
     static bitis_helper::BitiaDeserializerHelper<DynArray> deserialize(BitisDeserializer &des) {
-        std::size_t num_bits = 0;
-        // auto tbits = sizeof(T)*8;
-        auto rv_size = DynInteger<uint32_t, 32, DYN_BITS>::deserialize(des);
-        num_bits += rv_size.bits;
-
-        auto tvalues = std::vector<T>(rv_size.data.value);
-        for (std::size_t i=0; i < rv_size.data.value; i++) {
-            auto dr = T::deserialize(des);
-            tvalues[i] = dr.data;
-            num_bits += dr.bits;
-            // T cdata;
-            // auto bits = des.decode_data(cdata, tbits);
-            // tvalues[i] = cdata;
-            // num_bits += bits;
-        }
-        return bitis_helper::BitiaDeserializerHelper<DynArray>{.bits=num_bits, .data=DynArray(tvalues)};
+        const std::size_t start_bits = des.consumed_bits();
+        DynArray r;
+        r.read_into(des);
+        return bitis_helper::BitiaDeserializerHelper<DynArray>{des.consumed_bits() - start_bits, std::move(r)};
     }
-    void print(int16_t indent=0) {
-        // ReSharper disable once CppCStyleCast
+    // see bitis_helper::read_into(); on error values holds the complete elements
+    void read_into(BitisDeserializer &des) {
+        uint64_t count = 0;
+        bitis_core::read_dyn(des, count, 32, DYN_BITS, 32);
+        if (bitis_helper::check_count(des, count, bitis_min_bits<T>())) {
+            values.reserve(static_cast<std::size_t>(count));
+            for (uint64_t i=0; i < count; i++) {
+                values.emplace_back();
+                bitis_helper::read_into(values.back(), des);
+                if (des.has_error()) { values.pop_back(); break; }
+            }
+        }
+    }
+#ifndef BITIS_NO_PRINT
+    void print(int16_t indent=0) const {
         printf("[");
         for (std::size_t i=0; i < values.size(); i++) {
             values[i].print(indent);
@@ -517,9 +925,12 @@ struct DynArray {
         }
         printf("]{dyn:%zu}", values.size());
     }
+#else
+    void print(int16_t =0) const { }
+#endif
     bool is_equal(const DynArray &other) const {
         if (values.size() != other.values.size()) { return false; }
-        for (int i = 0; i < values.size(); i++) {
+        for (std::size_t i = 0; i < values.size(); i++) {
             if (values[i] != other.values[i]) { return false; }
         }
         return true;
@@ -529,40 +940,78 @@ struct DynArray {
 };
 
 // ***************************************************************
+namespace bitis_core {
+    // count + bytes of binary_dY / astr_dY (spec 2.10 / 2.11); returns the written bits
+    BITIS_NOINLINE inline std::size_t write_bytes(BitisSerializer &ser, const uint8_t *data, std::size_t size,
+                                                  const uint8_t dyn_bits, const bool ascii_only) {
+        std::size_t num_bits = 0;
+        if (size > UINT32_MAX) { ser.set_error(BitisError::ValueOutOfRange); size = UINT32_MAX; }
+        num_bits += write_dyn(ser, 32, size, dyn_bits, 32);
+
+        for (std::size_t i=0; i < size; i++) {
+            uint8_t cv = data[i];
+            if (ascii_only && cv >= 0x80) {
+                ser.set_error(BitisError::ValueOutOfRange);
+                cv &= 0x7F;
+            }
+            ser.write_bits(cv, 8);
+            num_bits += 8;
+        }
+        return num_bits;
+    }
+    // reads count + bytes into values (values is cleared first); returns consumed bits
+    BITIS_NOINLINE inline std::size_t read_bytes(BitisDeserializer &des, std::vector<uint8_t> &values,
+                                                 const uint8_t dyn_bits, const bool ascii_only,
+                                                 const std::size_t reserve_extra) {
+        const std::size_t start_bits = des.consumed_bits();
+        values.clear();
+        uint64_t count = 0;
+        read_dyn(des, count, 32, dyn_bits, 32);
+        if (bitis_helper::check_count(des, count, 8)) {
+            values.reserve(static_cast<std::size_t>(count) + reserve_extra);
+            for (uint64_t i=0; i < count; i++) {
+                const auto cdata = static_cast<uint8_t>(des.read_bits(8));
+                if (ascii_only && cdata >= 0x80) { des.set_error(BitisError::InvalidValue); }
+                if (des.has_error()) { values.clear(); break; }
+                values.push_back(cdata);
+            }
+        }
+        return des.consumed_bits() - start_bits;
+    }
+}
+
 template <uint8_t DYN_BITS>
 struct BinaryBase {
+    typedef DynInteger<uint32_t, 32, DYN_BITS> SizeT;
+
     BinaryBase() : values() {}
     explicit BinaryBase(const std::vector<uint8_t> &v) : values(v) {}
 
     std::vector<uint8_t> *get_u8_vec() { return &this->values; }
+    const std::vector<uint8_t> *get_u8_vec() const { return &this->values; }
 
-    std::size_t serialize(BitisSerializer &ser) {
-        std::size_t num_bits = 0;
-        auto data_size = DynInteger<uint32_t, 32, DYN_BITS>(values.size());
-        num_bits += data_size.serialize(ser);
+    static constexpr std::size_t min_bits() { return 1; }
+    static constexpr std::size_t max_bits() { return BITIS_UNBOUNDED; }
 
-        for (std::size_t i=0; i < values.size(); i++) {
-            auto cv = values[i];
-            num_bits += ser.add_data<uint8_t, 8>(&cv);
-        }
-        return num_bits;
+    std::size_t serialize(BitisSerializer &ser) const {
+        return serialize_bytes(ser, values.data(), values.size(), false);
     }
 
 protected:
-    static bitis_helper::BitiaDeserializerHelper<BinaryBase> deserialize_base(BitisDeserializer &des) {
-        std::size_t num_bits = 0;
-        auto tbits = 8;
-        auto rv_size = DynInteger<uint32_t, 32, DYN_BITS>::deserialize(des);
-        num_bits += rv_size.bits;
+    static std::size_t serialize_bytes(BitisSerializer &ser, const uint8_t *data, std::size_t size,
+                                       const bool ascii_only) {
+        return bitis_core::write_bytes(ser, data, size, DYN_BITS, ascii_only);
+    }
+    // reads count + bytes into values (values is cleared first); returns consumed bits
+    static std::size_t deserialize_bytes(BitisDeserializer &des, std::vector<uint8_t> &values,
+                                         const bool ascii_only, const std::size_t reserve_extra) {
+        return bitis_core::read_bytes(des, values, DYN_BITS, ascii_only, reserve_extra);
+    }
 
-        auto tvalues = std::vector<uint8_t>(rv_size.data.value);
-        for (std::size_t i=0; i < rv_size.data.value; i++) {
-            uint8_t cdata = 0;
-            auto bits = des.decode_data(cdata, tbits);
-            tvalues[i] = cdata;
-            num_bits += bits;
-        }
-        return bitis_helper::BitiaDeserializerHelper<BinaryBase>{.bits=num_bits, .data=BinaryBase(tvalues)};
+    static bitis_helper::BitiaDeserializerHelper<BinaryBase> deserialize_base(BitisDeserializer &des) {
+        BinaryBase r;
+        const auto bits = deserialize_bytes(des, r.values, false, 0);
+        return bitis_helper::BitiaDeserializerHelper<BinaryBase>{bits, std::move(r)};
     }
 
     std::vector<uint8_t> values;
@@ -573,202 +1022,602 @@ template <uint8_t DYN_BITS>
 struct Binary : BinaryBase<DYN_BITS>{
 
     Binary() : BinaryBase<DYN_BITS>() {}
-    explicit Binary(const std::vector<uint8_t> &v) : BinaryBase<DYN_BITS>() { }
+    explicit Binary(const std::vector<uint8_t> &v) : BinaryBase<DYN_BITS>(v) { }
 
     void set(const std::vector<uint8_t> &v) {
         this->values = v;
     }
+    const std::vector<uint8_t> &get() const { return this->values; }
+    std::size_t size() const { return this->values.size(); }
 
     static bitis_helper::BitiaDeserializerHelper<Binary> deserialize(BitisDeserializer &des) {
-        auto v = BinaryBase<DYN_BITS>::deserialize_base(des);
-        return bitis_helper::BitiaDeserializerHelper<Binary>{.bits=v.bits, .data=Binary(*v.data.get_u8_vec())};
+        Binary r;
+        const auto bits = r.read_into(des);
+        return bitis_helper::BitiaDeserializerHelper<Binary>{bits, std::move(r)};
+    }
+    // see bitis_helper::read_into(); returns the consumed bits
+    std::size_t read_into(BitisDeserializer &des) {
+        return BinaryBase<DYN_BITS>::deserialize_bytes(des, this->values, false, 0);
     }
 
-    void print(int16_t indent=0) {
-        // ReSharper disable once CppCStyleCast
-        printf("'");
-        for (std::size_t i=0; i < this->value.values.size(); i++) {
-            printf("%c", this->value.values[i]);
+#ifndef BITIS_NO_PRINT
+    void print(int16_t /*indent*/=0) const {
+        printf("[");
+        for (std::size_t i=0; i < this->values.size(); i++) {
+            printf((i == 0) ? "%02X" : " %02X", this->values[i]);
         }
-        printf("' {d%u}", DYN_BITS);
+        printf("] {binary_d%u}", DYN_BITS);
     }
+#else
+    void print(int16_t =0) const { }
+#endif
 
     bool is_equal(const Binary &other) const {
-        return this->value == other.value;
+        return this->values == other.values;
     }
     bool operator==(const Binary& other) const { return is_equal(other); }
     bool operator!=(const Binary& other) const { return !is_equal(other); }
 };
 
+// ASCII string. The internal buffer always holds a terminating NUL (not serialized),
+// so get() can be used as a C string. Note: get_u8_vec() returns the buffer including
+// that terminator; use size() for the string length.
 template <uint8_t DYN_BITS>
 struct BitisAString : BinaryBase<DYN_BITS>{
 
-    BitisAString() : BinaryBase<DYN_BITS>() {}
-    explicit BitisAString(const char* s) { set(s); }
-    explicit BitisAString(const std::vector<uint8_t> &v) : BinaryBase<DYN_BITS>(v) { }
+    BitisAString() : BinaryBase<DYN_BITS>() { this->values.push_back(0); }
+    explicit BitisAString(const char* s) : BinaryBase<DYN_BITS>() { set(s); }
+    explicit BitisAString(const std::vector<uint8_t> &v) : BinaryBase<DYN_BITS>(v) { this->values.push_back(0); }
 
     void set(const char* s) {
         this->values.clear();
-        this->values.reserve(strlen(s));
-        for (int i = 0; s[i] != '\0'; i++) {
-            this->values.push_back(s[i]);
+        const std::size_t len = (s != nullptr) ? strlen(s) : 0;
+        this->values.reserve(len + 1);
+        for (std::size_t i = 0; i < len; i++) {
+            this->values.push_back(static_cast<uint8_t>(s[i]));
         }
+        this->values.push_back(0);
     }
-    const char *get() {
+    // NUL terminated
+    const char *get() const {
+        ensure_terminated();
         // ReSharper disable once CppCStyleCast
-        return (const char *) this->values.data();
+        return reinterpret_cast<const char *>(this->values.data());
     }
+    const char *c_str() const { return get(); }
+    // number of characters (without the terminator)
+    std::size_t size() const {
+        const auto &v = this->values;
+        return (!v.empty() && v.back() == 0) ? v.size() - 1 : v.size();
+    }
+    std::size_t length() const { return size(); }
 
+    std::size_t serialize(BitisSerializer &ser) const {
+        return BinaryBase<DYN_BITS>::serialize_bytes(ser, this->values.data(), size(), true);
+    }
     static bitis_helper::BitiaDeserializerHelper<BitisAString> deserialize(BitisDeserializer &des) {
-        auto v = BinaryBase<DYN_BITS>::deserialize_base(des);
-        return bitis_helper::BitiaDeserializerHelper<BitisAString>{.bits=v.bits, .data=BitisAString(*v.data.get_u8_vec())};
+        BitisAString r;
+        const auto bits = r.read_into(des);
+        return bitis_helper::BitiaDeserializerHelper<BitisAString>{bits, std::move(r)};
+    }
+    // see bitis_helper::read_into(); returns the consumed bits
+    std::size_t read_into(BitisDeserializer &des) {
+        const auto bits = BinaryBase<DYN_BITS>::deserialize_bytes(des, this->values, true, 1);
+        this->values.push_back(0);
+        return bits;
     }
 
-    void print(int16_t indent=0) {
-        // ReSharper disable once CppCStyleCast
+#ifndef BITIS_NO_PRINT
+    void print(int16_t /*indent*/=0) const {
         printf("'");
-        for (std::size_t i=0; i < this->values.size(); i++) {
+        for (std::size_t i=0; i < size(); i++) {
             printf("%c", this->values[i]);
         }
         printf("' {d%u}", DYN_BITS);
     }
+#else
+    void print(int16_t =0) const { }
+#endif
     bool is_equal(const BitisAString &other) const {
-        return this->values == other.values;
+        return size() == other.size() && std::equal(this->values.begin(), this->values.begin() + size(),
+            other.values.begin());
     }
     bool operator==(const BitisAString& other) const { return is_equal(other); }
     bool operator!=(const BitisAString& other) const { return !is_equal(other); }
+
+private:
+    void ensure_terminated() const {
+        // the invariant is kept by all members; only a buffer modified through
+        // get_u8_vec() can lack the terminator
+        auto &v = const_cast<std::vector<uint8_t>&>(this->values);
+        if (v.empty() || v.back() != 0) { v.push_back(0); }
+    }
 };
+
+// ***************************************************************
+// BEGIN bounded containers (spec 2.16, bitis 0.11)
+// astr_dY[M] -> BoundedAString<Y, M>, binary_dY[M] -> BoundedBinary<Y, M>,
+// repeated_dyn_Y[M] T -> BoundedDynArray<T, Y, M>.
+// Heap-free: std::array storage for M elements plus a length member of the smallest
+// unsigned type holding M (1 <= M <= 65535). The encoding is the same as without the
+// bound; decoding a count > M is InvalidValue (checked directly after the count, before
+// the count check of spec section 3). The containers can never hold more than M
+// elements: set()/append()/push_back()/resize() return false and leave the value
+// unchanged if the bound would be exceeded; the constructors truncate to M elements.
+// Note: these objects are as large as their capacity (also on the stack when decoding).
+#include <initializer_list>
+namespace bitis_helper {
+    template<std::size_t MAX_LEN>
+    using bounded_len_t = typename std::conditional<(MAX_LEN <= 0xFFu), uint8_t, uint16_t>::type;
+
+    // max_bits of a bounded container: dyn(M, 32, Y) + M * max_bits(element)
+    constexpr std::size_t bounded_max_bits(const uint8_t dyn_bits_y, const std::size_t max_len,
+                                           const std::size_t elem_max_bits) {
+        return max_bits_add(dyn_bits(max_len, 32, dyn_bits_y), max_bits_mul(elem_max_bits, max_len));
+    }
+
+    // Reads the count of a bounded container. count > max_len -> InvalidValue (spec 2.16),
+    // then the count check of spec section 3 (UnexpectedEnd). Returns false on any error.
+    template<uint8_t DYN_BITS>
+    inline bool read_bounded_count(BitisDeserializer &des, const std::size_t max_len,
+                                   const std::size_t elem_min_bits, std::size_t &count) {
+        count = 0;
+        const auto rv = DynInteger<uint32_t, 32, DYN_BITS>::deserialize(des);
+        if (des.has_error()) { return false; }
+        if (rv.data.value > max_len) { des.set_error(BitisError::InvalidValue); return false; }
+        if (!check_count(des, rv.data.value, elem_min_bits)) { return false; }
+        count = rv.data.value;
+        return true;
+    }
+}
+
+// ***************************************************************
+// binary_dY[M]: at most MAX_LEN bytes.
+template <uint8_t DYN_BITS, std::size_t MAX_LEN>
+struct BoundedBinary {
+    static_assert(MAX_LEN >= 1 && MAX_LEN <= 65535, "BoundedBinary: MAX_LEN has to be in 1..65535.");
+    typedef DynInteger<uint32_t, 32, DYN_BITS> SizeT;
+    typedef bitis_helper::bounded_len_t<MAX_LEN> LenT;
+    typedef uint8_t ValT;
+
+    BoundedBinary() : values(), len(0) {}
+    // truncates to MAX_LEN bytes
+    BoundedBinary(const uint8_t *data, const std::size_t size) : values(), len(0) { assign_truncated(data, size); }
+    BoundedBinary(std::initializer_list<uint8_t> v) : values(), len(0) { assign_truncated(v.begin(), v.size()); }
+    explicit BoundedBinary(const std::vector<uint8_t> &v) : values(), len(0) { assign_truncated(v.data(), v.size()); }
+
+    static constexpr std::size_t capacity() { return MAX_LEN; }
+    static constexpr std::size_t max_size() { return MAX_LEN; }
+    std::size_t size() const { return len; }
+    bool empty() const { return len == 0; }
+
+    const uint8_t *data() const { return values.data(); }
+    uint8_t *data() { return values.data(); }
+    const uint8_t &operator[](const std::size_t i) const { return values[i]; }
+    uint8_t &operator[](const std::size_t i) { return values[i]; }
+    const uint8_t *begin() const { return values.data(); }
+    const uint8_t *end() const { return values.data() + len; }
+    uint8_t *begin() { return values.data(); }
+    uint8_t *end() { return values.data() + len; }
+
+    void clear() { len = 0; }
+    // false (unchanged) if size > MAX_LEN
+    bool set(const uint8_t *src, const std::size_t size) {
+        if (size > MAX_LEN || (size > 0 && src == nullptr)) { return false; }
+        assign_truncated(src, size);
+        return true;
+    }
+    bool set(const std::vector<uint8_t> &v) { return set(v.data(), v.size()); }
+    bool append(const uint8_t *src, const std::size_t size) {
+        if (size > MAX_LEN - len || (size > 0 && src == nullptr)) { return false; }
+        if (size > 0) { std::memmove(values.data() + len, src, size); }
+        len = static_cast<LenT>(len + size);
+        return true;
+    }
+    bool push_back(const uint8_t b) {
+        if (len >= MAX_LEN) { return false; }
+        values[len] = b;
+        len = static_cast<LenT>(len + 1);
+        return true;
+    }
+    // new bytes are zero
+    bool resize(const std::size_t size) {
+        if (size > MAX_LEN) { return false; }
+        for (std::size_t i = len; i < size; i++) { values[i] = 0; }
+        len = static_cast<LenT>(size);
+        return true;
+    }
+
+    static constexpr std::size_t min_bits() { return 1; }
+    static constexpr std::size_t max_bits() { return bitis_helper::bounded_max_bits(DYN_BITS, MAX_LEN, 8); }
+
+    std::size_t serialize(BitisSerializer &ser) const {
+        std::size_t num_bits = SizeT(static_cast<uint32_t>(len)).serialize(ser);
+        for (std::size_t i = 0; i < len; i++) { ser.write_bits(values[i], 8); num_bits += 8; }
+        return num_bits;
+    }
+    static bitis_helper::BitiaDeserializerHelper<BoundedBinary> deserialize(BitisDeserializer &des) {
+        const std::size_t start_bits = des.consumed_bits();
+        BoundedBinary r;
+        std::size_t count = 0;
+        if (bitis_helper::read_bounded_count<DYN_BITS>(des, MAX_LEN, 8, count)) {
+            for (std::size_t i = 0; i < count; i++) { r.values[i] = static_cast<uint8_t>(des.read_bits(8)); }
+            if (!des.has_error()) { r.len = static_cast<LenT>(count); }
+        }
+        return bitis_helper::BitiaDeserializerHelper<BoundedBinary>{des.consumed_bits() - start_bits, r};
+    }
+
+#ifndef BITIS_NO_PRINT
+    void print(int16_t /*indent*/=0) const {
+        printf("[");
+        for (std::size_t i = 0; i < len; i++) { printf((i == 0) ? "%02X" : " %02X", values[i]); }
+        printf("] {binary_d%u[%zu]}", DYN_BITS, MAX_LEN);
+    }
+#else
+    void print(int16_t = 0) const {}
+#endif
+    bool is_equal(const BoundedBinary &other) const {
+        return len == other.len && std::equal(values.begin(), values.begin() + len, other.values.begin());
+    }
+    bool operator==(const BoundedBinary &other) const { return is_equal(other); }
+    bool operator!=(const BoundedBinary &other) const { return !is_equal(other); }
+
+private:
+    void assign_truncated(const uint8_t *src, std::size_t size) {
+        if (src == nullptr) { size = 0; }
+        if (size > MAX_LEN) { size = MAX_LEN; }
+        if (size > 0) { std::memmove(values.data(), src, size); }
+        len = static_cast<LenT>(size);
+    }
+
+    std::array<uint8_t, MAX_LEN> values;
+    LenT len;
+};
+
+// ***************************************************************
+// astr_dY[M]: ASCII string of at most MAX_LEN characters. The buffer always holds a
+// terminating NUL after the last character (not serialized), so c_str() / get() can be
+// used as a C string. Like BitisAString, bytes >= 0x80 can be stored, but encoding them
+// sets ValueOutOfRange (written masked to 7 bits); decoding them is InvalidValue.
+template <uint8_t DYN_BITS, std::size_t MAX_LEN>
+struct BoundedAString {
+    static_assert(MAX_LEN >= 1 && MAX_LEN <= 65535, "BoundedAString: MAX_LEN has to be in 1..65535.");
+    typedef DynInteger<uint32_t, 32, DYN_BITS> SizeT;
+    typedef bitis_helper::bounded_len_t<MAX_LEN> LenT;
+
+    BoundedAString() : chars(), len(0) {}
+    // truncates to MAX_LEN characters
+    explicit BoundedAString(const char *s) : chars(), len(0) { assign_truncated(s, (s != nullptr) ? strlen(s) : 0); }
+    BoundedAString(const char *s, const std::size_t size) : chars(), len(0) { assign_truncated(s, size); }
+
+    static constexpr std::size_t capacity() { return MAX_LEN; }
+    static constexpr std::size_t max_size() { return MAX_LEN; }
+    // number of characters (without the terminator)
+    std::size_t size() const { return len; }
+    std::size_t length() const { return len; }
+    bool empty() const { return len == 0; }
+
+    // NUL terminated
+    const char *c_str() const { return chars.data(); }
+    const char *get() const { return chars.data(); }
+    const char *data() const { return chars.data(); }
+    const char &operator[](const std::size_t i) const { return chars[i]; }
+    char &operator[](const std::size_t i) { return chars[i]; }
+    const char *begin() const { return chars.data(); }
+    const char *end() const { return chars.data() + len; }
+    char *begin() { return chars.data(); }
+    char *end() { return chars.data() + len; }
+
+    void clear() { len = 0; chars[0] = 0; }
+    // false (unchanged) if the string is longer than MAX_LEN
+    bool set(const char *s) { return set(s, (s != nullptr) ? strlen(s) : 0); }
+    bool set(const char *s, const std::size_t size) {
+        if (size > MAX_LEN || (size > 0 && s == nullptr)) { return false; }
+        assign_truncated(s, size);
+        return true;
+    }
+    bool append(const char *s) { return append(s, (s != nullptr) ? strlen(s) : 0); }
+    bool append(const char *s, const std::size_t size) {
+        if (size > MAX_LEN - len || (size > 0 && s == nullptr)) { return false; }
+        if (size > 0) { std::memmove(chars.data() + len, s, size); }
+        len = static_cast<LenT>(len + size);
+        chars[len] = 0;
+        return true;
+    }
+    bool push_back(const char c) {
+        if (len >= MAX_LEN) { return false; }
+        chars[len] = c;
+        len = static_cast<LenT>(len + 1);
+        chars[len] = 0;
+        return true;
+    }
+
+    static constexpr std::size_t min_bits() { return 1; }
+    static constexpr std::size_t max_bits() { return bitis_helper::bounded_max_bits(DYN_BITS, MAX_LEN, 8); }
+
+    std::size_t serialize(BitisSerializer &ser) const {
+        std::size_t num_bits = SizeT(static_cast<uint32_t>(len)).serialize(ser);
+        for (std::size_t i = 0; i < len; i++) {
+            uint8_t cv = static_cast<uint8_t>(chars[i]);
+            if (cv >= 0x80) { ser.set_error(BitisError::ValueOutOfRange); cv &= 0x7F; }
+            ser.write_bits(cv, 8);
+            num_bits += 8;
+        }
+        return num_bits;
+    }
+    static bitis_helper::BitiaDeserializerHelper<BoundedAString> deserialize(BitisDeserializer &des) {
+        const std::size_t start_bits = des.consumed_bits();
+        BoundedAString r;
+        std::size_t count = 0;
+        if (bitis_helper::read_bounded_count<DYN_BITS>(des, MAX_LEN, 8, count)) {
+            for (std::size_t i = 0; i < count && !des.has_error(); i++) {
+                const auto cv = static_cast<uint8_t>(des.read_bits(8));
+                if (cv >= 0x80) { des.set_error(BitisError::InvalidValue); }
+                r.chars[i] = static_cast<char>(cv);
+            }
+            if (!des.has_error()) { r.len = static_cast<LenT>(count); }
+            r.chars[r.len] = 0;
+        }
+        return bitis_helper::BitiaDeserializerHelper<BoundedAString>{des.consumed_bits() - start_bits, r};
+    }
+
+#ifndef BITIS_NO_PRINT
+    void print(int16_t /*indent*/=0) const {
+        printf("'%.*s' {d%u[%zu]}", static_cast<int>(len), chars.data(), DYN_BITS, MAX_LEN);
+    }
+#else
+    void print(int16_t = 0) const {}
+#endif
+    bool is_equal(const BoundedAString &other) const {
+        return len == other.len && std::equal(chars.begin(), chars.begin() + len, other.chars.begin());
+    }
+    bool operator==(const BoundedAString &other) const { return is_equal(other); }
+    bool operator!=(const BoundedAString &other) const { return !is_equal(other); }
+
+private:
+    void assign_truncated(const char *s, std::size_t size) {
+        if (s == nullptr) { size = 0; }
+        if (size > MAX_LEN) { size = MAX_LEN; }
+        if (size > 0) { std::memmove(chars.data(), s, size); }
+        len = static_cast<LenT>(size);
+        chars[len] = 0;
+    }
+
+    std::array<char, MAX_LEN + 1> chars;
+    LenT len;
+};
+
+// ***************************************************************
+// repeated_dyn_Y[M] T: at most MAX_LEN elements. Elements behind size() are kept
+// default constructed (they are reset when the container shrinks).
+template <typename T, uint8_t DYN_BITS, std::size_t MAX_LEN>
+struct BoundedDynArray {
+    static_assert(MAX_LEN >= 1 && MAX_LEN <= 65535, "BoundedDynArray: MAX_LEN has to be in 1..65535.");
+    typedef T ValT;
+    typedef DynInteger<uint32_t, 32, DYN_BITS> SizeT;
+    typedef bitis_helper::bounded_len_t<MAX_LEN> LenT;
+
+    BoundedDynArray() : values(), len(0) {}
+    // truncate to MAX_LEN elements
+    BoundedDynArray(std::initializer_list<T> v) : values(), len(0) { assign_truncated(v.begin(), v.size()); }
+    explicit BoundedDynArray(const std::vector<T> &v) : values(), len(0) { assign_truncated(v.data(), v.size()); }
+
+    static constexpr std::size_t capacity() { return MAX_LEN; }
+    static constexpr std::size_t max_size() { return MAX_LEN; }
+    std::size_t size() const { return len; }
+    bool empty() const { return len == 0; }
+
+    const T *data() const { return values.data(); }
+    T *data() { return values.data(); }
+    const T &operator[](const std::size_t i) const { return values[i]; }
+    T &operator[](const std::size_t i) { return values[i]; }
+    const T *begin() const { return values.data(); }
+    const T *end() const { return values.data() + len; }
+    T *begin() { return values.data(); }
+    T *end() { return values.data() + len; }
+    const T &front() const { return values[0]; }
+    T &front() { return values[0]; }
+    const T &back() const { return values[len - 1]; }
+    T &back() { return values[len - 1]; }
+
+    void clear() { shrink_to(0); }
+    bool push_back(const T &v) {
+        if (len >= MAX_LEN) { return false; }
+        values[len] = v;
+        len = static_cast<LenT>(len + 1);
+        return true;
+    }
+    bool push_back(T &&v) {
+        if (len >= MAX_LEN) { return false; }
+        values[len] = std::move(v);
+        len = static_cast<LenT>(len + 1);
+        return true;
+    }
+    void pop_back() { if (len > 0) { shrink_to(len - 1u); } }
+    // false (unchanged) if size > MAX_LEN; new elements are default constructed
+    bool resize(const std::size_t size) {
+        if (size > MAX_LEN) { return false; }
+        if (size < len) { shrink_to(size); } else { len = static_cast<LenT>(size); }
+        return true;
+    }
+    bool set(const T *src, const std::size_t size) {
+        if (size > MAX_LEN || (size > 0 && src == nullptr)) { return false; }
+        assign_truncated(src, size);
+        return true;
+    }
+    bool set(const std::vector<T> &v) { return set(v.data(), v.size()); }
+
+    static constexpr std::size_t min_bits() { return 1; }
+    static constexpr std::size_t max_bits() { return bitis_helper::bounded_max_bits(DYN_BITS, MAX_LEN, T::max_bits()); }
+
+    std::size_t serialize(BitisSerializer &ser) const {
+        std::size_t num_bits = SizeT(static_cast<uint32_t>(len)).serialize(ser);
+        for (std::size_t i = 0; i < len; i++) { num_bits += values[i].serialize(ser); }
+        return num_bits;
+    }
+    static bitis_helper::BitiaDeserializerHelper<BoundedDynArray> deserialize(BitisDeserializer &des) {
+        const std::size_t start_bits = des.consumed_bits();
+        BoundedDynArray r;
+        std::size_t count = 0;
+        if (bitis_helper::read_bounded_count<DYN_BITS>(des, MAX_LEN, bitis_min_bits<T>(), count)) {
+            for (std::size_t i = 0; i < count; i++) {
+                auto dr = T::deserialize(des);
+                if (des.has_error()) { break; }
+                r.values[i] = std::move(dr.data);
+                r.len = static_cast<LenT>(i + 1);
+            }
+        }
+        return bitis_helper::BitiaDeserializerHelper<BoundedDynArray>{des.consumed_bits() - start_bits, std::move(r)};
+    }
+
+#ifndef BITIS_NO_PRINT
+    void print(int16_t indent=0) const {
+        printf("[");
+        for (std::size_t i = 0; i < len; i++) {
+            values[i].print(indent);
+            if (i + 1 != len) { printf(", "); }
+        }
+        printf("]{dyn:%zu, max:%zu}", static_cast<std::size_t>(len), MAX_LEN);
+    }
+#else
+    void print(int16_t = 0) const {}
+#endif
+    bool is_equal(const BoundedDynArray &other) const {
+        if (len != other.len) { return false; }
+        for (std::size_t i = 0; i < len; i++) {
+            if (values[i] != other.values[i]) { return false; }
+        }
+        return true;
+    }
+    bool operator==(const BoundedDynArray &other) const { return is_equal(other); }
+    bool operator!=(const BoundedDynArray &other) const { return !is_equal(other); }
+
+private:
+    void shrink_to(const std::size_t size) {
+        for (std::size_t i = size; i < len; i++) { values[i] = T(); }
+        len = static_cast<LenT>(size);
+    }
+    void assign_truncated(const T *src, std::size_t size) {
+        if (src == nullptr) { size = 0; }
+        if (size > MAX_LEN) { size = MAX_LEN; }
+        for (std::size_t i = 0; i < size; i++) { values[i] = src[i]; }
+        for (std::size_t i = size; i < len; i++) { values[i] = T(); }
+        len = static_cast<LenT>(size);
+    }
+
+    std::array<T, MAX_LEN> values;
+    LenT len;
+};
+// END bounded containers
 
 // ***************************************************************
 enum FixPrecisionMinMaxEnum {Ok, Underflow, Overflow};
 
+namespace bitis_helper {
+    // smallest unsigned type holding BITS bits
+    template<uint8_t BITS> using uint_for_bits = typename std::conditional<(BITS <= 8), uint8_t,
+        typename std::conditional<(BITS <= 16), uint16_t,
+        typename std::conditional<(BITS <= 32), uint32_t, uint64_t>::type>::type>::type;
+}
+
+// fp_N[min, max] (spec 2.7). Stores the raw wire value: 0 = underflow, 2^N - 1 = overflow,
+// otherwise the quantized value. Default: overflow. Equality compares the raw values.
 template <uint8_t BITS, int64_t MIN_IVALUE, int64_t MAX_IVALUE>
 struct FixPrecisionMinMax {
-    static_assert(BITS > 2);
+    static_assert(BITS >= 2 && BITS <= 64, "FixPrecisionMinMax: BITS has to be in 2..64 (spec: 2..53).");
+    static_assert(MIN_IVALUE < MAX_IVALUE, "FixPrecisionMinMax: min has to be lower than max.");
 
-    FixPrecisionMinMax() : value(0.), state(Overflow) { }
-    explicit FixPrecisionMinMax(const double &v) { // NOLINT(*-pro-type-member-init)
-        set(v);
+    typedef bitis_helper::uint_for_bits<BITS> RawT;
+    static constexpr RawT RAW_UNDERFLOW = 0;
+    static constexpr RawT RAW_OVERFLOW = static_cast<RawT>(calc_bitmask(BITS));
+
+    FixPrecisionMinMax() : raw_value(RAW_OVERFLOW) { }
+    explicit FixPrecisionMinMax(const double &v) : raw_value(to_raw(v)) { }
+
+    static constexpr std::size_t min_bits() { return BITS; }
+    static constexpr std::size_t max_bits() { return BITS; }
+
+    // stores the quantized value (or Underflow/Overflow; NaN -> Underflow)
+    void set(const double &v) { raw_value = to_raw(v); }
+    void set_underflow() { raw_value = RAW_UNDERFLOW; }
+    void set_overflow() { raw_value = RAW_OVERFLOW; }
+    // value in physical units, 0 for underflow / overflow
+    double value() const {
+        return has_value() ? bitis_core::fp_from_raw(raw_value, MIN_V, MAX_V, BITS) : 0.;
     }
-
-    void set(const double &v) {
-        value = 0; state = Ok;
-
-        if (v < MIN_IVALUE) { state = Underflow; }
-        else if (v > MAX_IVALUE) { state = Overflow; }
-        else { value = v; }
-        FixPrecisionMinMax::u64_to_val(val_to_u64(value, state), this->value, this->state);
+    double get_value() const { return value(); }
+    FixPrecisionMinMaxEnum state() const {
+        return (raw_value == RAW_UNDERFLOW) ? Underflow : ((raw_value == RAW_OVERFLOW) ? Overflow : Ok);
     }
-    double get_value() const { return value; }
-    FixPrecisionMinMaxEnum get_state() const { return state; }
+    FixPrecisionMinMaxEnum get_state() const { return state(); }
+    bool has_value() const { return raw_value != RAW_UNDERFLOW && raw_value != RAW_OVERFLOW; }
+    bool is_underflow() const { return raw_value == RAW_UNDERFLOW; }
+    bool is_overflow() const { return raw_value == RAW_OVERFLOW; }
+    // raw wire value (0 .. 2^N - 1)
+    RawT raw() const { return raw_value; }
+    void set_raw(const RawT r) { raw_value = static_cast<RawT>(r & RAW_OVERFLOW); }
 
     static uint64_t val_to_u64(double value, FixPrecisionMinMaxEnum state) {
-        const auto max_value = calc_bitmask(BITS);
-        uint64_t v;
-        if (state == Underflow) { v = 0; }
-        else if (state == Overflow) { v = max_value; }
-        else {
-            auto of = (value - ((double)MIN_IVALUE));
-            // printf("of: %f\n", of);
-            auto diff = (double)(MAX_IVALUE - MIN_IVALUE);
-            // printf("diff: %f\n", diff);
-            auto mv = (double)max_value - 2.;
-            auto t = of / diff * mv;
-            // printf("t: %f\n", t);
-            v = llround(t) + 1;
-
-            // printf("v: %" PRIu64 "\n", v);
-            // v = (uint64_t) ((value - ((double)MIN_IVALUE))
-            //     / ((double)(MAX_IVALUE - MIN_IVALUE))
-            //     * (double)(max_value - 2)) + 1;
-        }
-        return v;
+        if (state == Underflow) { return RAW_UNDERFLOW; }
+        if (state == Overflow) { return RAW_OVERFLOW; }
+        return bitis_core::fp_to_raw(value, MIN_V, MAX_V, BITS);
     }
     static void u64_to_val(uint64_t vu, double &value, FixPrecisionMinMaxEnum &state) {
-        const auto max_value = calc_bitmask(BITS);
-
-        if(vu == 0) { state = Underflow; }
-        else if(vu == max_value) { state = Overflow; }
+        if(vu == RAW_UNDERFLOW) { state = Underflow; }
+        else if(vu == RAW_OVERFLOW) { state = Overflow; }
         else {
             state = Ok;
-            value = (((double)vu-1.) / ((double)(max_value-2)) *
-                ((double)(MAX_IVALUE-MIN_IVALUE))) + (double)MIN_IVALUE;
+            value = bitis_core::fp_from_raw(vu, MIN_V, MAX_V, BITS);
         }
     }
 
-    std::size_t serialize(BitisSerializer &ser) {
-        std::size_t num_bits = 0;
-        // auto max_value = calc_bitmask(BITS);
-
-        uint64_t v = FixPrecisionMinMax::val_to_u64(value, state);
-/*        if (state == Underflow) { v = 0; }
-        else if (state == Overflow) { v = max_value; }
-        else {
-            v = lround((value - ((double)MIN_IVALUE))
-                / ((double)(MAX_IVALUE - MIN_IVALUE))
-                * (double)(max_value - 2)) + 1;
-        }*/
-        auto t = IntgralWithGivenBitSize<uint64_t, BITS>{v};
-        num_bits += t.serialize(ser);
-        return num_bits;
+    std::size_t serialize(BitisSerializer &ser) const {
+        ser.write_bits(raw_value, BITS);
+        return BITS;
     }
     static bitis_helper::BitiaDeserializerHelper<FixPrecisionMinMax> deserialize(BitisDeserializer &des) {
-        // auto max_value = calc_bitmask(BITS);
-
-        auto d = FixPrecisionMinMax(0.0);
-        auto data_u64 = IntgralWithGivenBitSize<uint64_t, BITS>::deserialize(des);
-        // printf("data_u64: %" PRIu64, data_u64.data.value);
-        FixPrecisionMinMax::u64_to_val(data_u64.data.value, d.value, d.state);
-
-/*        if(data_u64.data.value == 0) {
-            d.state = Underflow;
-        } else if(data_u64.data.value == max_value) {
-            d.state = Overflow;
-        } else {
-            d.state = Ok;
-            d.value = (((double)data_u64.data.value-1.) / (static_cast<double>(max_value-2)) *
-                ((double)(MAX_IVALUE-MIN_IVALUE))) + (double)MIN_IVALUE;
-        }*/
-
-        return bitis_helper::BitiaDeserializerHelper<FixPrecisionMinMax>{.bits = BITS, .data = d };
+        FixPrecisionMinMax d;
+        d.raw_value = static_cast<RawT>(des.read_bits(BITS));
+        return bitis_helper::BitiaDeserializerHelper<FixPrecisionMinMax>{BITS, d};
     }
-    void print(int16_t indent=0) {
-        if (state == Underflow) {
+#ifndef BITIS_NO_PRINT
+    void print(int16_t /*indent*/=0) const {
+        if (is_underflow()) {
             printf("Underflow");
         }
-        else if (state == Overflow) {
+        else if (is_overflow()) {
             printf("Overflow");
         }
         else {
-            printf("%f", value);
+            printf("%f", value());
         }
         printf(" [FP[%" PRIi64 ", %" PRIi64 "]]", MIN_IVALUE, MAX_IVALUE);
     }
+#else
+    void print(int16_t =0) const { }
+#endif
 
-    bool is_equal(const FixPrecisionMinMax &other) const {
-        if (state == Underflow) {
-            if (other.state != Underflow) { return false; }
-        }
-        else if (state == Overflow) {
-            if (other.state != Overflow) { return false; }
-        }
-        else {
-            if (value != other.value) { return false; }
-        }
-        return true;
-    }
+    bool is_equal(const FixPrecisionMinMax &other) const { return raw_value == other.raw_value; }
     bool operator==(const FixPrecisionMinMax &other) const { return is_equal(other); }
     bool operator!=(const FixPrecisionMinMax &other) const { return !is_equal(other); }
 
 private:
-    double value;
-    FixPrecisionMinMaxEnum state;
+    static constexpr double MIN_V = static_cast<double>(MIN_IVALUE);
+    static constexpr double MAX_V = static_cast<double>(MAX_IVALUE);
+    static RawT to_raw(const double &v) { return static_cast<RawT>(bitis_core::fp_to_raw(v, MIN_V, MAX_V, BITS)); }
+
+    RawT raw_value;
 };
 
 // ***************************************************************
 // ***************************************************************
 namespace bitis_helper {
     template<typename ...Args> struct Collector{ };
+
+    template<typename ...> struct CollectorSize;
+    template<typename ... Ts> struct CollectorSize<Collector<Ts...>> {
+        static constexpr std::size_t value = sizeof...(Ts);
+    };
 
     template<typename T, uint32_t IDX> struct ETN {
         typedef T type;
@@ -817,19 +1666,19 @@ namespace bitis_enum_helper {
     template<typename ...> struct EnumID_Impl;
     template<typename SEL_ENUM, typename T, typename ... Ts>
     struct EnumID_Impl<SEL_ENUM, bitis_helper::Collector<T, Ts ...>> {
-        static size_t get_id() {
+        static constexpr size_t get_id() {
             return EnumID_Impl<SEL_ENUM, bitis_helper::Collector<Ts ...>>::get_id();
         }
     };
     template<typename T, typename ... Ts>
     struct EnumID_Impl<typename T::type, bitis_helper::Collector<T, Ts ...>> {
-        static size_t get_id() { return T::id::value; }
+        static constexpr size_t get_id() { return T::id::value; }
     };
     template<typename SEL_ENUM>
     struct EnumID_Impl<SEL_ENUM, bitis_helper::Collector<>> {
         // ReSharper disable once CppStaticAssertFailure
-        static_assert(false, "Enum unknown");
-        static size_t get_id() { return 0; }
+        static_assert(bitis_helper::dependent_false<SEL_ENUM>::value, "Enum unknown");
+        static constexpr size_t get_id() { return 0; }
     };
     template<typename ...> struct EnumName_Impl;
     template<typename T, typename ... Ts>
@@ -843,15 +1692,15 @@ namespace bitis_enum_helper {
     };
     template<>
     struct EnumName_Impl<bitis_helper::Collector<>> {
-        static const char *get_name(uint32_t enum_id) { return nullptr; }
+        static const char *get_name(uint32_t) { return nullptr; }
     };
 
     template<typename ENUM_TO_FIND, typename ENUMERATED_ENUM_COL>
-    uint32_t get_id() {
-        return EnumID_Impl<ENUM_TO_FIND, ENUMERATED_ENUM_COL>::get_id();
+    constexpr uint32_t get_id() {
+        return static_cast<uint32_t>(EnumID_Impl<ENUM_TO_FIND, ENUMERATED_ENUM_COL>::get_id());
     }
     template<typename ENUMERATED_ENUM_COL>
-    static const char *get_name(uint32_t enum_id) {
+    const char *get_name(uint32_t enum_id) {
         return EnumName_Impl<ENUMERATED_ENUM_COL>::get_name(enum_id);
     }
 }
@@ -865,60 +1714,67 @@ struct BitisEnum {
     typedef ES_COLLECTOR EnumCollector;
     typedef typename bitis_helper::EnumeratedListCollector<ES_COLLECTOR>::type EnumeratedEnumCollector;
 
-    static_assert(bitis_helper::ContainsType<DEFAULT_ENUM, EnumCollector>::value);
+    static_assert(bitis_helper::ContainsType<DEFAULT_ENUM, EnumCollector>::value,
+        "The default enum value has to be one of the enum values.");
 
-    explicit BitisEnum() : value(bitis_enum_helper::get_id<DEFAULT_ENUM, EnumeratedEnumCollector>()) {}
+    BitisEnum() : value(bitis_enum_helper::get_id<DEFAULT_ENUM, EnumeratedEnumCollector>()) {}
 
 private:
     explicit BitisEnum(uint32_t enum_id) : value(enum_id) {}
 
 public:
+    static constexpr uint32_t num_variants() {
+        return static_cast<uint32_t>(bitis_helper::CollectorSize<ES_COLLECTOR>::value);
+    }
+    static constexpr std::size_t min_bits() { return 1; }
+    static constexpr std::size_t max_bits() { return bitis_helper::dyn_bits(num_variants() - 1, 32, DYN_BITS); }
+
     template<typename SET_ENUM>
     static BitisEnum create_enum() {
+        static_assert(bitis_helper::ContainsType<SET_ENUM, EnumCollector>::value, "Unknown enum value.");
         auto id_in = bitis_enum_helper::get_id<SET_ENUM, EnumeratedEnumCollector>();
         return BitisEnum(id_in);
     }
 
     template<typename SET_ENUM>
     void set_enum() {
-        static_assert(bitis_helper::ContainsType<SET_ENUM, EnumCollector>::value);
+        static_assert(bitis_helper::ContainsType<SET_ENUM, EnumCollector>::value, "Unknown enum value.");
         this->value.value = bitis_enum_helper::get_id<SET_ENUM, EnumeratedEnumCollector>();
     }
     template<typename SET_ENUM>
     bool is_enum() const {
-        static_assert(bitis_helper::ContainsType<SET_ENUM, EnumCollector>::value);
+        static_assert(bitis_helper::ContainsType<SET_ENUM, EnumCollector>::value, "Unknown enum value.");
         auto id_in = bitis_enum_helper::get_id<SET_ENUM, EnumeratedEnumCollector>();
         return this->value.value == id_in;
     }
+    bool is_valid() const { return value.value < num_variants(); }
 
-    std::size_t serialize(BitisSerializer &ser) {
+    std::size_t serialize(BitisSerializer &ser) const {
+        if (!is_valid()) { ser.set_error(BitisError::ValueOutOfRange); }
         return value.serialize(ser);
     }
     static bitis_helper::BitiaDeserializerHelper<BitisEnum> deserialize(BitisDeserializer &des) {
-        auto r = DynInteger<uint32_t, 32, DYN_BITS>::deserialize(des);
-        return bitis_helper::BitiaDeserializerHelper<BitisEnum>{.bits=r.bits, .data=BitisEnum(r.data.value)};
+        uint32_t id = 0;
+        const std::size_t bits = bitis_core::read_enum(des, id, DYN_BITS, num_variants(),
+            bitis_enum_helper::get_id<DEFAULT_ENUM, EnumeratedEnumCollector>());
+        return bitis_helper::BitiaDeserializerHelper<BitisEnum>{bits, BitisEnum(id)};
     }
 
-    void print(int16_t indent=0) {
+#ifndef BITIS_NO_PRINT
+    void print(int16_t /*indent*/=0) const {
         auto v = bitis_enum_helper::get_name<EnumeratedEnumCollector>(value.value);
         // ReSharper disable once CppCStyleCast
-        printf("%s (id:%" PRIu32 ") [enum_%u]", v, value.value, DYN_BITS);
+        printf("%s (id:%" PRIu32 ") [enum_%u]", v ? v : "?", value.value, DYN_BITS);
     }
+#else
+    void print(int16_t =0) const { }
+#endif
 
     bool is_equal(const BitisEnum &other) const {
         return this->value == other.value;
     }
     bool operator==(const BitisEnum &other) const { return is_equal(other); }
     bool operator!=(const BitisEnum &other) const { return !is_equal(other); }
-
-    // BitisEnum &operator=(const BitisEnum &other) {
-    //     this->value = other.value;
-    //     return *this;
-    // }
-    // BitisEnum &operator=(const DynInteger<uint32_t, DYN_BITS> &other) {
-    //     this->value = other.value;
-    //     return *this;
-    // }
 };
 
 
@@ -940,105 +1796,99 @@ namespace message_helper{
     struct MessageTE<bitis_helper::Collector<Ts ...>> : MessageAttribute<Ts> ... { };
 
     template<typename ...> struct MessageT;
-    template<> struct MessageT<> : MessageTE<> { };
+    template<> struct MessageT<> : MessageTE<> { typedef bitis_helper::Collector<> AttrList; };
     template<typename ... Ts>
-    struct MessageT : MessageTE<typename EnumeratedList<Ts...>::type> { };
-
-
-    template<typename ...> struct MessageT_Impl;
-    template<typename Msg_STRUCT, typename T, typename ... Ts>
-    struct MessageT_Impl<Msg_STRUCT, bitis_helper::Collector<T, Ts ...>> {
-        size_t serialize(Msg_STRUCT *d, BitisSerializer &ser) {
-            auto dd = static_cast<MessageAttribute<T>*>(d);
-
-            std::size_t r = dd->value.serialize(ser);
-
-            MessageT_Impl<Msg_STRUCT, bitis_helper::Collector<Ts ...>> inner;
-            return r + inner.serialize(d, ser);
-        }
-        size_t deserialize(Msg_STRUCT *d, BitisDeserializer &des) {
-            auto dd = static_cast<MessageAttribute<T>*>(d);
-
-            // auto dd = reinterpret_cast<MessageAttribute<T>*>(d);
-            bitis_helper::BitiaDeserializerHelper<typename MessageAttribute<T>::type> r =
-                MessageAttribute<T>::type::deserialize(des);
-            dd->value = r.data;
-
-            MessageT_Impl<Msg_STRUCT, bitis_helper::Collector<Ts ...>> inner;
-            return r.bits + inner.deserialize(d, des);
-        }
-
-        void print(Msg_STRUCT *d, int16_t indent, const char **attr_names) {
-            print_indent(indent);
-            printf("%s: ", attr_names[MessageAttribute<T>::id::value]);
-
-            auto dd = static_cast<MessageAttribute<T>*>(d);
-            dd->value.print(indent);
-            if (indent >= 0) printf(",\n");
-            else printf(", ");
-
-            MessageT_Impl<Msg_STRUCT, bitis_helper::Collector<Ts ...>> inner;
-            return inner.print(d, indent, attr_names);
-        }
-    };
-    template<typename Msg_STRUCT>
-    struct MessageT_Impl<Msg_STRUCT, bitis_helper::Collector<>> {
-        // ReSharper disable once CppMemberFunctionMayBeStatic
-        size_t serialize(Msg_STRUCT *d, BitisSerializer &ser) { return 0; }
-        size_t deserialize(Msg_STRUCT *d, BitisDeserializer &) { return 0; }
-        void print(Msg_STRUCT *, int16_t , const char **) { }
+    struct MessageT : MessageTE<typename EnumeratedList<Ts...>::type> {
+        typedef typename EnumeratedList<Ts...>::type AttrList;
     };
 
-    template<typename ...> struct MessageT_ImplStart;
-    template<>
-    struct MessageT_ImplStart<MessageT<>> {
-        size_t serialize(MessageT<> *d, BitisSerializer &ser) { return 0; }
-        size_t deserialize(MessageT<> *d, BitisDeserializer &des) { return 0; }
-        void print(MessageT<> *d, int16_t indent, const char **attr_names) { }
+    template<typename ...> struct MessageMinBits;
+    template<typename ... Ts> struct MessageMinBits<MessageT<Ts...>> {
+        static constexpr std::size_t value() { return (static_cast<std::size_t>(0) + ... + bitis_min_bits<Ts>()); }
     };
-    template<typename ... Ts>
-    struct MessageT_ImplStart<MessageT<Ts ...>> {
-        size_t serialize(MessageT<Ts ...> *d, BitisSerializer &ser) {
-            MessageT_Impl<MessageT<Ts ...>, typename EnumeratedList<Ts ...>::type> inner;
-            return inner.serialize(d, ser);
-        }
-        size_t deserialize(MessageT<Ts ...> *d, BitisDeserializer &des) {
-            MessageT_Impl<MessageT<Ts ...>, typename EnumeratedList<Ts ...>::type> inner;
-            return inner.deserialize(d, des);
-        }
-        void print(MessageT<Ts ...> *d, int16_t indent, const char **attr_names) {
-            MessageT_Impl<MessageT<Ts ...>, typename EnumeratedList<Ts ...>::type> inner;
-            return inner.print(d, indent, attr_names);
+    template<typename ...> struct MessageMaxBits;
+    template<typename ... Ts> struct MessageMaxBits<MessageT<Ts...>> {
+        static constexpr std::size_t value() {
+            std::size_t r = 0;
+            ((r = max_bits_add(r, bitis_max_bits<Ts>())), ...);
+            return r;
         }
     };
 
+#ifndef BITIS_NO_PRINT
+    inline void print_attr_begin(const int16_t indent, const char *name) {
+        print_indent(indent);
+        printf("%s: ", name);
+    }
+    inline void print_attr_end(const int16_t indent) { printf((indent >= 0) ? ",\n" : ", "); }
+#endif
+
+    // the attributes of a message: ETs = ETN<attribute type, index>... (one function per
+    // message and operation)
+    template<typename ...> struct MessageFold;
+    template<typename ... ETs> struct MessageFold<bitis_helper::Collector<ETs ...>> {
+        template<typename Msg_STRUCT>
+        static void serialize(const Msg_STRUCT *d, BitisSerializer &ser) {
+            (static_cast<const MessageAttribute<ETs>*>(d)->value.serialize(ser), ...);
+            (void) d; (void) ser;
+        }
+        template<typename Msg_STRUCT>
+        static void read_into(Msg_STRUCT *d, BitisDeserializer &des) {
+            (bitis_helper::read_into(static_cast<MessageAttribute<ETs>*>(d)->value, des), ...);
+            (void) d; (void) des;
+        }
+#ifndef BITIS_NO_PRINT
+        template<typename Msg_STRUCT>
+        static void print(const Msg_STRUCT *d, int16_t indent, const char * const *attr_names) {
+            ((print_attr_begin(indent, attr_names[ETs::id::value]),
+              static_cast<const MessageAttribute<ETs>*>(d)->value.print(indent),
+              print_attr_end(indent)), ...);
+            (void) d; (void) indent; (void) attr_names;
+        }
+#endif
+    };
+
+    // Note: the attributes are accessed through MsgT, which has to have the same layout
+    // as the generated message struct (attributes first, in declaration order).
     template<typename Msg>
-    size_t msg_serialize(Msg *d, BitisSerializer &ser) {
-        // ReSharper disable once CppCStyleCast
-        auto *dt = (typename Msg::MsgT*) d;
+    size_t msg_serialize(const Msg *d, BitisSerializer &ser) {
+        typedef typename std::remove_const<Msg>::type MsgNC;
+        auto *dt = reinterpret_cast<const typename MsgNC::MsgT*>(d);
 
-        MessageT_ImplStart<typename Msg::MsgT> inner;
-        return inner.serialize(dt, ser);
+        const std::size_t start_bits = ser.total_bits;
+        MessageFold<typename MsgNC::MsgT::AttrList>::serialize(dt, ser);
+        return ser.total_bits - start_bits;
+    }
+    // decodes into a default constructed message
+    template<typename Msg>
+    void msg_read_into(Msg &m, BitisDeserializer &des) {
+        MessageFold<typename Msg::MsgT::AttrList>::read_into(reinterpret_cast<typename Msg::MsgT*>(&m), des);
     }
     template<typename Msg>
-    static bitis_helper::BitiaDeserializerHelper<Msg> msg_deserialize(BitisDeserializer &des) {
+    bitis_helper::BitiaDeserializerHelper<Msg> msg_deserialize(BitisDeserializer &des) {
+        const std::size_t start_bits = des.consumed_bits();
         Msg buffer;
-        // ReSharper disable once CppCStyleCast
-        auto *dt = (typename Msg::MsgT*) &buffer;
-
-        MessageT_ImplStart<typename Msg::MsgT> inner;
-        auto r = inner.deserialize(dt, des);
-
-        return bitis_helper::BitiaDeserializerHelper<Msg>(
-            // ReSharper disable once CppCStyleCast
-            bitis_helper::BitiaDeserializerHelper<Msg>{.bits=r, .data = *((Msg*)dt)});
+        msg_read_into(buffer, des);
+        return bitis_helper::BitiaDeserializerHelper<Msg>{des.consumed_bits() - start_bits, std::move(buffer)};
+    }
+#ifndef BITIS_NO_PRINT
+    template<typename Msg>
+    void msg_print(const Msg *d, int16_t indent, const char * const *attr_names) {
+        typedef typename std::remove_const<Msg>::type MsgNC;
+        MessageFold<typename MsgNC::MsgT::AttrList>::print(reinterpret_cast<const typename MsgNC::MsgT*>(d),
+            indent, attr_names);
+    }
+#else
+    template<typename Msg>
+    void msg_print(const Msg *, int16_t, const char * const *) { }
+#endif
+    template<typename Msg>
+    constexpr std::size_t msg_min_bits() {
+        return MessageMinBits<typename Msg::MsgT>::value();
     }
     template<typename Msg>
-    void msg_print(Msg *d, int16_t indent, const char **attr_names) {
-        // ReSharper disable once CppCStyleCast
-        auto *dt = (typename Msg::MsgT*) d;
-        MessageT_ImplStart<typename Msg::MsgT> inner;
-        return inner.print(dt, indent, attr_names);
+    constexpr std::size_t msg_max_bits() {
+        return MessageMaxBits<typename Msg::MsgT>::value();
     }
 }
 
@@ -1052,188 +1902,392 @@ namespace oneof_helper {
     template<typename T, typename... Ts> struct MaxSizeof<T, Ts...> {
       static constexpr size_t value = std::max(sizeof(T), MaxSizeof<Ts...>::value);
     };
+    template<typename...> struct MaxAlignof;
+    template<typename T> struct MaxAlignof<T> {
+        static constexpr size_t value = alignof(T);
+    };
+    template<typename T, typename... Ts> struct MaxAlignof<T, Ts...> {
+      static constexpr size_t value = std::max(alignof(T), MaxAlignof<Ts...>::value);
+    };
 
-    template<typename ...> struct UnionT;
+    // Tagged storage for the value of a oneof. Holds at most one object of one of
+    // the types Ts (properly aligned, constructed, copied, moved and destroyed).
+    // get<T>() of a type that is not stored (e.g. a default constructed oneof)
+    // replaces the content by a default constructed T (that is why the storage is
+    // mutable): a oneof therefore always has a value for its selected variant.
     template<typename ... Ts>
     struct UnionT {
+        static_assert(sizeof...(Ts) > 0, "UnionT needs at least one type");
+        static_assert(sizeof...(Ts) < 255, "UnionT supports at most 254 types");
     private:
-        uint8_t data[MaxSizeof<Ts ...>::value] = {};
-    public:
+        static constexpr uint8_t EMPTY = 0;
 
-		template<typename T>
-        void set(T &v) {
-            static_assert(ContainsType<T, bitis_helper::Collector<Ts...>>::value);
-            *((T*)data) = v;
+        alignas(MaxAlignof<Ts...>::value) mutable unsigned char data[MaxSizeof<Ts ...>::value];
+        mutable uint8_t active;   // 0: empty, otherwise index of the stored type + 1
+
+        template<std::size_t I> using TypeAt = typename std::tuple_element<I, std::tuple<Ts...>>::type;
+
+        template<typename T>
+        static constexpr uint8_t index_of() {
+            constexpr bool matches[] = {std::is_same<T, Ts>::value...};
+            for (std::size_t i = 0; i < sizeof...(Ts); i++) {
+                if (matches[i]) { return static_cast<uint8_t>(i); }
+            }
+            return static_cast<uint8_t>(sizeof...(Ts));
+        }
+        template<typename T> T *ptr() const { return std::launder(reinterpret_cast<T*>(data)); }
+
+        template<typename T> static void destroy_obj(T *p) { p->~T(); }
+        template<std::size_t ... Is>
+        void destroy(std::index_sequence<Is...>) const {
+            ((active == Is + 1 ? destroy_obj(ptr<TypeAt<Is>>()) : (void) 0), ...);
+        }
+        template<std::size_t ... Is>
+        void copy_from(const UnionT &other, std::index_sequence<Is...>) {
+            ((other.active == Is + 1 ? (void) (::new (static_cast<void*>(data)) TypeAt<Is>(*other.template ptr<TypeAt<Is>>()), active = static_cast<uint8_t>(Is + 1))
+                : (void) 0), ...);
+        }
+        template<std::size_t ... Is>
+        void move_from(UnionT &other, std::index_sequence<Is...>) {
+            ((other.active == Is + 1 ? (void) (::new (static_cast<void*>(data)) TypeAt<Is>(std::move(*other.template ptr<TypeAt<Is>>())), active = static_cast<uint8_t>(Is + 1))
+                : (void) 0), ...);
+        }
+        void reset_impl() const {
+            destroy(std::index_sequence_for<Ts...>{});
+            active = EMPTY;
+        }
+
+    public:
+        UnionT() noexcept : active(EMPTY) { }
+        UnionT(const UnionT &other) : active(EMPTY) { copy_from(other, std::index_sequence_for<Ts...>{}); }
+        UnionT(UnionT &&other) noexcept((std::is_nothrow_move_constructible<Ts>::value && ...)) : active(EMPTY) {
+            move_from(other, std::index_sequence_for<Ts...>{});
+        }
+        UnionT &operator=(const UnionT &other) {
+            if (this != &other) {
+                if (other.active == EMPTY) { reset_impl(); }
+                else {
+                    UnionT tmp(other);   // other may be part of the stored value
+                    reset_impl();
+                    move_from(tmp, std::index_sequence_for<Ts...>{});
+                }
+            }
+            return *this;
+        }
+        UnionT &operator=(UnionT &&other) noexcept((std::is_nothrow_move_constructible<Ts>::value && ...)) {
+            if (this != &other) {
+                reset_impl();
+                move_from(other, std::index_sequence_for<Ts...>{});
+            }
+            return *this;
+        }
+        ~UnionT() { reset_impl(); }
+
+        void reset() { reset_impl(); }
+        bool has_value() const { return active != EMPTY; }
+        template<typename T>
+        bool holds() const {
+            static_assert(ContainsType<T, bitis_helper::Collector<Ts...>>::value, "Type not part of the oneof");
+            return active == index_of<T>() + 1;
+        }
+
+        template<typename T, typename ... Args>
+        T &emplace(Args && ... args) {
+            static_assert(ContainsType<T, bitis_helper::Collector<Ts...>>::value, "Type not part of the oneof");
+            if constexpr (sizeof...(Args) == 0) {
+                reset_impl();
+                ::new (static_cast<void*>(data)) T();
+            }
+            else {
+                T tmp(std::forward<Args>(args)...);   // args may refer to the stored value
+                reset_impl();
+                ::new (static_cast<void*>(data)) T(std::move(tmp));
+            }
+            active = static_cast<uint8_t>(index_of<T>() + 1);
+            return *ptr<T>();
+        }
+
+        template<typename V>
+        void set(V &&v) {
+            typedef typename std::decay<V>::type T;
+            static_assert(ContainsType<T, bitis_helper::Collector<Ts...>>::value, "Type not part of the oneof");
+            if (holds<T>()) { *ptr<T>() = std::forward<V>(v); }
+            else { emplace<T>(std::forward<V>(v)); }
         }
         template<typename T>
         T *get() const {
-            static_assert(ContainsType<T, bitis_helper::Collector<Ts...>>::value);
-            return (T*)data;
+            static_assert(ContainsType<T, bitis_helper::Collector<Ts...>>::value, "Type not part of the oneof");
+            if (!holds<T>()) {
+                reset_impl();
+                ::new (static_cast<void*>(data)) T();
+                active = static_cast<uint8_t>(index_of<T>() + 1);
+            }
+            return ptr<T>();
         }
     };
-    /*template<typename ...> struct UnionT;
-    template<typename ... Ts>
-    struct UnionDynSizeT {
-    private:
-        // uint8_t data[MaxSizeof<Ts ...>::value] = {};
-		uint8_t *data;
-    public:
-		UnionDynSizeT() : data(nullptr) { }
-		~UnionDynSizeT() { delete [] data; data = nullptr;  }
 
-		template<typename T>
-        void set(T &v) {
-            static_assert(ContainsType<T, bitis_helper::Collector<Ts...>>::value);
-			delete [] data;
-			data = new uint8_t[sizeof(T)];
-            *((T*)data) = v;
-        }
-        template<typename T>
-        T *get() const {
-            static_assert(ContainsType<T, bitis_helper::Collector<Ts...>>::value);
-            return (T*)data;
-        }
-    };*/
-
-    template<typename ...> struct OneOfT_Impl;
-    template<typename OOT_STRUCT, typename T, typename ... Ts>
-    struct OneOfT_Impl<OOT_STRUCT, bitis_helper::Collector<T, Ts ...>> {
-        size_t serialize(OOT_STRUCT *d, BitisSerializer &ser) {
-            // ReSharper disable once CppCStyleCast
-            auto data_pointer = d->template get_oo<T>();
-            if (data_pointer) {
-                // ReSharper disable once CppCStyleCast
-                const std::size_t r = data_pointer->serialize(ser);
-                //printf("inner bits: %lu\n", r);
-                return r;
-            }
-            OneOfT_Impl<OOT_STRUCT, bitis_helper::Collector<Ts ...>> inner;
-            return inner.serialize(d, ser);
-        }
-        size_t deserialize_union(OOT_STRUCT *d, BitisDeserializer &des) {
-            auto data_pointer = d->template get_oo<typename remove_const<T>::type>();
-            if (data_pointer) {
-                auto r = T::OOType::deserialize(des);
-                //d->oo_value.set(r.data);
-                d->template set_oo<T>(r.data);
-                return r.bits;
-            }
-            OneOfT_Impl<OOT_STRUCT, bitis_helper::Collector<Ts ...>> inner;
-            return inner.deserialize_union(d, des);
-        }
-        void oneof_print(OOT_STRUCT *d, int16_t indent) {
-            auto data_pointer = d->template get_oo<typename remove_const<T>::type>();
-            if (data_pointer) {
-                data_pointer->print(indent);
-                return;
-            }
-            OneOfT_Impl<OOT_STRUCT, bitis_helper::Collector<Ts ...>> inner;
-            return inner.oneof_print(d, indent);
-        }
-        bool is_equal(const OOT_STRUCT *self, const OOT_STRUCT *other) const {
-            auto data_pointer_self = self->template get_oo<typename remove_const<T>::type>();
-            auto data_pointer_other = other->template get_oo<typename remove_const<T>::type>();
-            if (data_pointer_self || data_pointer_other) {
-                if (data_pointer_self==nullptr || data_pointer_other==nullptr) {
-                    return false; }
-                return data_pointer_self->is_equal(*data_pointer_other);
-            }
-            OneOfT_Impl<OOT_STRUCT, bitis_helper::Collector<Ts ...>> inner;
-            return inner.is_equal(self, other);
+    template<typename ...> struct OneOfMinBits;
+    template<typename T> struct OneOfMinBits<bitis_helper::Collector<T>> {
+        static constexpr std::size_t value() { return bitis_min_bits<typename T::OOType>(); }
+    };
+    template<typename T, typename ... Ts> struct OneOfMinBits<bitis_helper::Collector<T, Ts ...>> {
+        static constexpr std::size_t value() {
+            return std::min(bitis_min_bits<typename T::OOType>(), OneOfMinBits<bitis_helper::Collector<Ts...>>::value());
         }
     };
-    template<typename OOT_STRUCT>
-    struct OneOfT_Impl<OOT_STRUCT, bitis_helper::Collector<>> {
-        // ReSharper disable once CppMemberFunctionMayBeStatic
-        size_t serialize(OOT_STRUCT *, BitisSerializer &) { return 0; }
-        size_t deserialize_union(OOT_STRUCT *, BitisDeserializer &) { return 0; }
-        void oneof_print(OOT_STRUCT *, int16_t ) { }
-        bool is_equal(const OOT_STRUCT *self, const OOT_STRUCT *other) const  { return false; }
+
+    template<typename ...> struct OneOfMaxBits;
+    template<typename T> struct OneOfMaxBits<bitis_helper::Collector<T>> {
+        static constexpr std::size_t value() { return bitis_max_bits<typename T::OOType>(); }
+    };
+    template<typename T, typename ... Ts> struct OneOfMaxBits<bitis_helper::Collector<T, Ts ...>> {
+        static constexpr std::size_t value() {
+            return std::max(bitis_max_bits<typename T::OOType>(), OneOfMaxBits<bitis_helper::Collector<Ts...>>::value());
+        }
     };
 
-    template<typename ...> struct OneOfT_ImplStart;
+    // the elements of a oneof (one function per oneof and operation); the selector
+    // value is the index into Ts
+    template<typename ...> struct OneOfFold;
     template<typename OOT_STRUCT, typename ... Ts>
-    struct OneOfT_ImplStart<OOT_STRUCT, bitis_helper::Collector<Ts ...>> {
-        size_t serialize(OOT_STRUCT *d, BitisSerializer &ser) {
-            // serialize enum for selected type
-            auto bits_num = d->oo_selector.serialize(ser);
-            //printf("oo_selector bits_num: %lu\n", bits_num);
+    struct OneOfFold<OOT_STRUCT, bitis_helper::Collector<Ts ...>> {
+        template<std::size_t I> using OOType = typename std::tuple_element<I, std::tuple<typename Ts::OOType...>>::type;
+        typedef std::index_sequence_for<Ts...> Idx;
 
-            // serialize selected type
-            OneOfT_Impl<OOT_STRUCT, bitis_helper::Collector<Ts ...>> inner;
-            return bits_num + inner.serialize(d, ser);
+        static std::size_t serialize(const OOT_STRUCT *d, BitisSerializer &ser) {
+            const std::size_t start_bits = ser.total_bits;
+            d->oo_selector.serialize(ser);
+            if (!write_value(d, ser, Idx{})) { ser.set_error(BitisError::ValueOutOfRange); }   // invalid selector
+            return ser.total_bits - start_bits;
         }
-        static bitis_helper::BitiaDeserializerHelper<OOT_STRUCT> deserialize(BitisDeserializer &des) {
-            std::size_t bit_num = 0;
-
-            auto d = OOT_STRUCT();
-            auto r = OOT_STRUCT::T_OOEnum::deserialize(des);
-            bit_num += r.bits;
-            d.oo_selector = r.data;
-
-            OneOfT_Impl<OOT_STRUCT, bitis_helper::Collector<Ts ...>> inner;
-            bit_num += inner.deserialize_union(&d, des);
-            return bitis_helper::BitiaDeserializerHelper<OOT_STRUCT>{.bits=bit_num, .data=d};
+        // d has to be default constructed (selector: default element, no value)
+        static void read_into(OOT_STRUCT &d, BitisDeserializer &des) {
+            d.oo_selector = OOT_STRUCT::T_OOEnum::deserialize(des).data;   // default on error
+            if (!des.has_error() && !read_value(d, des, Idx{})) { des.set_error(BitisError::InvalidDiscriminant); }
         }
-        void oneof_print(OOT_STRUCT *d, int16_t indent) {
+#ifndef BITIS_NO_PRINT
+        static void print(const OOT_STRUCT *d, int16_t indent) {
             d->oo_selector.print(indent);
             printf(" -> ");
-            OneOfT_Impl<OOT_STRUCT, bitis_helper::Collector<Ts ...>> inner;
-            inner.oneof_print(d, indent);
+            if (!print_value(d, indent, Idx{})) { printf("?"); }
         }
-        bool is_equal(const OOT_STRUCT *self, const OOT_STRUCT *other) const {
-            OneOfT_Impl<OOT_STRUCT, bitis_helper::Collector<Ts ...>> inner;
-            return inner.is_equal(self, other);
+#endif
+        static bool is_equal(const OOT_STRUCT *self, const OOT_STRUCT *other) {
+            if (self->oo_selector.value.value != other->oo_selector.value.value) { return false; }
+            return equal_value(self, other, Idx{});
+        }
+
+    private:
+        template<std::size_t ... Is>
+        static bool write_value(const OOT_STRUCT *d, BitisSerializer &ser, std::index_sequence<Is...>) {
+            const uint32_t sel = d->oo_selector.value.value;
+            return ((sel == Is && (d->oo_value.template get<OOType<Is>>()->serialize(ser), true)) || ...);
+        }
+        template<std::size_t ... Is>
+        static bool read_value(OOT_STRUCT &d, BitisDeserializer &des, std::index_sequence<Is...>) {
+            const uint32_t sel = d.oo_selector.value.value;
+            return ((sel == Is && (bitis_helper::read_into(d.oo_value.template emplace<OOType<Is>>(), des), true)) || ...);
+        }
+#ifndef BITIS_NO_PRINT
+        template<std::size_t ... Is>
+        static bool print_value(const OOT_STRUCT *d, int16_t indent, std::index_sequence<Is...>) {
+            const uint32_t sel = d->oo_selector.value.value;
+            return ((sel == Is && (d->oo_value.template get<OOType<Is>>()->print(indent), true)) || ...);
+        }
+#endif
+        template<std::size_t ... Is>
+        static bool equal_value(const OOT_STRUCT *self, const OOT_STRUCT *other, std::index_sequence<Is...>) {
+            const uint32_t sel = self->oo_selector.value.value;
+            bool r = false;
+            (void) ((sel == Is && (r = self->oo_value.template get<OOType<Is>>()->is_equal(
+                *other->oo_value.template get<OOType<Is>>()), true)) || ...);
+            return r;
         }
     };
+    template<typename OOTS> using OneOfFoldFor = OneOfFold<typename std::remove_const<OOTS>::type,
+        typename std::remove_const<OOTS>::type::T_OOEnum::EnumCollector>;
 
     template<typename OOTS>
-    size_t oneof_serialize(OOTS *d, BitisSerializer &ser) {
-        OneOfT_ImplStart<OOTS, typename OOTS::T_OOEnum::EnumCollector> inner;
-        return inner.serialize(d, ser);
+    size_t oneof_serialize(const OOTS *d, BitisSerializer &ser) {
+        return OneOfFoldFor<OOTS>::serialize(d, ser);
     }
 
+    // decodes into a default constructed oneof
+    template<typename OOTS>
+    void oneof_read_into(OOTS &d, BitisDeserializer &des) {
+        OneOfFoldFor<OOTS>::read_into(d, des);
+    }
     template<typename OOTS>
     BitiaDeserializerHelper<OOTS> oneof_deserialize(BitisDeserializer &des) {
-        OneOfT_ImplStart<OOTS, typename OOTS::T_OOEnum::EnumCollector> inner;
-        return inner.deserialize(des);
+        const std::size_t start_bits = des.consumed_bits();
+        OOTS d;
+        oneof_read_into(d, des);
+        return BitiaDeserializerHelper<OOTS>{des.consumed_bits() - start_bits, std::move(d)};
     }
 
+#ifndef BITIS_NO_PRINT
     template<typename OOTS>
-    void oneof_print(OOTS *d, int16_t indent) {
-        // ReSharper disable once CppCStyleCast
-        OneOfT_ImplStart<OOTS, typename OOTS::T_OOEnum::EnumCollector> inner;
-        inner.oneof_print(d, indent);
+    void oneof_print(const OOTS *d, int16_t indent) {
+        OneOfFoldFor<OOTS>::print(d, indent);
     }
+#else
+    template<typename OOTS>
+    void oneof_print(const OOTS *, int16_t) { }
+#endif
 
     template<typename OOTS>
     bool oneof_is_equal(const OOTS *self, const OOTS *other) {
-        // OneOfT_ImplStart<OOTS, typename OOTS::OOEnum::EnumCollector> inner;
-        // return inner.serialize(d, ser);
-        OneOfT_ImplStart<typename remove_const<OOTS>::type,typename OOTS::T_OOEnum::EnumCollector> inner;
-        return inner.is_equal(self, other);
+        return OneOfFoldFor<OOTS>::is_equal(self, other);
+    }
+    template<typename OOTS>
+    constexpr std::size_t oneof_min_bits() {
+        return 1 + OneOfMinBits<typename OOTS::T_OOEnum::EnumCollector>::value();
+    }
+    template<typename OOTS>
+    constexpr std::size_t oneof_max_bits() {
+        return max_bits_add(OOTS::T_OOEnum::max_bits(), OneOfMaxBits<typename OOTS::T_OOEnum::EnumCollector>::value());
     }
 }
 
-
-template<typename T>
-std::vector<uint8_t> serialize(T & msg) {
-    auto ser = BitisSerializer();
-    // auto r = serialize(a, ser);
-    msg.serialize(ser);
-    // auto r = ser.finalize();
-    ser.finalize();
-    return ser.data_cache;
+// ***************************************************************
+namespace bitis_helper {
+    template<typename T, typename = void> struct HasMinBits : std::false_type { };
+    template<typename T> struct HasMinBits<T, std::void_t<decltype(T::min_bits())>> : std::true_type { };
+    template<typename T, typename = void> struct HasMaxBits : std::false_type { };
+    template<typename T> struct HasMaxBits<T, std::void_t<decltype(T::max_bits())>> : std::true_type { };
+    template<typename T, typename = void> struct IsMessage : std::false_type { };
+    template<typename T> struct IsMessage<T, std::void_t<typename T::MsgT>> : std::true_type { };
+    template<typename T, typename = void> struct IsOneOf : std::false_type { };
+    template<typename T> struct IsOneOf<T, std::void_t<typename T::T_OOEnum>> : std::true_type { };
 }
 
+template<typename T> constexpr std::size_t bitis_min_bits() {
+    if constexpr (bitis_helper::HasMinBits<T>::value) { return T::min_bits(); }
+    else if constexpr (bitis_helper::IsMessage<T>::value) { return message_helper::msg_min_bits<T>(); }
+    else if constexpr (bitis_helper::IsOneOf<T>::value) { return oneof_helper::oneof_min_bits<T>(); }
+    else {
+        static_assert(bitis_helper::dependent_false<T>::value, "bitis_min_bits(): not a bitis type");
+        return 0;
+    }
+}
+template<typename T> constexpr std::size_t bitis_max_bits() {
+    if constexpr (bitis_helper::HasMaxBits<T>::value) { return T::max_bits(); }
+    else if constexpr (bitis_helper::IsMessage<T>::value) { return message_helper::msg_max_bits<T>(); }
+    else if constexpr (bitis_helper::IsOneOf<T>::value) { return oneof_helper::oneof_max_bits<T>(); }
+    else {
+        static_assert(bitis_helper::dependent_false<T>::value, "bitis_max_bits(): not a bitis type");
+        return 0;
+    }
+}
+namespace bitis_helper {
+    template<typename T, typename = void> struct HasReadInto : std::false_type { };
+    template<typename T> struct HasReadInto<T, std::void_t<decltype(std::declval<T&>().read_into(
+        std::declval<BitisDeserializer&>()))>> : std::true_type { };
+
+    template<typename T> void read_into(T &v, BitisDeserializer &des) {
+        if constexpr (IsMessage<T>::value) { message_helper::msg_read_into(v, des); }
+        else if constexpr (IsOneOf<T>::value) { oneof_helper::oneof_read_into(v, des); }
+        else if constexpr (HasReadInto<T>::value) { v.read_into(des); }
+        else { v = T::deserialize(des).data; }
+    }
+}
+template<typename T> constexpr std::size_t bitis_max_bytes() {
+    constexpr std::size_t bits = bitis_max_bits<T>();
+    return (bits == BITIS_UNBOUNDED) ? BITIS_UNBOUNDED : bits / 8 + ((bits % 8 != 0) ? 1 : 0);
+}
+
+// ***************************************************************
+// Legacy API: serialize truncates out-of-range values silently.
+template<typename T>
+std::vector<uint8_t> serialize(const T & msg) {
+    auto ser = BitisSerializer();
+    msg.serialize(ser);
+    ser.finalize();
+    return std::move(ser.data_cache);
+}
+
+// Legacy API: on any decoding error {bits = 0, data = T()} is returned.
 template<typename T>
 bitis_helper::BitiaDeserializerHelper<T> deserialize_with_size(const std::vector<uint8_t>& data) {
-    auto des = BitisDeserializer(data);
+    auto des = BitisDeserializer(data.data(), data.size());
     auto dd = T::deserialize(des);
+    if (des.has_error()) {
+        return bitis_helper::BitiaDeserializerHelper<T>{0, T()};
+    }
     return dd;
 }
+// Legacy API: on any decoding error T() is returned.
 template<typename T>
 T deserialize(const std::vector<uint8_t>& data) {
     return deserialize_with_size<T>(data).data;
 }
 
+// ***************************************************************
+// Fallible API (bitis 0.11)
+
+// Encodes msg into out (replacing its content). Returns ValueOutOfRange (and clears
+// out) if a value does not fit its declared type.
+template<typename T>
+BitisError try_serialize(const T &msg, std::vector<uint8_t> &out, BitisSize *size = nullptr) {
+    auto ser = BitisSerializer();
+    msg.serialize(ser);
+    const auto s = ser.finalize();
+    if (ser.has_error()) {
+        out.clear();
+        return ser.error;
+    }
+    out = std::move(ser.data_cache);
+    if (size) { *size = s; }
+    return BitisError::Ok;
+}
+
+// Encodes msg into buf (cap bytes). Returns BufferTooSmall if the message needs more
+// than cap bytes (size then receives the needed size; the content of buf is undefined)
+// and ValueOutOfRange if a value does not fit its declared type. The bit stream is the
+// same as with the vector variant; bitis_max_bytes<T>() bytes always suffice.
+template<typename T>
+BitisError try_serialize(const T &msg, uint8_t *buf, const std::size_t cap, BitisSize *size = nullptr) {
+    BitisSerializer ser(buf, cap);
+    msg.serialize(ser);
+    const auto s = ser.finalize();
+    if (size && (!ser.has_error() || ser.error == BitisError::BufferTooSmall)) { *size = s; }
+    return ser.error;
+}
+
+// Decodes a T from the start of data. Trailing bytes are ignored; size receives the
+// consumed bits / bytes. out is only modified on success.
+template<typename T>
+BitisError try_deserialize(const uint8_t *data, const std::size_t len, T &out, BitisSize *size = nullptr) {
+    auto des = BitisDeserializer(data, len);
+    auto r = T::deserialize(des);
+    if (des.has_error()) { return des.get_error(); }
+    out = std::move(r.data);
+    if (size) {
+        const std::size_t bits = des.consumed_bits();
+        *size = BitisSize{bits, (bits + 7) / 8};
+    }
+    return BitisError::Ok;
+}
+template<typename T>
+BitisError try_deserialize(const std::vector<uint8_t> &data, T &out, BitisSize *size = nullptr) {
+    return try_deserialize<T>(data.data(), data.size(), out, size);
+}
+
+// Like try_deserialize() but fails with TrailingData if data is longer than the message.
+template<typename T>
+BitisError try_deserialize_exact(const uint8_t *data, const std::size_t len, T &out, BitisSize *size = nullptr) {
+    auto des = BitisDeserializer(data, len);
+    auto r = T::deserialize(des);
+    if (des.has_error()) { return des.get_error(); }
+    const std::size_t bits = des.consumed_bits();
+    if ((bits + 7) / 8 != len) { return BitisError::TrailingData; }
+    out = std::move(r.data);
+    if (size) { *size = BitisSize{bits, (bits + 7) / 8}; }
+    return BitisError::Ok;
+}
+template<typename T>
+BitisError try_deserialize_exact(const std::vector<uint8_t> &data, T &out, BitisSize *size = nullptr) {
+    return try_deserialize_exact<T>(data.data(), data.size(), out, size);
+}
+
+#endif // BITIS_LIB_H

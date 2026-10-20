@@ -1,14 +1,14 @@
 {%~ if ca.base.is_optional -%}BitisOptional<{%- endif -%}
 {%- if let Some(repeated_type) = ca.base.is_repeated_and_size -%}
 {%- match repeated_type -%}
-{%- when DynOrFixedType::Dyn(_) ~%}DynArray<
+{%- when DynOrFixedType::Dyn(_) ~%}{%- if ca.base.repeated_max_len.is_some() -%}BoundedDynArray<{%- else -%}DynArray<{%- endif -%}
 {%- when DynOrFixedType::Fixed with (s) ~%}FixedArray<
 {%- endmatch -%}
 {%- endif -%}
 {{ ca.rust_type_str|safe }}
 {%- if let Some(repeated_type) = ca.base.is_repeated_and_size -%}
 {%- match repeated_type -%}
-{%- when DynOrFixedType::Dyn(s) -%},{{s}}>
+{%- when DynOrFixedType::Dyn(s) -%},{{s}}{%- if let Some(m) = ca.base.repeated_max_len -%},{{m}}{%- endif -%}>
 {%- when DynOrFixedType::Fixed with (s) -%},{{s}}>
 {%- endmatch -%}
 {%- endif -%}

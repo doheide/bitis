@@ -1,0 +1,151 @@
+// bitis golden vector schema (see golden/README.md).
+//
+// One schema that covers every type, modifier and edge of the wire format
+// (docs/WIRE_FORMAT.md). The expected bytes in golden/vectors/manifest.txt are
+// produced from it by the Rust reference runtime (golden/gen_rust). Changing this
+// file changes the vectors: regenerate the code and the manifest (golden/README.md).
+
+// ***** enums
+// dyn bits 2 with 6 variants: indices 4 and 5 need a continuation chunk
+enum Color(2) {
+  Red, *Green, Blue, Cyan, Magenta, Yellow
+}
+// dyn bits 1
+enum Level(1) {
+  *Low, Mid, High
+}
+
+// ***** an empty message (0 bits)
+msg Empty {
+}
+
+// ***** fixed size integers (spec 2.1 - 2.3)
+msg Ints {
+  bool flag;
+  uint_1 val_u1;
+  uint_7 val_u7;
+  uint_32 val_u32;
+  uint_33 val_u33;
+  uint_63 val_u63;
+  uint_64 val_u64;
+  int_1 val_i1;
+  int_7 val_i7;
+  int_16 val_i16;
+  int_32 val_i32;
+  int_33 val_i33;
+  int_64 val_i64;
+}
+
+// ***** dynamic integers (spec 2.4, 2.5)
+msg DynInts {
+  uint_8d3 val_u8d3;
+  uint_32d4 val_u32d4;
+  uint_64d64 val_u64d64;
+  uint_64d7 val_u64d7;
+  int_16d5 val_i16d5;
+  int_64d8 val_i64d8;
+}
+
+// ***** IEEE floating point (spec 2.6)
+msg Floats {
+  float val_f32;
+  double val_f64;
+}
+
+// ***** fixed precision (spec 2.7); lat / lng are the GNSS types of the project
+msg FixedPoints {
+  fp_2[0,1] fp2;
+  fp_10[-2,3] fp10;
+  fp_34[-90,90] lat;
+  fp_35[-180,180] lng;
+  fp_53[-1000000,1000000] fp53;
+}
+
+// ***** strings and binary data (spec 2.8, 2.9)
+msg Texts {
+  astr_d4 text;
+  binary_d4 data;
+}
+
+// ***** nesting: Nested -> Mid -> Leaf (three levels)
+msg Leaf {
+  int_7 val;
+  astr_d4 tag;
+}
+msg Mid {
+  uint_7 id;
+  Leaf leaf;
+  optional Leaf extra;
+}
+msg Nested {
+  Mid mid;
+  bool after;
+}
+
+// ***** modifiers (spec 2.10 - 2.12)
+msg Containers {
+  optional uint_7 opt_u7;
+  optional Leaf opt_leaf;
+  optional astr_d4 opt_text;
+  optional Color opt_color;
+  repeated_fixed_3 int_7 fixed_ints;
+  repeated_fixed_2 Leaf fixed_leaves;
+  repeated_dyn_3 uint_7 dyn_ints;
+  repeated_dyn_4 bool dyn_flags;
+  repeated_dyn_2 astr_d4 dyn_texts;
+  repeated_dyn_2 Leaf dyn_leaves;
+}
+
+// ***** enums (spec 2.13)
+msg Enums {
+  Color color;
+  Level level;
+  repeated_dyn_3 Color colors;
+}
+
+// ***** oneof (spec 2.14); modifiers are not allowed inside a oneof, so the
+// repeated variant is wrapped in a message
+msg IntList {
+  repeated_dyn_3 int_7 items;
+}
+msg Choice {
+  oneof value(2) {
+    *bool flag;
+    double num;
+    astr_d4 text;
+    Leaf leaf;
+    IntList list;
+    Empty nothing;
+    int_32d7 big;
+  }
+  bool tail;
+}
+
+// ***** maximum lengths [M] (spec 2.16); kept out of Everything so that the
+// vectors of the other messages did not change when bounds were added (0.11)
+msg BoundsItem {
+  uint_4 val;
+  optional astr_d2[3] label;
+}
+msg Bounds {
+  astr_d4[8] name;
+  binary_d3[4] blob;
+  repeated_dyn_2[3] astr_d2[2] tags;
+  optional astr_d4[5] note;
+  repeated_dyn_3[2] BoundsItem items;
+}
+
+// ***** everything at once
+msg Everything {
+  Ints ints;
+  DynInts dyn_ints;
+  Floats floats;
+  FixedPoints fixed_points;
+  Texts texts;
+  Containers containers;
+  Enums enums;
+  Choice choice;
+  Nested nested;
+  Empty empty;
+  uint_3 tail;
+}

@@ -5,7 +5,7 @@
 {%- when DynOrFixedType::Fixed with (s) ~%}[
 {%- endmatch -%}
 {%- endif -%}
-{{ ca.rust_type_str|safe }}
+{{ ca.rust_type_str }}
 {%- if let Some(repeated_type) = ca.base.is_repeated_and_size -%}
 {%- match repeated_type -%}
 {%- when DynOrFixedType::Dyn(_) -%}>

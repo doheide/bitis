@@ -1,1 +1,1 @@
-/home/dheide/source/common/bitis/test_cases/t_simple_msg/main.rs
+../../../t_simple_msg/main.rs

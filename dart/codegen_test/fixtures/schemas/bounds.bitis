@@ -1,0 +1,22 @@
+// Maximum lengths [M] (docs/WIRE_FORMAT.md section 2.16).
+enum Color(2) { *Red, Green, Blue }
+
+msg Item {
+  uint_4 a;
+  astr_d2[3] tag;
+}
+
+msg Bounded {
+  astr_d4[5] name;
+  binary_d3[4] data;
+  repeated_dyn_2[3] astr_d4[2] tags;
+  optional astr_d4[6] note;
+  repeated_fixed_2 binary_d2[2] pair;
+  repeated_dyn_1[2] Item items;
+  oneof choice(1) { *astr_d3[4] text; Color color; }
+}
+
+msg Unbounded {
+  astr_d4 s;
+  optional Bounded b;
+}

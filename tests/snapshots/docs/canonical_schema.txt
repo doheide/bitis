@@ -1,0 +1,4 @@
+bitis-schema-v1
+msg Documented{uint_4 value;Kind kind;oneof sel(2){*bool flag;uint_3 num;};}
+enum Kind(2){*KindA,KindB}
+18fe2976a5287710

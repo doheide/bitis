@@ -1,0 +1,22 @@
+// Test schema for the bounded containers of the C++ runtime (spec 2.16). Regenerate
+// gen/test_bounds.h with
+//   bitis compile -l cpp -i test_bounds.bitis -o gen/test_bounds.h --prevent-write-bitis-header-lib
+// (gen/test_bounds.h includes "bitis_lib.h" from cpp_lib/)
+
+enum BColor(2) { *Red, Green, Blue }
+
+msg BLeaf {
+  uint_4 v;
+}
+
+msg Bounded {
+  astr_d4[8] name;
+  binary_d3[4] blob;
+  repeated_dyn_2[3] astr_d4[5] tags;
+  optional astr_d2[6] note;
+  repeated_fixed_2 binary_d2[3] pair;
+  repeated_dyn_1[2] BLeaf leaves;
+  repeated_dyn_2[4] BColor colors;
+  oneof choice(1) { *astr_d3[4] text; binary_d4[2] raw; BLeaf leaf; }
+  bool tail;
+}

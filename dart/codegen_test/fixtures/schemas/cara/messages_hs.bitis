@@ -1,0 +1,33 @@
+
+// *********************************************************************************************
+// *********************************************************************************************
+msg DTS_DeviceAuthHandshake {
+  uint_27 device_id;
+  uint_3 device_protocol_version;
+  uint_1 reserved;
+  uint_1 MUST_BE_ONE;
+}
+msg DTS_DeviceSendChallengeResponse {
+  uint_12 challenge_response;
+  bool do_send_time;
+  bool do_send_all_params;
+  uint_1 reserved;
+  uint_1 MUST_BE_ONE;
+}
+// ***
+enum STD_HandshakeError_Enum(3) {
+  *UnknownDevice, ChallengeNotOk, TryAgainLater, TimeOut, InternalError, UnexpectedData
+}
+msg STD_ResponseHandshakeOk {
+  uint_3 connection_timeout;
+}
+
+msg STD_ResponseGreeting { }
+
+msg STD_HandshakeResponse {
+  oneof value(2) {
+	*STD_ResponseGreeting greeting;
+    STD_ResponseHandshakeOk handshake_ok;
+    STD_HandshakeError_Enum err;
+  }
+}

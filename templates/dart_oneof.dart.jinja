@@ -1,0 +1,61 @@
+
+{% if let Some(c) = oo.comment %}{{ c|dart_doc(0) }}
+///
+{% endif %}/// Oneof `{{ oo.bitis_name }}` of message [{{ oo.msg_name }}]; one subclass per
+/// element.
+{{ oo.class_header }}
+  /// Constructor of the subclasses.
+  const {{ oo.name }}();
+
+  /// The default element (marked with `*` in the schema) with its default
+  /// value.
+{{ oo.default_decl }}
+
+  /// Reads the element index and the value.
+{{ oo.read }}
+
+  /// Parses the JSON representation `{"element": value}`.
+{{ oo.from_json }}
+
+  /// Writes the element index and the value.
+  void bitisWrite(BitWriter w);
+
+  /// JSON representation `{"element": value}`.
+  Map<String, Object?> toJson();
+}
+{%- for v in oo.variants %}
+
+{% if let Some(c) = v.comment %}{{ c|dart_doc(0) }}
+///
+{% endif %}/// Element `{{ v.bitis_name }}` (index {{ v.index }}) of [{{ oo.name }}].
+{{ v.class_header }}
+  /// Creates the element; [value] defaults to the default of its type.
+{{ v.ctor }}
+{%- if let Some(fp) = v.field.fp_const %}
+
+  /// Fixed point type of [value].
+{{ fp }}
+{%- endif %}
+
+  /// The value (`{{ v.field.schema }}`).
+{{ v.field.decl }}
+
+  @override
+  void bitisWrite(BitWriter w) {
+{{ v.write_index }}
+{{ v.write_value }}
+  }
+
+  @override
+{{ v.to_json }}
+
+  @override
+{{ v.eq }}
+
+  @override
+{{ v.hash }}
+
+  @override
+{{ v.to_string }}
+}
+{%- endfor %}

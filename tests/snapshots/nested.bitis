@@ -1,0 +1,18 @@
+// Declaration order differs from the dependency order (C++ needs dependencies first),
+// nested oneofs, enums used in oneofs, single letter identifiers.
+msg Top {
+  Middle m;
+  oneof outer(2) {
+    *Leaf leaf;
+    oneof inner(1) {
+      *bool x;
+      E e;
+    }
+  }
+}
+msg Middle {
+  repeated_dyn_2 Leaf leaves;
+  optional E e;
+}
+msg Leaf { uint_2 v; }
+enum E(1) { *A, B }

@@ -6,28 +6,66 @@
 pub mod msg_test;
 pub mod lib_impl;
 
+// allows the derive macros to refer to `::bitis_lib::...` inside this crate as well
+extern crate self as bitis_lib;
+
 pub use lib_impl::berde::*;
 pub use lib_impl::compiler::*;
+pub use lib_impl::crc32::{crc32, Crc32};
 pub use bitis_macros::{BiserdiMsg, BiserdiOneOf, BiserdiEnum};
 pub use std::result;
 
 
 
+/// Serializes `data`.
+///
+/// Legacy behaviour: integer values outside their declared range are silently truncated to
+/// the declared width. Use [`try_serialize`] to get an error instead.
 pub fn serialize<T: BiserdiTrait>(data: &T) -> (Vec<u8>, BiserSizes){
     let mut ser = Biseri::new();
 
     data.bit_serialize(&mut ser);
     let r = ser.finish_add_data().unwrap();
-    // println!("bits: {}, bytes: {}", r.total_bits, r.total_bytes);
 
-    (ser.get_data().to_owned(), r)
+    (ser.into_data(), r)
 }
+/// Deserializes a `T` from the start of `data`; returns `None` on every error (see
+/// [`try_deserialize`] for the reason). Trailing bytes are ignored.
 pub fn deserialize<T: BiserdiTrait>(data: &Vec<u8>) -> Option<(T, BiserSizes)> {
-    let mut der = Bides::from_vec(data);
+    try_deserialize(data).ok()
+}
 
-    let (v, bits) = T::bit_deserialize(1, &mut der)?;
-    let bytes_num = (bits >> 3) + if bits & 7 != 0 { 1 } else { 0 };
-    Some((v, BiserSizes{total_bits: bits, total_bytes: bytes_num}))
+/// Serializes `data`; fails with [`EncodeError::ValueOutOfRange`] if a value does not fit its
+/// declared width (instead of truncating it like [`serialize`]).
+pub fn try_serialize<T: BiserdiTrait>(data: &T) -> Result<(Vec<u8>, BiserSizes), EncodeError> {
+    let mut ser = Biseri::new();
+
+    let r = data.bit_serialize(&mut ser);
+    if let Some(e) = ser.error() { return Err(e); }
+    if r.is_none() { return Err(EncodeError::ValueOutOfRange); }
+    let sizes = ser.finish_add_data().ok_or(EncodeError::ValueOutOfRange)?;
+
+    Ok((ser.into_data(), sizes))
+}
+/// Deserializes a `T` from the start of `data`. Trailing bytes are ignored; the returned sizes
+/// are the bits/bytes consumed (`total_bytes = ceil(total_bits / 8)`).
+pub fn try_deserialize<T: BiserdiTrait>(data: &[u8]) -> Result<(T, BiserSizes), DecodeError> {
+    let mut der = Bides::from_slice(data);
+
+    match T::bit_deserialize(1, &mut der) {
+        Some((v, _)) => {
+            let bits = der.position_bits();
+            Ok((v, BiserSizes{total_bits: bits, total_bytes: bits.div_ceil(8)}))
+        }
+        None => Err(der.error().unwrap_or(DecodeError::InvalidValue)),
+    }
+}
+/// Like [`try_deserialize`], but fails with [`DecodeError::TrailingData`] if `data` is longer
+/// than `ceil(total_bits / 8)` bytes. Padding bits are not checked.
+pub fn try_deserialize_exact<T: BiserdiTrait>(data: &[u8]) -> Result<T, DecodeError> {
+    let (v, sizes) = try_deserialize::<T>(data)?;
+    if (data.len() as u64) > sizes.total_bytes { return Err(DecodeError::TrailingData); }
+    Ok(v)
 }
 
 

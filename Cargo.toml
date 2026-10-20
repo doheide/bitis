@@ -1,6 +1,6 @@
 [package]
 name = "bitis"
-version = "0.10.5"
+version = "0.11.0"
 edition = "2024"
 license = "MIT"
 keywords = ["interface", "serialization", "bitwise", "DSL"]
@@ -26,10 +26,12 @@ stringcase = "0.4.0"
 clap = { version = "4.5.30", features = ["derive", "string", "cargo", "color", "help"] }
 console = "0.15.11"
 toml_edit = "0.22.24"
+indexmap = "2.7"
+sha2 = "0.10"
 # bitis-macros = "0.5.3"
 array-init = "2.1"
 ascii = "1.1.0"
-bitis-macros = "0.10.4"
+bitis-macros = { version = "0.11.0", path = "./bitis-macros" }
 #bitis-macros = { path = "./bitis-macros" }
 
 
@@ -38,4 +40,6 @@ bitis-macros = "0.10.4"
 
 [dev-dependencies]
 rstest = "0.25.0"
+# used by the generated code compiled in tests/golden.rs
+strum_macros = "0.27.2"
 

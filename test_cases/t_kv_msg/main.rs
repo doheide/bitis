@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::env;
 use std::process::ExitCode;
 use ascii::AsciiString;
-use bitis_lib::{BitisAString, DynArray, IntegerBaseFunctions, VarWithGivenBitSize};
+use bitis_lib::BitisAString;
 use messages::*;
 
 fn main() -> ExitCode {

@@ -3,17 +3,19 @@
 use bitis_lib::*;
 use strum_macros::AsRefStr;
 
+/// Version of the bitis compiler that generated this file.
+pub const BITIS_VERSION: &str = "{{ bitis_version }}";
+/// Schema hash: first 8 bytes of SHA-256 over the canonical schema (see bitis docs/WIRE_FORMAT.md).
+pub const BITIS_SCHEMA_HASH: u64 = 0x{{ schema_hash }};
+
 // Enums
-{%+ for ce in d.enums ~%}
-{%- if let Some(comment_impl) = ce.comment -%}
-///{{comment_impl}}
-{%- endif -%}
-#[derive(BiserdiEnum, Debug, Clone, PartialEq, Copy, Default, AsRefStr)]
+{%+ for ce in d.enums -%}
+{% if let Some(c) = ce.comment %}{{ c|rs_doc("") }}{% endif %}#[derive(BiserdiEnum, Debug, Clone, PartialEq, Copy, Default, AsRefStr)]
 #[biserdi_enum_id_dynbits({{ce.bit_size}})]
 #[allow(nonstandard_style)]
 pub enum {{ ce.name }} {
 {%- for cv in ce.values +%}
-  {% if *cv == ce.default -%} #[default] {% endif -%}
+{% if let Some(c) = ce.value_comment(loop.index0) %}{{ c|rs_doc("  ") }}{% endif %}  {% if *cv == ce.default -%} #[default] {% endif -%}
   {{ cv|pascal_case }},
 {%- endfor %}
 }
@@ -27,35 +29,25 @@ pub enum {{ ce.name }} {
 #[biserdi_enum_id_dynbits({{coo.dyn_bits}})]
 #[allow(nonstandard_style)]
 pub enum {{ coo.name }} {
-{%- for ca in coo.attributes %}
-{% if let Some(comment_impl) = ca.base.comment -%}
-  //{{comment_impl}}
-{%- endif %}  {% include "data_oo_attr.rs.jinja" %}),
+{%- for ca in coo.attributes +%}
+{% if let Some(c) = ca.base.comment %}{{ c|rs_doc("  ") }}{% endif %}  {% include "data_oo_attr.rs.jinja" %}),
 {%- endfor %}
 }
 impl Default for {{ coo.name }} {
-{%- for ca in coo.attributes -%}
-  {%- if coo.default_attrib_name == ca.base.name %}
-//  fn default() -> Self { Self::{%- include "data_oo_attr.rs.jinja" -%}(call_default()) }
   fn default() -> Self { Self::{{coo.default_attrib_name|pascal_case}}(call_default()) }
-  {%- endif %}
-{%- endfor %}
 }
 {% endfor -%}
 
 {# *****************************************************************#}
 {# *****************************************************************#}
 // Messages
-{% for cm in d.msgs ~%}
-{%- if let Some(comment_impl) = cm.comment -%}
-///{{comment_impl}}
-{%- endif -%}
-#[derive(BiserdiMsg, Debug, Clone, PartialEq, Default)]
+{% for cm in d.msgs -%}
+{% if let Some(c) = cm.comment %}{{ c|rs_doc("") }}{% endif %}#[derive(BiserdiMsg, Debug, Clone, PartialEq, Default)]
 #[allow(nonstandard_style)]
 pub struct {{cm.name}} {
 {%- if let Some(p) = cm.parent -%}// parent: {{ p }}{%- endif -%}
 {%- for ca in cm.attributes +%}
-  {% include "data_object_attr.rs.jinja" %}
+{% if let Some(c) = ca.base.comment %}{{ c|rs_doc("  ") }}{% endif %}  {% include "data_object_attr.rs.jinja" %}
 {%- endfor %}
 }
 

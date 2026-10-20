@@ -2,7 +2,7 @@
 msg MsgOOSimpleBase {
   uint_8 id;
   oneof value(4) {
-    uint_8 int;
+    uint_8 int_val;
     double number;
     *bool true_false;
   }
@@ -33,7 +33,7 @@ msg MsgOONestedBase {
 //msg MsgRepeatedFixedOOBase {
 //  uint_8 id;
 //  repeated_fixed_3 oneof value(4) {
-//    uint_8 int;
+//    uint_8 int_val;
 //    *double number;
 //    bool true_false;
 //  }
@@ -42,7 +42,7 @@ msg MsgOONestedBase {
 //msg MsgRepeatedDynOOBase {
 //  uint_8 id;
 //  repeated_dyn_2 oneof value(4) {
-//    uint_8 int;
+//    uint_8 int_val;
 //    *double number;
 //    bool true_false;
 //  }
@@ -51,7 +51,7 @@ msg MsgOONestedBase {
 //msg MsgOptionalOOBase {
 //  uint_8 id;
 //  optional oneof value(4) {
-//    uint_8 int;
+//    uint_8 int_val;
 //    *double number;
 //    bool true_false;
 //  }

@@ -1,0 +1,16 @@
+# Produces ../../fixtures/rust_vectors.json with the Rust reference runtime: the bytes of the
+# JSON values in ../../fixtures/vector_inputs.json and of the default value of every message.
+# Run via ../regen.sh --vectors (it generates src/gen/*.rs with `bitis compile -l rust` first).
+[package]
+name = "bitis_dart_vectors"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+bitis = { path = "../../../.." }
+strum_macros = "0.27.2"
+serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }
+
+# standalone package (not part of a workspace)
+[workspace]
