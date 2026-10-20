@@ -76,6 +76,10 @@ fn snapshot_docs() { check_snapshot("docs"); }
 #[test]
 fn snapshot_nested() { check_snapshot("nested"); }
 
+/// Maximum lengths [M] (spec 2.16) in every target.
+#[test]
+fn snapshot_bounds() { check_snapshot("bounds"); }
+
 #[test]
 fn output_is_deterministic() {
     let p = compile_file(&snapshot_dir().join("all_types.bitis"));
@@ -153,6 +157,26 @@ fn dart_output() {
     let files = vec![SourceFile { name: "e.bitis".into(), content: "enum E(1) { *A, B }".into() }];
     let dart = render_dart(&compile_sources(&files).unwrap()).unwrap();
     assert!(!dart.contains("dart:typed_data"), "{dart}");
+}
+
+#[test]
+fn dart_bounds_and_max_bits() {
+    let files = vec![SourceFile { name: "b.bitis".into(), content: "enum E(2) { *A, B, C }\n\
+        msg B { astr_d4[5] s; repeated_dyn_2[3] astr_d4[2] l; optional binary_d3[4] o; \
+                repeated_fixed_2 binary_d2[2] f; oneof c(1) { *astr_d3[4] t; E e; } }\n\
+        msg U { astr_d4 s; }".into() }];
+    let p = compile_sources(&files).unwrap();
+    let dart = render_dart(&p).unwrap();
+    let max = max_bits_message(&p.msgs[0], &p.msgs, &p.enums).unwrap();
+    for s in [format!("static const int bitisMaxBits = {max};"), "static const int? bitisMaxBits = null;".to_string(),
+              "s: r.readAStr(4, maxLength: 5)".into(), "w.writeAStr(s, 4, maxLength: 5);".into(),
+              "l: r.readDynArray(2, 1, (r) => r.readAStr(4, maxLength: 2), maxLength: 3),".into(),
+              "o: r.readOptional((r) => r.readBinary(3, maxLength: 4))".into(),
+              "r.readFixedArray(2, (r) => r.readBinary(2, maxLength: 2))".into(),
+              "OO_B_C_T(r.readAStr(3, maxLength: 4))".into(), "w.writeAStr(value, 3, maxLength: 4);".into(),
+              "/// `repeated_dyn_2[3] astr_d4[2] l`".into(), "U(s: r.readAStr(4))".into()] {
+        assert!(dart.contains(&s), "missing {s:?} in\n{dart}");
+    }
 }
 
 #[test]

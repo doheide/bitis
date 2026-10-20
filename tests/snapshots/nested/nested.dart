@@ -64,6 +64,10 @@ final class Top implements BitisMessage {
   /// docs/WIRE_FORMAT.md section 4).
   static const int bitisMinBits = 5;
 
+  /// Upper bound of the encoded size in bits (`max_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4); `null` if unbounded (or above 2^53 - 1).
+  static const int? bitisMaxBits = null;
+
   /// Reads a [Top] from [r].
   static Top bitisRead(BitReader r) =>
       Top(m: Middle.bitisRead(r), outer: OO_Top_Outer.bitisRead(r));
@@ -314,6 +318,10 @@ final class Middle implements BitisMessage {
   /// docs/WIRE_FORMAT.md section 4).
   static const int bitisMinBits = 2;
 
+  /// Upper bound of the encoded size in bits (`max_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4); `null` if unbounded (or above 2^53 - 1).
+  static const int? bitisMaxBits = null;
+
   /// Reads a [Middle] from [r].
   static Middle bitisRead(BitReader r) {
     return Middle(
@@ -389,6 +397,10 @@ final class Leaf implements BitisMessage {
   /// Lower bound of the encoded size in bits (`min_bits`, bitis
   /// docs/WIRE_FORMAT.md section 4).
   static const int bitisMinBits = 2;
+
+  /// Upper bound of the encoded size in bits (`max_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4); `null` if unbounded (or above 2^53 - 1).
+  static const int bitisMaxBits = 2;
 
   /// Reads a [Leaf] from [r].
   static Leaf bitisRead(BitReader r) => Leaf(v: r.readUint(2));

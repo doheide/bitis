@@ -68,6 +68,10 @@ final class Inner implements BitisMessage {
   /// docs/WIRE_FORMAT.md section 4).
   static const int bitisMinBits = 3;
 
+  /// Upper bound of the encoded size in bits (`max_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4); `null` if unbounded (or above 2^53 - 1).
+  static const int bitisMaxBits = 3;
+
   /// Reads a [Inner] from [r].
   static Inner bitisRead(BitReader r) => Inner(a: r.readUint(3));
 
@@ -121,6 +125,10 @@ final class Empty implements BitisMessage {
   /// Lower bound of the encoded size in bits (`min_bits`, bitis
   /// docs/WIRE_FORMAT.md section 4).
   static const int bitisMinBits = 0;
+
+  /// Upper bound of the encoded size in bits (`max_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4); `null` if unbounded (or above 2^53 - 1).
+  static const int bitisMaxBits = 0;
 
   /// Reads a [Empty] from [r].
   static Empty bitisRead(BitReader r) => const Empty();
@@ -191,6 +199,10 @@ final class AllTypes implements BitisMessage {
   /// Lower bound of the encoded size in bits (`min_bits`, bitis
   /// docs/WIRE_FORMAT.md section 4).
   static const int bitisMinBits = 288;
+
+  /// Upper bound of the encoded size in bits (`max_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4); `null` if unbounded (or above 2^53 - 1).
+  static const int? bitisMaxBits = null;
 
   /// Reads a [AllTypes] from [r].
   static AllTypes bitisRead(BitReader r) {

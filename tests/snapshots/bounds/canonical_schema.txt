@@ -1,0 +1,5 @@
+bitis-schema-v1
+msg Bounded{astr_d4[16] name;binary_d3[8] blob;repeated_dyn_2[4] astr_d4[8] tags;optional astr_d4[32] note;repeated_dyn_3[3] Point points;repeated_dyn_1[2] Kind kinds;repeated_fixed_2 binary_d2[3] pair;astr_d4 unbounded;oneof payload(2){*astr_d2[5] text;astr_d4[6] raw;Point p;};}
+enum Kind(2){*Small,Large}
+msg Point{uint_8 x;uint_8 y;}
+940ea6464ca7ba60

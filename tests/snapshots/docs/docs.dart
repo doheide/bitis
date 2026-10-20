@@ -70,6 +70,10 @@ final class Documented implements BitisMessage {
   /// docs/WIRE_FORMAT.md section 4).
   static const int bitisMinBits = 7;
 
+  /// Upper bound of the encoded size in bits (`max_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4); `null` if unbounded (or above 2^53 - 1).
+  static const int bitisMaxBits = 15;
+
   /// Reads a [Documented] from [r].
   static Documented bitisRead(BitReader r) {
     return Documented(

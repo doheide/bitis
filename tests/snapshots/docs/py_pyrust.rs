@@ -3,7 +3,7 @@
 use bitis_lib::*;
 
 use pyo3::prelude::*;
-use pyo3::exceptions::PyException;
+use pyo3::exceptions::{PyException, PyValueError};
 use pyo3::types::{PyBytes};
 
 use super::messages;
@@ -11,6 +11,13 @@ use super::messages;
 // Base function
 fn do_val_from<T: ValFromInto<U>, U>(v: &U) -> T {
     T::val_from(v)
+}
+// Attributes with a maximum length [M]: the value is accepted if its Rust value encodes without error
+fn check_bounds<T: BiserdiTrait + ValFromInto<U>, U>(v: &U, name: &str) -> PyResult<()> {
+    match try_serialize(&T::val_from(v)) {
+        Ok(_) => Ok(()),
+        Err(e) => Err(PyErr::new::<PyValueError, _>(format!("{name}: {e} (longer than its maximum length or out of range)"))),
+    }
 }
 
 // *****************************************************************
