@@ -157,3 +157,29 @@ fn debug_output_only_with_debug_flag() {
     assert!(stdout(&o).contains("Schema hash: "), "{}", stdout(&o));
     assert!(!stdout(&o).contains("pub struct Mm"), "generated code must not be printed: {}", stdout(&o));
 }
+
+#[test]
+fn dart_single_file_for_several_inputs() {
+    let dir = temp_dir("dart");
+    fs::write(dir.join("a.bitis"), "enum Ee(1) { *A, B }\n").unwrap();
+    fs::write(dir.join("b.bitis"), SCHEMA.replace("uint_3 a;", "uint_3 a;\n  Ee e;")).unwrap();
+    let o = bitis(&dir, &["compile", "-l", "dart", "-o", "messages.dart", "-i", "a.bitis", "-i", "b.bitis"]);
+    assert!(o.status.success(), "{}", stderr(&o));
+    let d = fs::read_to_string(dir.join("messages.dart")).unwrap();
+    assert!(d.contains("enum Ee {") && d.contains("final class Mm implements BitisMessage {"), "{d}");
+    assert!(d.contains("import 'package:bitis/bitis.dart';"));
+    assert_eq!(stdout(&o), "");
+
+    // directory as output: <input name>.dart
+    fs::create_dir_all(dir.join("out")).unwrap();
+    let o = bitis(&dir, &["compile", "-l", "dart", "-o", "out", "-i", "a.bitis"]);
+    assert!(o.status.success(), "{}", stderr(&o));
+    assert!(dir.join("out").join("a.dart").is_file());
+
+    // validation errors are reported with positions
+    fs::write(dir.join("bad.bitis"), "msg Mm { uint_3 to_json; }\n").unwrap();
+    let o = bitis(&dir, &["compile", "-l", "dart", "-o", "bad.dart", "-i", "bad.bitis"]);
+    assert_eq!(o.status.code(), Some(1));
+    assert!(stderr(&o).contains("bad.bitis:1:17: error: attribute name 'to_json'"), "{}", stderr(&o));
+    assert!(!dir.join("bad.dart").exists());
+}

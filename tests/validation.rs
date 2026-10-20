@@ -282,3 +282,22 @@ fn several_errors_are_reported_sorted() {
     assert!(errors[1].starts_with("t.bitis:1:28:"), "{errors:#?}");
     assert!(errors[2].starts_with("t.bitis:1:36:"), "{errors:#?}");
 }
+
+#[test]
+fn dart_name_collisions() {
+    assert_error("msg Mm { uint_3 to_json; }",
+                 "t.bitis:1:17: error: attribute name 'to_json' (Dart name 'toJson') clashes with a member of the generated Dart message class");
+    assert_error("msg Mm { bool hash_code; }", "t.bitis:1:15: error: attribute name 'hash_code' (Dart name 'hashCode')");
+    assert_error("enum Ee(1) { *Values }",
+                 "t.bitis:1:15: error: enum value 'Values' (Dart name 'values') clashes with a member of the generated Dart enum 'Ee'");
+    assert_error("enum Ee(1) { *A, default_value }", "t.bitis:1:18: error: enum value 'default_value' (Dart name 'defaultValue')");
+    assert_error("msg Mm { fp_8[0, 1] a; uint_3 a_fp_type; }",
+                 "t.bitis:1:31: error: attribute 'a_fp_type' generates the member 'aFpType' in the Dart message class of message 'Mm', which is already generated for attribute 'a'");
+    assert_error("msg inner { bool x; }\nmsg Mm { inner inner; }",
+                 "t.bitis:2:16: error: attribute name 'inner' (Dart name 'inner') clashes with the type name 'inner' in the generated Dart code");
+    assert_error("msg Mm { oneof oo(1) { *bool a; } }\nmsg OO_Mm_Oo_A { bool x; }",
+                 "t.bitis:2:5: error: type 'OO_Mm_Oo_A' clashes with Dart class of element 'a' of oneof 'oo' of message 'Mm'");
+    for name in ["List", "Int64", "FixedPoint", "BitisMessage", "bitisVersion", "dynamic"] {
+        assert_error(&format!("msg {name} {{ bool x; }}"), &format!("uses the name '{name}' which is reserved"));
+    }
+}
