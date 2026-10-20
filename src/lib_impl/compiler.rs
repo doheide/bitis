@@ -680,7 +680,7 @@ const PY_MSG_MEMBERS: &[&str] = &["default", "serialize", "deserialize", "to_rus
 /// Members of every Dart message class (and members of `Object`), compared with the Dart field names
 /// (lowerCamelCase of the attribute names).
 const DART_MSG_MEMBERS: &[&str] = &[
-    "bitisWrite", "bitisRead", "bitisMinBits", "toBytes", "fromBytes", "fromBytesExact", "toJson", "fromJson", "copyWith",
+    "bitisWrite", "bitisRead", "bitisMinBits", "bitisMaxBits", "toBytes", "fromBytes", "fromBytesExact", "toJson", "fromJson", "copyWith",
     "hashCode", "runtimeType", "toString", "noSuchMethod",
 ];
 /// Members of every Dart enum (and of `Enum`), compared with the Dart value names (lowerCamelCase).
@@ -1248,28 +1248,8 @@ pub fn min_bits_message(m: &Message, msgs: &[Message]) -> u64 {
 // max_bits (docs/WIRE_FORMAT.md section 4)
 // ************************************************************************
 
-/// Size in bits of the `uint_XdY` encoding of `v` (spec 2.4), `X = max_bits`, `Y = bit_packs`.
-pub const fn dyn_bits(v: u64, max_bits: u8, bit_packs: u8) -> u64 {
-    if v == 0 { return 1; }
-    let mut v = v;
-    let mut bits: u64 = 1;
-    let mut remaining = max_bits;
-    loop {
-        let c = if bit_packs < remaining { bit_packs } else { remaining };
-        bits += c as u64;
-        v = if c >= 64 { 0 } else { v >> c };
-        remaining -= c;
-        if remaining == 0 { break; }
-        bits += 1;
-        if v == 0 { break; }
-    }
-    bits
-}
-/// `max_bits` of a dynamic integer `uint_XdY` (`dynmax(X, Y)`, spec section 4).
-pub const fn dyn_max_bits(x: u8, y: u8) -> u64 {
-    let v = if x >= 64 { u64::MAX } else { (1_u64 << x) - 1 };
-    dyn_bits(v, x, y)
-}
+pub use super::berde::{dyn_bits, dyn_max_bits};
+
 /// `max_bits` of a simple type (spec section 4), `None` = unbounded.
 pub fn max_bits_simple(t: &SimpleType) -> Option<u64> {
     Some(match t {

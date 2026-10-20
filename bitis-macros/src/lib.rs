@@ -136,6 +136,7 @@ fn biserdi_enum_impl(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStrea
 
     let mut bit_serialize_impl = quote!{};
     let mut bit_deserialize_impl = quote!{};
+    let max_index = variants.len().saturating_sub(1) as u64;
 
     for (id, variant) in variants.iter().enumerate() {
         let ident = &variant.ident;
@@ -171,6 +172,10 @@ fn biserdi_enum_impl(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStrea
                 }, oo_val.1))
             }
             fn min_bits() -> u64 { 1 }
+            /// `dyn(k - 1, 32, Y)` for `k` values (spec section 4).
+            fn max_bits() -> ::core::option::Option<u64> {
+                ::core::option::Option::Some(::bitis_lib::dyn_bits(#max_index, 32, #dyn_bits))
+            }
         }
         #[automatically_derived]
         impl ::core::fmt::Display for #struct_or_enum_identifier {
@@ -197,6 +202,8 @@ fn biserdi_one_of_impl(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStr
     let mut bit_serialize_impl = quote!{};
     let mut bit_deserialize_impl = quote!{};
     let mut bit_min_size_impl = quote!{};
+    let mut bit_max_size_impl = quote!{};
+    let max_index = variants.len().saturating_sub(1) as u64;
 
     for (id, variant) in variants.iter().enumerate() {
         let ident = &variant.ident;
@@ -223,6 +230,9 @@ fn biserdi_one_of_impl(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStr
         bit_min_size_impl.extend(quote! {
             let m = <#ty as ::bitis_lib::BiserdiTrait>::min_bits();
             bs = ::core::option::Option::Some(match bs { ::core::option::Option::Some(b) => ::core::cmp::min(b, m), ::core::option::Option::None => m });
+        });
+        bit_max_size_impl.extend(quote! {
+            bs = ::core::cmp::max(bs, <#ty as ::bitis_lib::BiserdiTrait>::max_bits()?);
         });
     }
     let serialize_match = if variants.is_empty() {
@@ -252,6 +262,13 @@ fn biserdi_one_of_impl(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStr
                 let mut bs: ::core::option::Option<u64> = ::core::option::Option::None;
                 #bit_min_size_impl
                 1_u64.saturating_add(bs.unwrap_or(0))
+            }
+            /// `dyn(k - 1, 32, Y)` discriminant + maximum over the variants (spec section 4).
+            fn max_bits() -> ::core::option::Option<u64> {
+                #[allow(unused_mut)]
+                let mut bs: u64 = 0;
+                #bit_max_size_impl
+                ::bitis_lib::dyn_bits(#max_index, 32, #dyn_bits).checked_add(bs)
             }
         }
         #[automatically_derived]
@@ -442,6 +459,7 @@ mod tests {
         let input: DeriveInput = parse_quote! { #[biserdi_enum_id_dynbits(3)] enum E { A(bool), B(f32) } };
         let code = biserdi_one_of_impl(&input).unwrap().to_string();
         assert!(code.contains("InvalidDiscriminant"));
+        assert!(code.contains("fn max_bits"));
         assert!(!code.contains("u64 :: MAX"));
     }
 

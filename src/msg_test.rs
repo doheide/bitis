@@ -59,7 +59,9 @@ mod helpers {
                 assert_eq!(bits, bides.position_bits(), "reported size != consumed bits");
                 assert!(bits <= (data.len() as u64) * 8);
                 assert!(bits >= T::min_bits(), "min_bits {} > {}", T::min_bits(), bits);
-                if let Some(m) = T::max_bits() { assert_eq!(m, bits); }
+                // fixed-size types: exact size (decoders accept non-minimal dyn integers, so the
+                // decoded size of other types may exceed max_bits; the re-encoding may not)
+                if T::max_bits() == Some(T::min_bits()) { assert_eq!(T::min_bits(), bits); }
                 assert!(bides.error().is_none());
                 let (_, sizes) = try_r.expect("try_deserialize must agree");
                 assert_eq!(sizes.total_bits, bits);
@@ -67,6 +69,7 @@ mod helpers {
                 if !roundtrip { return Ok(()); }
                 // every decoded value is in range -> encodes without error
                 let (d1, s1) = try_serialize(&v).expect("decoded value must be encodable");
+                if let Some(m) = T::max_bits() { assert!(s1.total_bits <= m, "{} > max_bits {}", s1.total_bits, m); }
                 let (v2, s2) = try_deserialize::<T>(&d1).expect("re-encoded value must decode");
                 assert_eq!(s1, s2);
                 let (d2, _) = try_serialize(&v2).unwrap();
@@ -655,16 +658,27 @@ mod strings_enums {
         assert_eq!(IntWithGivenBitSize::<u16, 5>::min_bits(), 5);
         assert_eq!(DynInteger::<i32, 32, 4>::min_bits(), 2);
         assert_eq!(DynInteger::<u32, 32, 4>::min_bits(), 1);
-        assert_eq!(DynInteger::<u32, 32, 4>::max_bits(), None);
+        // dynmax(X, Y) = 1 + X + ceil(X / Y) - 1, + sign bit
+        assert_eq!(DynInteger::<u32, 32, 4>::max_bits(), Some(1 + 32 + 8 - 1));
+        assert_eq!(DynInteger::<i32, 32, 4>::max_bits(), Some(1 + 1 + 32 + 8 - 1));
+        assert_eq!(DynInteger::<u64, 64, 64>::max_bits(), Some(65));
+        assert_eq!(DynInteger::<u16, 12, 5>::max_bits(), Some(1 + 12 + 3 - 1));
+        assert_eq!(serialize(&DynInteger::<u16, 12, 5>::new(4095)).1.total_bits, 15);
+        assert_eq!(serialize(&DynInteger::<i64, 64, 7>::new(i64::MAX)).1.total_bits,
+                   DynInteger::<i64, 64, 7>::max_bits().unwrap() - 1);
         assert_eq!(FixPrecisionMinMax::<10, 0, 1>::max_bits(), Some(10));
         assert_eq!(<bool as BiserdiTrait>::max_bits(), Some(1));
         assert_eq!(<f64 as BiserdiTrait>::max_bits(), Some(64));
         assert_eq!(FixedArray::<IntWithGivenBitSize<i8, 3>, 4>::max_bits(), Some(16));
-        assert_eq!(BitisOption::<bool>::max_bits(), None);
+        assert_eq!(BitisOption::<bool>::max_bits(), Some(2));
+        assert_eq!(BitisOption::<BitisAString<4>>::max_bits(), None);
         // oneof: 1 + min over variants (Inner 4, U 1, S 1, N 10)
         assert_eq!(OO::min_bits(), 2);
         assert_eq!(OO::max_bits(), None);
         assert_eq!(Color::min_bits(), 1);
+        // enum: dyn(k - 1, 32, Y) = dyn(2, 32, 2) = 1 + 2 + 1
+        assert_eq!(Color::max_bits(), Some(4));
+        assert_eq!(serialize(&Color::Blue).1.total_bits, 4);
         assert_eq!(Inner::min_bits(), 4);
         assert_eq!(Inner::max_bits(), Some(4));
         assert_eq!(Fixed::max_bits(), Some(1 + 11 + 21 + 7 + 32 + 8));
@@ -684,6 +698,10 @@ mod strings_enums {
         #[biserdi_enum_id_dynbits(3)]
         enum OOInts { A(IntWithGivenBitSize<i8, 5>), B(IntWithGivenBitSize<u8, 3>) }
         assert_eq!(OOInts::min_bits(), 4);
+        // dyn(1, 32, 3) = 1 + 3 + 1, max(6, 3): an upper bound (A has index 0 -> 1 + 6 bits)
+        assert_eq!(OOInts::max_bits(), Some(5 + 6));
+        assert_eq!(serialize(&OOInts::A((-31).into())).1.total_bits, 1 + 6);
+        assert_eq!(serialize(&OOInts::B(7.into())).1.total_bits, 5 + 3);
     }
 
     #[test]
@@ -872,5 +890,200 @@ mod macro_hygiene {
         let (d, _) = crate::try_serialize(&v).unwrap();
         assert_eq!(crate::try_deserialize_exact::<V>(&d).unwrap(), v);
         assert_eq!(format!("{}", E::A), "A");
+    }
+}
+
+// ****************************************************************************
+// maximum lengths [M] (spec 2.16)
+#[cfg(test)]
+mod bounded {
+    use crate::*;
+    use super::helpers::*;
+    use super::types::*;
+
+    type BStr = BoundedAString<4, 5>;
+    type BBin = BoundedBinary<3, 4>;
+    type BArr = BoundedDynArray<BoundedAString<2, 3>, 2, 3>;
+
+    #[derive(BiserdiMsg, Debug, Clone, PartialEq, Default)]
+    struct Bounded {
+        s: BStr,
+        b: BBin,
+        l: BArr,
+        o: BitisOption<BoundedAString<4, 2>>,
+        i: BoundedDynArray<Inner, 3, 2>,
+    }
+
+    /// count as `uint_32dY` followed by `n` bytes `b'a'`
+    fn enc_count(y: u8, n: u32, bytes: usize) -> Vec<u8> {
+        let mut b = Biseri::new();
+        let _ = match y {
+            2 => DynInteger::<u32, 32, 2>::new(n).bit_serialize(&mut b),
+            3 => DynInteger::<u32, 32, 3>::new(n).bit_serialize(&mut b),
+            _ => DynInteger::<u32, 32, 4>::new(n).bit_serialize(&mut b),
+        };
+        for _ in 0..bytes { b.add_bits(b'a' as u64, 8); }
+        b.finish_add_data();
+        b.into_data()
+    }
+
+    #[test]
+    fn roundtrip_at_the_bound() {
+        let m = Bounded {
+            s: BStr::try_new("abcde").unwrap(),
+            b: BBin::try_new(vec![1, 2, 3, 4]).unwrap(),
+            l: BArr::try_new(vec!["abc".try_into().unwrap(), "".try_into().unwrap(), "x".try_into().unwrap()]).unwrap(),
+            o: Some(BoundedAString::try_new("zz").unwrap()).into(),
+            i: BoundedDynArray::try_new(vec![Inner::default(), Inner { a: 7.into(), b: true }]).unwrap(),
+        };
+        let (d, s) = try_serialize(&m).unwrap();
+        assert!(s.total_bits <= Bounded::max_bits().unwrap());
+        assert_eq!(try_deserialize_exact::<Bounded>(&d).unwrap(), m);
+        check_truncation(&m);
+        check_truncation(&Bounded::default());
+        // same encoding as the unbounded types
+        assert_eq!(serialize(&m.s).0, serialize(&BitisAString::<4>::try_from("abcde").unwrap()).0);
+        assert_eq!(serialize(&m.b).0, serialize(&Binary::<3>::new(vec![1, 2, 3, 4])).0);
+    }
+
+    #[test]
+    fn decode_count_above_bound_is_invalid_value() {
+        // count M (ok), M + 1 (InvalidValue), M + 1 with too short input: InvalidValue first
+        assert_eq!(try_deserialize::<BStr>(&enc_count(4, 5, 5)).unwrap().0.as_str(), "aaaaa");
+        assert_eq!(try_deserialize::<BStr>(&enc_count(4, 6, 6)).err(), Some(DecodeError::InvalidValue));
+        assert_eq!(try_deserialize::<BStr>(&enc_count(4, 6, 0)).err(), Some(DecodeError::InvalidValue));
+        assert_eq!(try_deserialize::<BStr>(&enc_count(4, 5, 4)).err(), Some(DecodeError::UnexpectedEnd));
+        assert_eq!(try_deserialize::<BStr>(&enc_count(4, 1_000_000, 0)).err(), Some(DecodeError::InvalidValue));
+        assert_eq!(try_deserialize::<BBin>(&enc_count(3, 4, 4)).unwrap().0.as_slice(), b"aaaa");
+        assert_eq!(try_deserialize::<BBin>(&enc_count(3, 5, 5)).err(), Some(DecodeError::InvalidValue));
+        assert_eq!(try_deserialize::<BBin>(&enc_count(3, 5, 0)).err(), Some(DecodeError::InvalidValue));
+        // the unbounded type accepts M + 1
+        assert!(try_deserialize::<BitisAString<4>>(&enc_count(4, 6, 6)).is_ok());
+        assert_eq!(try_deserialize::<BArr>(&enc_count(2, 4, 0)).err(), Some(DecodeError::InvalidValue));
+        // count 3 = M: three empty strings (1 bit each) fit into the padding of the count
+        assert_eq!(try_deserialize::<BArr>(&enc_count(2, 3, 0)).unwrap().0.len(), 3);
+        // non-ASCII in a bounded string
+        let mut b = Biseri::new();
+        DynInteger::<u32, 32, 4>::new(1).bit_serialize(&mut b);
+        b.add_bits(0xE9, 8);
+        b.finish_add_data();
+        let d = b.into_data();
+        assert_eq!(try_deserialize::<BStr>(&d).err(), Some(DecodeError::InvalidValue));
+    }
+
+    #[test]
+    fn encode_too_long() {
+        // checked constructors
+        assert_eq!(BStr::try_new("abcdef").err(), Some(EncodeError::ValueOutOfRange));
+        assert_eq!(BStr::try_new("äb").err(), Some(EncodeError::ValueOutOfRange));
+        assert_eq!(BStr::try_from("abcdef".to_string()).err(), Some(EncodeError::ValueOutOfRange));
+        assert_eq!(BBin::try_new(vec![0; 5]).err(), Some(EncodeError::ValueOutOfRange));
+        assert_eq!(BBin::try_from(&[0_u8; 5][..]).err(), Some(EncodeError::ValueOutOfRange));
+        assert_eq!(BoundedDynArray::<bool, 2, 3>::try_from([true; 4]).err(), Some(EncodeError::ValueOutOfRange));
+        // bounded mutation
+        let mut s = BStr::try_new("abc").unwrap();
+        assert!(s.push_str("de").is_ok());
+        assert_eq!(s.push_str("f"), Err(EncodeError::ValueOutOfRange));
+        assert_eq!(s.set("abcdef"), Err(EncodeError::ValueOutOfRange));
+        assert_eq!(&*s, "abcde");
+        let mut b = BBin::empty();
+        for i in 0..4 { b.push(i).unwrap(); }
+        assert_eq!(b.push(4), Err(EncodeError::ValueOutOfRange));
+        assert_eq!(b.extend_from_slice(&[1]), Err(EncodeError::ValueOutOfRange));
+        assert_eq!(b.len(), 4);
+        let mut a = BoundedDynArray::<bool, 2, 3>::empty();
+        for _ in 0..3 { a.push(true).unwrap(); }
+        assert_eq!(a.push(false), Err(EncodeError::ValueOutOfRange));
+        assert_eq!(a.iter().filter(|x| **x).count(), 3);
+        // unchecked values: try_serialize fails, the legacy serialize writes the first M elements
+        let long_s: BStr = ValFromInto::val_from(&"abcdefgh".to_string());
+        assert!(!long_s.is_valid());
+        assert_eq!(try_serialize(&long_s).err(), Some(EncodeError::ValueOutOfRange));
+        assert_eq!(serialize(&long_s).0, serialize(&BStr::try_new("abcde").unwrap()).0);
+        let long_b = BBin::new(vec![1, 2, 3, 4, 5, 6]);
+        assert_eq!(try_serialize(&long_b).err(), Some(EncodeError::ValueOutOfRange));
+        assert_eq!(serialize(&long_b).0, serialize(&BBin::try_new(vec![1, 2, 3, 4]).unwrap()).0);
+        let long_a = BoundedDynArray::<bool, 2, 3>::new(vec![true, false, true, true]);
+        assert_eq!(try_serialize(&long_a).err(), Some(EncodeError::ValueOutOfRange));
+        assert_eq!(serialize(&long_a).0, serialize(&BoundedDynArray::<bool, 2, 3>::new(vec![true, false, true])).0);
+        // nested: a too long element inside a message
+        let mut m = Bounded::default();
+        m.l = BArr::new(vec![ValFromInto::val_from(&"abcd".to_string())]);
+        assert_eq!(try_serialize(&m).err(), Some(EncodeError::ValueOutOfRange));
+        let (d, _) = serialize(&m);
+        assert_eq!(try_deserialize::<Bounded>(&d).unwrap().0.l[0].as_str(), "abc");
+        // legacy conversion of a non-ASCII string gives the empty string
+        let e: BStr = ValFromInto::val_from(&"ä".to_string());
+        assert_eq!(e.as_str(), "");
+    }
+
+    #[test]
+    fn max_bits_of_bounded_types() {
+        // dyn(M, 32, Y) + 8 M
+        assert_eq!(BStr::max_bits(), Some(dyn_bits(5, 32, 4) + 40));
+        assert_eq!(BoundedAString::<4, 32>::max_bits(), Some(1 + 4 + 1 + 4 + 1 + 256));
+        assert_eq!(BBin::max_bits(), Some(dyn_bits(4, 32, 3) + 32));
+        assert_eq!(BoundedBinary::<32, 65535>::max_bits(), Some(1 + 32 + 8 * 65535));
+        // dyn(M, 32, Y) + M max_bits(T)
+        assert_eq!(BArr::max_bits(), Some(dyn_bits(3, 32, 2) + 3 * (dyn_bits(3, 32, 2) + 24)));
+        assert_eq!(BoundedDynArray::<BitisAString<2>, 2, 3>::max_bits(), None);
+        assert_eq!(BoundedDynArray::<Inner, 3, 2>::max_bits(), Some(dyn_bits(2, 32, 3) + 8));
+        assert_eq!(BStr::min_bits(), 1);
+        assert_eq!(BArr::min_bits(), 1);
+        let expected = BStr::max_bits().unwrap() + BBin::max_bits().unwrap() + BArr::max_bits().unwrap()
+            + 1 + BoundedAString::<4, 2>::max_bits().unwrap() + BoundedDynArray::<Inner, 3, 2>::max_bits().unwrap();
+        assert_eq!(Bounded::max_bits(), Some(expected));
+        // the maximum is reached by the longest values
+        let m = Bounded {
+            s: BStr::try_new("abcde").unwrap(),
+            b: BBin::try_new(vec![1, 2, 3, 4]).unwrap(),
+            l: BArr::try_new(vec!["abc".try_into().unwrap(), "abc".try_into().unwrap(), "abc".try_into().unwrap()]).unwrap(),
+            o: Some(BoundedAString::try_new("zz").unwrap()).into(),
+            i: BoundedDynArray::try_new(vec![Inner::default(), Inner::default()]).unwrap(),
+        };
+        assert_eq!(serialize(&m).1.total_bits, expected);
+    }
+
+    #[test]
+    fn conversions_and_display() {
+        let s: BStr = "abc".try_into().unwrap();
+        assert_eq!(s.len(), 3);
+        assert!(s.starts_with("ab"));
+        assert_eq!(String::from(s.clone()), "abc");
+        assert_eq!(format!("{s:?}"), "'abc'");
+        assert_eq!(format!("{s}"), "'abc' |string:4 max:5");
+        assert_eq!(BStr::MAX_LEN, 5);
+        assert_eq!(BStr::from_ascii(ascii::AsciiString::from_ascii("xy").unwrap()).as_str(), "xy");
+        let mut b: BBin = vec![1_u8, 2].try_into().unwrap();
+        b[0] = 9;
+        assert_eq!(Vec::<u8>::from(b.clone()), vec![9, 2]);
+        assert_eq!(format!("{b}"), "\"09 02\" |dynbits:3 max:4");
+        let a: BoundedDynArray<IntWithGivenBitSize<u8, 3>, 2, 3> = vec![1.into(), 2.into()].try_into().unwrap();
+        assert_eq!(format!("{a}"), "[1 |bits:3, 2 |bits:3 |dynbits:2 max:3]");
+        let v: Vec<u8> = ValFromInto::val_into(&a);
+        assert_eq!(v, vec![1, 2]);
+        assert_eq!(Vec::from(a).len(), 2);
+    }
+
+    #[test]
+    fn fuzz_bounded() {
+        let mut rng = Rng::new(0xb0b);
+        let mut valid = vec![];
+        for _ in 0..32 {
+            let n = rng.below(6) as usize;
+            let s: String = (0..n).map(|_| (b'a' + rng.below(26) as u8) as char).collect();
+            let nb = rng.below(5) as usize;
+            let m = Bounded { s: BStr::try_new(&s).unwrap(), b: BBin::try_new(rng.bytes(nb)).unwrap(),
+                ..Default::default() };
+            valid.push(serialize(&m).0);
+        }
+        for i in 0..20_000 {
+            let data = if i % 2 == 0 { let n = rng.below(24) as usize; rng.bytes(n) } else {
+                let mut d = valid[rng.below(valid.len() as u64) as usize].clone();
+                if !d.is_empty() { let p = rng.below(d.len() as u64 * 8); d[(p / 8) as usize] ^= 1 << (p % 8); }
+                d
+            };
+            let _ = check_decode::<Bounded>(&data, true);
+        }
     }
 }
