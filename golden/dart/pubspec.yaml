@@ -1,0 +1,16 @@
+name: bitis_golden_test
+description: >-
+  Golden vector tests of the Dart runtime and the generated Dart code against
+  golden/vectors/manifest.txt (not published).
+publish_to: none
+
+environment:
+  sdk: '>=3.7.0 <4.0.0'
+
+dependencies:
+  bitis:
+    path: ../../dart/bitis
+
+dev_dependencies:
+  lints: '>=4.0.0 <7.0.0'
+  test: ^1.25.0
