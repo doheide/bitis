@@ -1330,6 +1330,12 @@ pub struct AttributeEx {
     pub is_enum: bool,
     pub is_oo: bool,
     pub add_val: bool,
+    /// The attribute has a maximum length `[M]` (on the type or on its `repeated_dyn` modifier).
+    pub is_bounded: bool,
+    /// Full Rust type of the attribute including its modifier (e.g. `BitisOption<Binary<4>>`), with
+    /// message / enum / oneof types qualified as `messages::NAME` (used by the Python bindings);
+    /// only set for the Rust target.
+    pub rust_attr_type: String,
 }
 #[derive(Debug, Clone)]
 pub struct MessageR {
@@ -1337,6 +1343,8 @@ pub struct MessageR {
     pub comment: Option<String>,
     pub parent: Option<String>,
     pub attributes: Vec<AttributeEx>,
+    /// At least one attribute has a maximum length `[M]` (Python: checked setters).
+    pub has_bounds: bool,
 }
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
@@ -1415,15 +1423,31 @@ fn to_target_attribute(attribute: &Attribute, msg_names: &[String], lang: Target
             (ooi.name.clone(), ooi.name.clone())
         }
     };
+    let is_bounded = attribute.repeated_max_len.is_some()
+        || matches!(attribute.specific_details,
+                    AttributeDetails::AttributeSimple(SimpleType::AString(_, Some(_)) | SimpleType::Binary(_, Some(_))));
+    let rust_attr_type = if lang == TargetLang::Rust {
+        let rtype = if is_py_wrapped { format!("messages::{rtype}") } else { rtype.clone() };
+        let t = match (&attribute.is_repeated_and_size, attribute.repeated_max_len) {
+            (Some(DynOrFixedType::Dyn(y)), Some(m)) => format!("BoundedDynArray<{rtype}, {y}, {m}>"),
+            (Some(DynOrFixedType::Dyn(y)), None) => format!("DynArray<{rtype}, {y}>"),
+            (Some(DynOrFixedType::Fixed(n)), _) => format!("FixedArray<{rtype}, {n}>"),
+            (None, _) => rtype.clone(),
+        };
+        if attribute.is_optional { format!("BitisOption<{t}>") } else { t }
+    } else { String::new() };
     AttributeEx { base: attribute.clone(), rust_type_str: rtype, base_type_str: base_type,
-        is_py_wrapped, is_msg, is_enum, is_oo, add_val }
+        is_py_wrapped, is_msg, is_enum, is_oo, add_val, is_bounded, rust_attr_type }
 }
 
 fn to_target_messages(msgs: &[Message], lang: TargetLang) -> Vec<MessageR> {
     let msg_names: Vec<_> = msgs.iter().map(|m| m.name.clone()).collect();
-    msgs.iter().map(|msg| MessageR {
-        name: msg.name.clone(), comment: msg.comment.clone(), parent: msg.parent.clone(),
-        attributes: msg.attributes.iter().map(|a| to_target_attribute(a, &msg_names, lang)).collect(),
+    msgs.iter().map(|msg| {
+        let attributes: Vec<AttributeEx> = msg.attributes.iter().map(|a| to_target_attribute(a, &msg_names, lang)).collect();
+        MessageR {
+            name: msg.name.clone(), comment: msg.comment.clone(), parent: msg.parent.clone(),
+            has_bounds: attributes.iter().any(|a| a.is_bounded), attributes,
+        }
     }).collect()
 }
 fn to_target_oneofs(oos: &[(String, OneOfInfo)], msgs: &[Message], lang: TargetLang) -> IndexMap<String, OneOfInfoR> {
