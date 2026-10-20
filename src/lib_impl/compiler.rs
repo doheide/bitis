@@ -620,12 +620,29 @@ pub const RESERVED_TYPE_NAMES: &[&str] = &[
     "bitis_helper", "std",
     // Python bindings (pyo3)
     "Py", "PyResult", "PyObject", "PyBytes", "PyErr", "PyException", "Python", "messages",
+    // Dart: generated top level names, names used by the generated code, built-in identifiers
+    "bitisVersion", "bitisSchemaHash", "bitisSchemaHashHex", "bitisEncode", "bitisDecode", "bitisDecodeExact",
+    "bitisKeep", "bitisKeepOr", "identical", "override", "BitWriter", "BitReader", "BitisMessage", "BitisJson",
+    "BitisEq", "FixedPoint", "FixedPointType", "Int64", "BigInt", "Uint8List", "List", "Map", "Object",
+    "StateError", "FormatException", "dynamic", "Function", "get", "set", "late", "required", "covariant",
+    "deferred", "extension", "external", "factory", "implements", "interface", "library", "mixin", "part",
 ];
 
 /// Members generated into every C++ message struct (besides the attributes).
 const CPP_MSG_MEMBERS: &[&str] = &["MsgT", "msg_attr", "serialize", "deserialize", "print", "is_equal"];
 /// Methods generated into every Python (pyo3) message class (besides the attributes).
 const PY_MSG_MEMBERS: &[&str] = &["default", "serialize", "deserialize", "to_rust", "from_rust_obj"];
+/// Members of every Dart message class (and members of `Object`), compared with the Dart field names
+/// (lowerCamelCase of the attribute names).
+const DART_MSG_MEMBERS: &[&str] = &[
+    "bitisWrite", "bitisRead", "bitisMinBits", "toBytes", "fromBytes", "fromBytesExact", "toJson", "fromJson", "copyWith",
+    "hashCode", "runtimeType", "toString", "noSuchMethod",
+];
+/// Members of every Dart enum (and of `Enum`), compared with the Dart value names (lowerCamelCase).
+const DART_ENUM_MEMBERS: &[&str] = &[
+    "values", "index", "name", "bitisName", "defaultValue", "bitisWrite", "bitisRead", "toJson", "fromJson",
+    "hashCode", "runtimeType", "toString", "noSuchMethod",
+];
 
 /// Kind of a name, determines which case conversions of it the generators emit.
 #[derive(Clone, Copy, PartialEq)]
@@ -746,6 +763,12 @@ pub fn validate_bitis(values: &[Value], files: Option<&[SourceFile]>) -> Vec<Com
                         let origin = format!("oneof '{}' of message '{}'", oo.0, m.name);
                         add(&mut v, oo.1.name.clone(), origin.clone(), oo.2);
                         add(&mut v, format!("{}Enum", oo.1.name), format!("Python selector enum of {origin}"), oo.2);
+                        // duplicates within the oneof are reported by the oneof element checks
+                        let mut seen_elements = HashSet::new();
+                        for va in oo.1.attributes.iter().filter(|va| seen_elements.insert(va.name.to_pascal_case())) {
+                            add(&mut v, format!("{}_{}", oo.1.name, va.name.to_pascal_case()),
+                                format!("Dart class of element '{}' of {origin}", va.name), va.name_span);
+                        }
                     }
                 }
             }
@@ -759,6 +782,12 @@ pub fn validate_bitis(values: &[Value], files: Option<&[SourceFile]>) -> Vec<Com
         v.check_unique_forms(&items, "enum value", &format!("enum '{}'", e.name),
                              &[("PascalCase, used by Rust/C++/Python", conv_pascal), ("camelCase, used by Dart", conv_camel)]);
         for (val, span) in &items { v.check_reserved(val, *span, "enum value", NameKind::EnumValue); }
+        for (val, span) in &items {
+            let dart = val.to_camel_case();
+            if DART_ENUM_MEMBERS.contains(&dart.as_str()) || dart == e.name {
+                v.err(*span, format!("enum value '{val}' (Dart name '{dart}') clashes with a member of the generated Dart enum '{}'", e.name));
+            }
+        }
     }
 
     // *** messages
@@ -801,7 +830,22 @@ pub fn validate_bitis(values: &[Value], files: Option<&[SourceFile]>) -> Vec<Com
                 }
             }
         }
-        for (label, members) in [("C++ message struct", cpp_members), ("Python message class", py_members)] {
+        // Dart: fields are the lowerCamelCase attribute names, fixed point attributes also get `<field>FpType`
+        let mut dart_members: Vec<(String, SrcSpan, &str)> = vec![];
+        for a in &m.attributes {
+            let dart = a.name.to_camel_case();
+            if DART_MSG_MEMBERS.contains(&dart.as_str()) {
+                v.err(a.name_span, format!("attribute name '{}' (Dart name '{dart}') clashes with a member of the generated Dart message class", a.name));
+            } else if dart == m.name || msg_by_name.contains_key(dart.as_str()) || enum_names.contains(dart.as_str()) {
+                v.err(a.name_span, format!("attribute name '{}' (Dart name '{dart}') clashes with the type name '{dart}' in the generated Dart code", a.name));
+            }
+            dart_members.push((dart.clone(), a.name_span, &a.name));
+            if let AttributeDetails::AttributeSimple(SimpleType::FixedPrecision(_)) = a.specific_details {
+                dart_members.push((format!("{dart}FpType"), a.name_span, &a.name));
+            }
+        }
+        for (label, members) in [("C++ message struct", cpp_members), ("Python message class", py_members),
+                                 ("Dart message class", dart_members)] {
             let mut seen: HashMap<&str, (SrcSpan, &str)> = HashMap::new();
             for (member, span, attr) in &members {
                 match seen.get(member.as_str()) {
@@ -1023,7 +1067,8 @@ pub fn fixed_point_summary(p: &BitisProcessed) -> String {
 // Schema hash
 // ************************************************************************
 
-fn canonical_simple_type(t: &SimpleType) -> String {
+/// Schema text of a simple type, e.g. `uint_12` or `fp_10[-2,3]`.
+pub fn canonical_simple_type(t: &SimpleType) -> String {
     match t {
         SimpleType::Bool => "bool".into(),
         SimpleType::UIntFixed(b) => format!("uint_{b}"),
@@ -1099,6 +1144,52 @@ pub fn schema_hash(p: &BitisProcessed) -> u64 {
 /// [`schema_hash`] as 16 lower case hex digits without prefix (template variable `schema_hash`).
 pub fn schema_hash_hex(p: &BitisProcessed) -> String {
     format!("{:016x}", schema_hash(p))
+}
+
+// ************************************************************************
+// min_bits (docs/WIRE_FORMAT.md section 4)
+// ************************************************************************
+
+/// `min_bits` of a simple type (spec section 4).
+pub fn min_bits_simple(t: &SimpleType) -> u64 {
+    match t {
+        SimpleType::Bool => 1,
+        SimpleType::UIntFixed(x) => *x as u64,
+        SimpleType::IntFixed(x) => *x as u64 + 1,
+        SimpleType::UIntDyn(_) => 1,
+        SimpleType::IntDyn(_) => 2,
+        SimpleType::Float => 32,
+        SimpleType::Double => 64,
+        SimpleType::FixedPrecision(f) => f.bits as u64,
+        SimpleType::AString(_) | SimpleType::Binary(_) => 1,
+    }
+}
+/// `min_bits` of a type without its modifier (an element of a `repeated_dyn`): simple types, enums (1),
+/// messages (sum of their attributes) and oneofs (1 + minimum over the elements).
+/// The message graph must be acyclic (guaranteed by the validation).
+pub fn min_bits_details(d: &AttributeDetails, msgs: &[Message]) -> u64 {
+    match d {
+        AttributeDetails::AttributeSimple(t) => min_bits_simple(t),
+        AttributeDetails::AttributeEnumOrMsg(n) => match msgs.iter().find(|m| m.name == *n) {
+            Some(m) => min_bits_message(m, msgs),
+            None => 1,
+        },
+        AttributeDetails::AttributeOneOf(oo) =>
+            1 + oo.attributes.iter().map(|a| min_bits_attribute(a, msgs)).min().unwrap_or(0),
+    }
+}
+/// `min_bits` of an attribute including its modifier.
+pub fn min_bits_attribute(a: &Attribute, msgs: &[Message]) -> u64 {
+    if a.is_optional { return 1; }
+    match a.is_repeated_and_size {
+        Some(DynOrFixedType::Dyn(_)) => 1,
+        Some(DynOrFixedType::Fixed(n)) => n as u64 * min_bits_details(&a.specific_details, msgs),
+        None => min_bits_details(&a.specific_details, msgs),
+    }
+}
+/// `min_bits` of a message: the sum over its attributes.
+pub fn min_bits_message(m: &Message, msgs: &[Message]) -> u64 {
+    m.attributes.iter().map(|a| min_bits_attribute(a, msgs)).sum()
 }
 
 // ************************************************************************
@@ -1288,6 +1379,14 @@ pub struct CppDataObjects {
     pub stamp_name: String,
 }
 
+#[derive(Template, Clone, Debug)]
+#[template(path = "data_objects.dart.jinja", escape = "none")]
+pub struct DartDataObjects {
+    pub d: super::dart::DartData,
+    pub bitis_version: String,
+    pub schema_hash: String,
+}
+
 /// Generated files of the Python target.
 #[derive(Clone, Debug)]
 pub struct PythonOutput {
@@ -1326,6 +1425,13 @@ pub fn render_python(p: &BitisProcessed, lib_name: &str) -> Result<PythonOutput,
         pyi: PyTypeHints { d, bitis_version: BITIS_COMPILER_VERSION.to_string(), schema_hash: schema_hash_hex(p) }
             .render().map_err(render_err)?,
     })
+}
+/// Renders the Dart library for a schema (one file, imports only `package:bitis/bitis.dart` and `dart:typed_data`).
+pub fn render_dart(p: &BitisProcessed) -> Result<String, CompileError> {
+    let mut s = DartDataObjects { d: super::dart::dart_data(p, schema_hash(p)),
+        bitis_version: BITIS_COMPILER_VERSION.to_string(), schema_hash: schema_hash_hex(p) }.render().map_err(render_err)?;
+    s.push('\n');
+    Ok(s)
 }
 /// Derives the identifier used in the C++ stamp namespace from a file name (non alphanumeric chars -> '_').
 pub fn stamp_name_from(file_stem: &str) -> String {
@@ -1366,6 +1472,10 @@ mod filters {
         out.push_str(indent);
         out.push_str("\"\"\"\n");
         Ok(out)
+    }
+    /// Dart doc comment (`/// ...` lines), every line prefixed with `indent` spaces, no trailing newline.
+    pub fn dart_doc<T: Display>(s: T, _: &dyn askama::Values, indent: usize) -> askama::Result<String> {
+        Ok(super::super::dart::dart_doc(&s.to_string(), indent))
     }
     pub fn snake_case<T: Display>(s: T, _: &dyn askama::Values) -> askama::Result<String> {
         Ok(stringcase::snake_case(s.to_string().as_str()))

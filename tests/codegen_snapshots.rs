@@ -1,6 +1,6 @@
 //! Snapshot tests of the generated code.
 //!
-//! For every `tests/snapshots/<name>.bitis` the generated Rust, C++ and Python files are compared with
+//! For every `tests/snapshots/<name>.bitis` the generated Rust, C++, Python and Dart files are compared with
 //! the committed files in `tests/snapshots/<name>/`. The compiler version is replaced by `{BITIS_VERSION}`
 //! in the snapshots. To update the snapshots after an intended change run
 //! `BITIS_UPDATE_SNAPSHOTS=1 cargo test --test codegen_snapshots` and review the diff.
@@ -21,7 +21,11 @@ fn compile_file(path: &Path) -> BitisProcessed {
     }
 }
 
-fn normalize(s: &str) -> String { s.replace(&format!("\"{}\"", BITIS_COMPILER_VERSION), "\"{BITIS_VERSION}\"") }
+fn normalize(s: &str) -> String {
+    s.replace(&format!("\"{}\"", BITIS_COMPILER_VERSION), "\"{BITIS_VERSION}\"")
+        .replace(&format!("'{}'", BITIS_COMPILER_VERSION), "'{BITIS_VERSION}'")
+        .replace(&format!("bitis compiler {} (", BITIS_COMPILER_VERSION), "bitis compiler {BITIS_VERSION} (")
+}
 
 fn generate(name: &str, p: &BitisProcessed) -> Vec<(String, String)> {
     let py = render_python(p, name).unwrap();
@@ -32,6 +36,7 @@ fn generate(name: &str, p: &BitisProcessed) -> Vec<(String, String)> {
         ("py_pyrust.rs".to_string(), py.pyrust_rs),
         ("py_lib.rs".to_string(), py.lib_rs),
         (format!("{name}.pyi"), py.pyi),
+        (format!("{name}.dart"), render_dart(p).unwrap()),
         ("canonical_schema.txt".to_string(), format!("{}{}\n", canonical_schema(p), schema_hash_hex(p))),
     ]
 }
@@ -122,4 +127,43 @@ fn schema_hash_of_wire_format_example() {
     let p = compile_sources(&files).unwrap();
     assert_eq!(canonical_schema(&p), "bitis-schema-v1\nenum E(2){*A,B}\nmsg M{optional uint_3 x;oneof o(2){*bool b;E e;};}\n");
     assert_eq!(schema_hash_hex(&p), "04ee18ca6b3375b1");
+}
+
+#[test]
+fn dart_output() {
+    let p = compile_file(&snapshot_dir().join("all_types.bitis"));
+    let dart = render_dart(&p).unwrap();
+    let imports: Vec<&str> = dart.lines().filter(|l| l.starts_with("import ")).collect();
+    assert_eq!(imports, vec!["import 'dart:typed_data';", "import 'package:bitis/bitis.dart';"]);
+    assert!(dart.contains("\n// dart format off\n"), "{dart}");
+    assert!(dart.contains(&format!("const String bitisSchemaHashHex = '{}';", schema_hash_hex(&p))));
+    let h = schema_hash(&p);
+    assert!(dart.contains(&format!("Int64.fromInts(0x{:08x}, 0x{:08x});", h >> 32, h & 0xffff_ffff)));
+    // type mapping and the width/range parameters passed to the runtime
+    for s in ["final int u17;", "final BigInt u64V;", "final Int64 i33;", "w.writeUintBigInt(u64V, 64);",
+              "w.writeIntInt64(i33, 33);", "w.writeDynInt(id, 16, 3);", "static const FixedPointType latFpType",
+              "FixedPointType(34, -90, 90)", "final Uint8List data;", "final int? optU;",
+              "rdInner: r.readDynArray(4, 3, Inner.bitisRead)", "rdColor: r.readDynArray(3, 1, Color.bitisRead)",
+              "sealed class OO_AllTypes_Choice {", "final class OO_AllTypes_Choice_Flag extends OO_AllTypes_Choice {",
+              "static const Color defaultValue = Color.green;", "blueLight('BLUE_LIGHT')",
+              "this.fp = const FixedPoint.overflow()", "'opt_u': v"] {
+        assert!(dart.contains(s), "missing {s:?} in\n{dart}");
+    }
+    // only enums: no dart:typed_data import (it would be unused)
+    let files = vec![SourceFile { name: "e.bitis".into(), content: "enum E(1) { *A, B }".into() }];
+    let dart = render_dart(&compile_sources(&files).unwrap()).unwrap();
+    assert!(!dart.contains("dart:typed_data"), "{dart}");
+}
+
+#[test]
+fn min_bits_per_spec() {
+    let files = vec![SourceFile { name: "m.bitis".into(), content: "enum E(3) { *A, B }\n\
+        msg Inner { uint_3 a; int_4 b; optional double c; repeated_fixed_2 bool d; repeated_dyn_2 uint_7 e; }\n\
+        msg Outer { Inner i; E e; fp_9[0, 1] f; astr_d4 s; uint_32d4 u; int_8d2 v; float g;\n\
+          oneof o(2) { *uint_12 x; Inner y; bool z; } }".into() }];
+    let p = compile_sources(&files).unwrap();
+    let inner = p.msgs.iter().find(|m| m.name == "Inner").unwrap();
+    assert_eq!(min_bits_message(inner, &p.msgs), 3 + 5 + 1 + 2 + 1);
+    let outer = p.msgs.iter().find(|m| m.name == "Outer").unwrap();
+    assert_eq!(min_bits_message(outer, &p.msgs), 12 + 1 + 9 + 1 + 1 + 2 + 32 + (1 + 1));
 }

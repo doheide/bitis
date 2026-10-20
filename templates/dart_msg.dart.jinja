@@ -1,0 +1,69 @@
+
+{% if let Some(c) = m.comment %}{{ c|dart_doc(0) }}{% else %}/// Message `{{ m.name }}`.{% endif %}
+{%- if let Some(p) = m.parent %}
+///
+/// Parent in the schema: [{{ p }}] (informational, nothing is inherited).
+{%- endif %}
+{{ m.class_header }}
+  /// Creates a [{{ m.name }}]; omitted attributes get their default values.
+{{ m.ctor }}
+
+  /// Lower bound of the encoded size in bits (`min_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4).
+  static const int bitisMinBits = {{ m.min_bits }};
+
+  /// Reads a [{{ m.name }}] from [r].
+{{ m.read }}
+
+  /// Decodes a [{{ m.name }}] from the start of [data] (trailing bytes are
+  /// ignored). Throws [BitisDecodeException] on invalid input.
+{{ m.from_bytes }}
+
+  /// Like [fromBytes], but [data] must not contain trailing bytes.
+{{ m.from_bytes_exact }}
+
+  /// Parses the JSON representation (see [toJson]).
+{{ m.from_json }}
+{%- for f in m.fields %}
+{%- if let Some(fp) = f.fp_const %}
+
+  /// Fixed point type of [{{ f.dart_name }}].
+{{ fp }}
+{%- endif %}
+
+{% if let Some(c) = f.comment %}{{ c|dart_doc(2) }}
+  ///
+{% endif %}  /// `{{ f.schema }}`
+{{ f.decl }}
+{%- endfor %}
+
+  @override
+{%- if m.write_body.is_empty() %}
+  void bitisWrite(BitWriter w) {}
+{%- else %}
+  void bitisWrite(BitWriter w) {
+{{ m.write_body }}
+  }
+{%- endif %}
+
+  /// Encodes this message.
+{{ m.to_bytes }}
+
+  /// JSON representation; the keys are the attribute names of the schema.
+{{ m.to_json }}
+{%- if !m.copy_with.is_empty() %}
+
+  /// Copy with the given attributes replaced. Optional attributes are cleared
+  /// by passing `null`.
+{{ m.copy_with }}
+{%- endif %}
+
+  @override
+{{ m.eq }}
+
+  @override
+{{ m.hash }}
+
+  @override
+{{ m.to_string }}
+}

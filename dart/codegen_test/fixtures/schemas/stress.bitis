@@ -1,0 +1,53 @@
+// Schema with long names, names of locals of the generated methods and
+// defaults that are not constant (uint_64, binary): layout and naming test of
+// the Dart target (dart/codegen_test).
+//| An enum with a long name
+enum A_Very_Long_Enumeration_Name_For_Testing_The_Layout(3) { *FirstValueWithALongName, Second_Value, THIRD }
+enum E(1) { *X, Y }
+msg Empty {}
+msg lower_msg { uint_3 r; }
+msg Shadowing {
+  uint_3 w;
+  uint_3 other;
+  uint_3 value;
+  uint_3 json;
+  uint_3 r;
+  uint_3 v;
+  uint_3 data;
+  optional uint_3 opt_w;
+}
+msg A_Message_With_A_Really_Really_Long_Name_That_Does_Not_Fit {
+  uint_64 a_very_long_attribute_name_for_an_unsigned_64_bit_integer_value;
+  repeated_fixed_3 uint_64 fixed_big;
+  repeated_fixed_2 binary_d4 fixed_bins;
+  repeated_dyn_3 binary_d4 dyn_bins;
+  optional binary_d4 opt_bin;
+  optional fp_12[-1000, 1000] optional_fixed_point_with_a_long_name;
+  repeated_dyn_2 fp_9[-180, 180] dyn_fps;
+  repeated_fixed_2 fp_9[-180, 180] fixed_fps;
+  repeated_fixed_20 uint_7 twenty;
+  repeated_dyn_4 A_Very_Long_Enumeration_Name_For_Testing_The_Layout enums_with_a_long_attribute_name;
+  repeated_dyn_4 lower_msg ws;
+  repeated_fixed_2 lower_msg fixed_ws;
+  optional lower_msg opt_w;
+  int_64 i64;
+  int_33d5 i33d;
+  uint_63 u63;
+  uint_63d7 u63d;
+  uint_64d8 u64d;
+  lower_msg ww;
+  Empty empty;
+  E e;
+  oneof a_oneof_with_a_long_name_to_test_the_layout(3) {
+    *binary_d3 binary_default;
+    fp_20[-50000000, 50000000] fixed_point_element;
+    A_Very_Long_Enumeration_Name_For_Testing_The_Layout enum_element_with_a_long_name;
+    oneof nested_oneof_inside(2) {
+      *uint_64 big;
+      E e;
+      Empty nothing;
+    }
+    Empty empty_message_element;
+  }
+}
+msg UsesNonConst { A_Message_With_A_Really_Really_Long_Name_That_Does_Not_Fit m; optional A_Message_With_A_Really_Really_Long_Name_That_Does_Not_Fit om; }

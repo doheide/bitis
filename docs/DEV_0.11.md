@@ -55,7 +55,20 @@ based traits, crate split) will be coordinated with the backend/firmware agents.
 ## Dart
 
 - `dart/bitis/`: pure-Dart runtime package `bitis` (web-safe).
-- Compiler target `-l dart` generating classes per message/enum/oneof.
+- Compiler target `-l dart` generating classes per message/enum/oneof
+  (`render_dart`, `src/lib_impl/dart.rs`, `templates/*.dart.jinja`):
+  - one library per invocation, imports only `package:bitis/bitis.dart` and
+    `dart:typed_data`; no Dart toolchain needed to generate,
+  - messages: immutable `final class X implements BitisMessage` (final fields,
+    const constructor where all defaults are constant, `copyWith`), defaults =
+    Rust `Default` (fixed point: overflow),
+  - enums: Dart enums (`bitisName` = schema name, `defaultValue`); oneofs:
+    `sealed class OO_{Msg}_{Oneof}` + `OO_{Msg}_{Oneof}_{Element}` subclasses,
+  - JSON mapping as in `BitisJson`; fixed point equality on the raw value,
+  - laid out like `dart format` (tall style, width 80) and marked
+    `// dart format off`,
+  - tests: `tests/codegen_snapshots.rs`, `dart/codegen_test/` (cross-check
+    against the Rust runtime with `fixtures/rust_vectors.json`).
 - Type mapping: `int` for widths ≤ 32 bits, `Int64` (package:fixnum) for
   33–64 bits signed and unsigned ≤ 63 bits, `BigInt` for unsigned 64-bit.
 

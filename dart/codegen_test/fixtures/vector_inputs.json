@@ -1,0 +1,1733 @@
+{
+ "comment": "Values (JSON mapping of the Dart target) encoded by tool/rust_vectors; see tool/regen.sh.",
+ "vectors": [
+  {
+   "schema": "cara",
+   "name": "std_time",
+   "message": "STD_Msg_Time",
+   "value": {
+    "epoch_after_foj2025": 4294967295
+   }
+  },
+  {
+   "schema": "cara",
+   "name": "std_base_parameters",
+   "message": "STD_Msg_BaseParameters",
+   "value": {
+    "server_contact_retry_interval_on_error_d2": 65535,
+    "max_num_wlan_macs_add": 9,
+    "max_num_tower_add": 5,
+    "timeout_at_least_one_satelite_d2": 63,
+    "timeout_gnss_position_add_d8": 200,
+    "status_interval_if_online_d4": 17,
+    "report_circuitry_state": true,
+    "report_gnss_status": false
+   }
+  },
+  {
+   "schema": "cara",
+   "name": "std_functionality_parameters",
+   "message": "STD_Msg_FunctionalityParameters",
+   "value": {
+    "server_contact_min_interval_d4": 300,
+    "server_contact_max_interval_add_d4": 0,
+    "positions_min_interval_d4": 1,
+    "positions_max_interval_add_d4": 65534,
+    "force_send_positions_immediately": true,
+    "num_gnss_positions_per_pos": 15,
+    "provide_wlan_pos": true,
+    "provide_gnss_pos": false,
+    "provide_tower_pos": true,
+    "keep_gnss_on_while_online": true
+   }
+  },
+  {
+   "schema": "cara",
+   "name": "std_ip_online_only_for_sending",
+   "message": "STD_Msg_IP_OnlineOnlyForSending",
+   "value": {}
+  },
+  {
+   "schema": "cara",
+   "name": "std_ip_stay_online_indefinetly",
+   "message": "STD_Msg_IP_StayOnlineIndefinetly",
+   "value": {}
+  },
+  {
+   "schema": "cara",
+   "name": "std_min_online_time_secs",
+   "message": "STD_Msg_MinOnlineTime",
+   "value": {
+    "motoo": {
+     "secs_d4_minus_ten": 511
+    }
+   }
+  },
+  {
+   "schema": "cara",
+   "name": "std_min_online_time_stay",
+   "message": "STD_Msg_MinOnlineTime",
+   "value": {
+    "motoo": {
+     "std_msg_ip_stay_online_indefinetly": {}
+    }
+   }
+  },
+  {
+   "schema": "cara",
+   "name": "std_min_online_time_sending",
+   "message": "STD_Msg_MinOnlineTime",
+   "value": {
+    "motoo": {
+     "std_msg_ip_online_only_for_sending": {}
+    }
+   }
+  },
+  {
+   "schema": "cara",
+   "name": "std_interaction_parameters",
+   "message": "STD_Msg_InteractionParameters",
+   "value": {
+    "min_online_time": {
+     "motoo": {
+      "secs_d4_minus_ten": 511
+     }
+    },
+    "positions_interval_if_online": 40000
+   }
+  },
+  {
+   "schema": "cara",
+   "name": "std_temp_min_online_time",
+   "message": "STD_Msg_TempMinOnlineTime",
+   "value": {
+    "min_online_time": {
+     "motoo": {
+      "std_msg_ip_stay_online_indefinetly": {}
+     }
+    }
+   }
+  },
+  {
+   "schema": "cara",
+   "name": "std_draw_attention",
+   "message": "STD_Msg_DrawAttention",
+   "value": {
+    "beep_for_secs_d2": 3,
+    "led_blink_for_secs_d2": 60
+   }
+  },
+  {
+   "schema": "cara",
+   "name": "dts_error",
+   "message": "DTS_Error",
+   "value": {
+    "err": "UnspecifiedError",
+    "err_msg": "battery low: 3.1V (#42)"
+   }
+  },
+  {
+   "schema": "cara",
+   "name": "dts_device_state",
+   "message": "DTS_Msg_DeviceState",
+   "value": {
+    "wakeup_reason": "WakeupMotion",
+    "epoch_after_foj2025": 123456789,
+    "battery_soc": 55.5,
+    "remaining_online_time": 1023,
+    "is_plugged_in": true,
+    "charging_state": "ConstantVoltage",
+    "do_close_connection": false
+   }
+  },
+  {
+   "schema": "cara",
+   "name": "dts_device_state_overflow",
+   "message": "DTS_Msg_DeviceState",
+   "value": {
+    "wakeup_reason": "ColdStart",
+    "epoch_after_foj2025": 0,
+    "battery_soc": {
+     "state": "overflow"
+    },
+    "remaining_online_time": 0,
+    "is_plugged_in": false,
+    "charging_state": "ChargingDoneOrDisabled",
+    "do_close_connection": true
+   }
+  },
+  {
+   "schema": "cara",
+   "name": "dts_client_pos_start",
+   "message": "DTS_Msg_ClientPosStart",
+   "value": {
+    "ts_epoch_after_foj2025": 2147483648
+   }
+  },
+  {
+   "schema": "cara",
+   "name": "dts_client_pos_end",
+   "message": "DTS_Msg_ClientPosEnd",
+   "value": {
+    "ts_after_cps": 2047
+   }
+  },
+  {
+   "schema": "cara",
+   "name": "dts_wlan_info_entry",
+   "message": "DTS_Msg_WLanInfo_Entry",
+   "value": {
+    "mac_element": [
+     0,
+     17,
+     34,
+     51,
+     68,
+     255
+    ],
+    "signal_strength": -127
+   }
+  },
+  {
+   "schema": "cara",
+   "name": "dts_wlan_infos",
+   "message": "DTS_Msg_WLanInfos",
+   "value": {
+    "ts_after_cps": 12,
+    "macs": [
+     {
+      "mac_element": [
+       0,
+       17,
+       34,
+       51,
+       68,
+       255
+      ],
+      "signal_strength": -127
+     },
+     {
+      "mac_element": [
+       170,
+       187,
+       204,
+       221,
+       238,
+       1
+      ],
+      "signal_strength": 127
+     },
+     {
+      "mac_element": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6
+      ],
+      "signal_strength": 0
+     }
+    ]
+   }
+  },
+  {
+   "schema": "cara",
+   "name": "dts_wlan_infos_empty",
+   "message": "DTS_Msg_WLanInfos",
+   "value": {
+    "ts_after_cps": 1,
+    "macs": []
+   }
+  },
+  {
+   "schema": "cara",
+   "name": "dts_gnss_position",
+   "message": "DTS_Msg_GNSSPosition",
+   "value": {
+    "ts_after_cps": 1500,
+    "lat": 52.520008,
+    "lng": 13.404954,
+    "altitude": 34.5,
+    "speed": 87.0,
+    "direction": 270.0,
+    "sats_in_view": 31,
+    "err_lat": 2.5,
+    "err_lng": 3.25,
+    "err_alt": 10.0
+   }
+  },
+  {
+   "schema": "cara",
+   "name": "dts_gnss_position_limits",
+   "message": "DTS_Msg_GNSSPosition",
+   "value": {
+    "ts_after_cps": 0,
+    "lat": -90,
+    "lng": 180,
+    "altitude": {
+     "state": "underflow"
+    },
+    "speed": 1001,
+    "direction": -1,
+    "sats_in_view": 0,
+    "err_lat": 0,
+    "err_lng": 100,
+    "err_alt": {
+     "state": "overflow"
+    }
+   }
+  },
+  {
+   "schema": "cara",
+   "name": "dts_ping",
+   "message": "DTS_Msg_Ping",
+   "value": {
+    "dummy": 3
+   }
+  },
+  {
+   "schema": "cara",
+   "name": "dts_state_time_anchor",
+   "message": "DTS_Msg_StateTimeAnchor",
+   "value": {
+    "ts_epoch_after_foj2025": 99
+   }
+  },
+  {
+   "schema": "cara",
+   "name": "dts_not_pluged_in",
+   "message": "DTS_Msg_NotPlugedIn",
+   "value": {}
+  },
+  {
+   "schema": "cara",
+   "name": "dts_pluged_in",
+   "message": "DTS_Msg_PlugedIn",
+   "value": {
+    "is_charging": true
+   }
+  },
+  {
+   "schema": "cara",
+   "name": "dts_battery_state",
+   "message": "DTS_Msg_BatteryState",
+   "value": {
+    "ts_after_anchor": 300,
+    "battery_soc": 99.9,
+    "battery_voltage_timestwo": 7.4,
+    "charging_state": {
+     "pluged_in": {
+      "is_charging": true
+     }
+    }
+   }
+  },
+  {
+   "schema": "cara",
+   "name": "dts_battery_state_no_voltage",
+   "message": "DTS_Msg_BatteryState",
+   "value": {
+    "ts_after_anchor": 511,
+    "battery_soc": 0,
+    "charging_state": {
+     "not_pluged_in": {}
+    }
+   }
+  },
+  {
+   "schema": "cara",
+   "name": "dts_circuitry_state",
+   "message": "DTS_Msg_CircuitryState",
+   "value": {
+    "ts_after_anchor": 7,
+    "circuitry": "GNSS",
+    "state": "On"
+   }
+  },
+  {
+   "schema": "cara",
+   "name": "dts_gnss_state",
+   "message": "DTS_Msg_GNSSState",
+   "value": {
+    "ts_after_anchor": 8,
+    "error": 1234.5,
+    "sats_in_view": 9,
+    "has_fix": true
+   }
+  },
+  {
+   "schema": "cara",
+   "name": "dts_gnss_state_no_error",
+   "message": "DTS_Msg_GNSSState",
+   "value": {
+    "ts_after_anchor": 8,
+    "sats_in_view": 0,
+    "has_fix": false
+   }
+  },
+  {
+   "schema": "cara",
+   "name": "dts_acknowledge",
+   "message": "DTS_Msg_Acknowledge",
+   "value": {
+    "draw_attention": true,
+    "params": false
+   }
+  },
+  {
+   "schema": "cara",
+   "name": "dts_state_information_battery",
+   "message": "DTS_Msg_StateInformation",
+   "value": {
+    "value": {
+     "battery_state": {
+      "ts_after_anchor": 300,
+      "battery_soc": 99.9,
+      "battery_voltage_timestwo": 7.4,
+      "charging_state": {
+       "pluged_in": {
+        "is_charging": true
+       }
+      }
+     }
+    }
+   }
+  },
+  {
+   "schema": "cara",
+   "name": "dts_state_information_gnss",
+   "message": "DTS_Msg_StateInformation",
+   "value": {
+    "value": {
+     "gnss_state": {
+      "ts_after_anchor": 8,
+      "error": 1234.5,
+      "sats_in_view": 9,
+      "has_fix": true
+     }
+    }
+   }
+  },
+  {
+   "schema": "cara",
+   "name": "dts_device_auth_handshake",
+   "message": "DTS_DeviceAuthHandshake",
+   "value": {
+    "device_id": 134217727,
+    "device_protocol_version": 5,
+    "reserved": 0,
+    "MUST_BE_ONE": 1
+   }
+  },
+  {
+   "schema": "cara",
+   "name": "dts_device_send_challenge_response",
+   "message": "DTS_DeviceSendChallengeResponse",
+   "value": {
+    "challenge_response": 4095,
+    "do_send_time": true,
+    "do_send_all_params": false,
+    "reserved": 1,
+    "MUST_BE_ONE": 1
+   }
+  },
+  {
+   "schema": "cara",
+   "name": "std_response_handshake_ok",
+   "message": "STD_ResponseHandshakeOk",
+   "value": {
+    "connection_timeout": 6
+   }
+  },
+  {
+   "schema": "cara",
+   "name": "std_response_greeting",
+   "message": "STD_ResponseGreeting",
+   "value": {}
+  },
+  {
+   "schema": "cara",
+   "name": "std_handshake_response_ok",
+   "message": "STD_HandshakeResponse",
+   "value": {
+    "value": {
+     "handshake_ok": {
+      "connection_timeout": 2
+     }
+    }
+   }
+  },
+  {
+   "schema": "cara",
+   "name": "std_handshake_response_err",
+   "message": "STD_HandshakeResponse",
+   "value": {
+    "value": {
+     "err": "UnexpectedData"
+    }
+   }
+  },
+  {
+   "schema": "cara",
+   "name": "std_handshake_response_greeting",
+   "message": "STD_HandshakeResponse",
+   "value": {
+    "value": {
+     "greeting": {}
+    }
+   }
+  },
+  {
+   "schema": "cara",
+   "name": "sts_online",
+   "message": "STS_Msg_OnlineStateChanged_Online",
+   "value": {
+    "force_parameter_to_device": true
+   }
+  },
+  {
+   "schema": "cara",
+   "name": "sts_offline",
+   "message": "STS_Msg_OnlineStateChanged_Offline",
+   "value": {}
+  },
+  {
+   "schema": "cara",
+   "name": "sts_wlan_pos_received",
+   "message": "STS_Msg_WLANPosReceived",
+   "value": {
+    "pos_container_id": "-9223372036854775807",
+    "sub_id": -2147483647,
+    "ts_epoch_after_foj2025_container": 9007199254740991,
+    "wlan_infos": {
+     "ts_after_cps": 12,
+     "macs": [
+      {
+       "mac_element": [
+        0,
+        17,
+        34,
+        51,
+        68,
+        255
+       ],
+       "signal_strength": -127
+      },
+      {
+       "mac_element": [
+        170,
+        187,
+        204,
+        221,
+        238,
+        1
+       ],
+       "signal_strength": 127
+      },
+      {
+       "mac_element": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+       ],
+       "signal_strength": 0
+      }
+     ]
+    }
+   }
+  },
+  {
+   "schema": "cara",
+   "name": "sts_pos_gen_data",
+   "message": "STS_Msg_PosGenData",
+   "value": {
+    "epoch_after_foj2025": 77,
+    "lat": -33.865143,
+    "lng": 151.2099,
+    "height": -2147483647,
+    "speed": 32767,
+    "accuracy": 12.75,
+    "sub_id": 4294967295,
+    "pos_container_id": "18446744073709551615",
+    "source": "celltower",
+    "contains_wlan_info": true,
+    "contains_celltower_info": false,
+    "contains_gnss_info": true
+   }
+  },
+  {
+   "schema": "cara",
+   "name": "sts_pos_gen_data_no_optionals",
+   "message": "STS_Msg_PosGenData",
+   "value": {
+    "epoch_after_foj2025": 0,
+    "lat": 0,
+    "lng": 0,
+    "pos_container_id": "9007199254740993",
+    "source": "derived",
+    "contains_wlan_info": false,
+    "contains_celltower_info": false,
+    "contains_gnss_info": false
+   }
+  },
+  {
+   "schema": "cara",
+   "name": "sts_geo_pos_ready",
+   "message": "STS_Msg_GeoPosReady",
+   "value": {
+    "pos_container_id": 42
+   }
+  },
+  {
+   "schema": "cara",
+   "name": "xtx_header",
+   "message": "XTX_Msg_Header",
+   "value": {
+    "is_encrypted": true,
+    "size_low": 3,
+    "size_high": 300
+   }
+  },
+  {
+   "schema": "cara",
+   "name": "dts_msg_wrapper_error",
+   "message": "DTS_MsgWrapper",
+   "value": {
+    "value": {
+     "error": {
+      "err": "UnspecifiedError",
+      "err_msg": "battery low: 3.1V (#42)"
+     }
+    }
+   }
+  },
+  {
+   "schema": "cara",
+   "name": "dts_msg",
+   "message": "DTS_Msg",
+   "value": {
+    "msgs": [
+     {
+      "value": {
+       "device_state": {
+        "wakeup_reason": "WakeupMotion",
+        "epoch_after_foj2025": 123456789,
+        "battery_soc": 55.5,
+        "remaining_online_time": 1023,
+        "is_plugged_in": true,
+        "charging_state": "ConstantVoltage",
+        "do_close_connection": false
+       }
+      }
+     },
+     {
+      "value": {
+       "client_pos_start": {
+        "ts_epoch_after_foj2025": 2147483648
+       }
+      }
+     },
+     {
+      "value": {
+       "wlan_infos": {
+        "ts_after_cps": 12,
+        "macs": [
+         {
+          "mac_element": [
+           0,
+           17,
+           34,
+           51,
+           68,
+           255
+          ],
+          "signal_strength": -127
+         },
+         {
+          "mac_element": [
+           170,
+           187,
+           204,
+           221,
+           238,
+           1
+          ],
+          "signal_strength": 127
+         },
+         {
+          "mac_element": [
+           1,
+           2,
+           3,
+           4,
+           5,
+           6
+          ],
+          "signal_strength": 0
+         }
+        ]
+       }
+      }
+     },
+     {
+      "value": {
+       "gnss_position": {
+        "ts_after_cps": 1500,
+        "lat": 52.520008,
+        "lng": 13.404954,
+        "altitude": 34.5,
+        "speed": 87.0,
+        "direction": 270.0,
+        "sats_in_view": 31,
+        "err_lat": 2.5,
+        "err_lng": 3.25,
+        "err_alt": 10.0
+       }
+      }
+     },
+     {
+      "value": {
+       "client_pos_end": {
+        "ts_after_cps": 2047
+       }
+      }
+     },
+     {
+      "value": {
+       "acknowledge": {
+        "draw_attention": true,
+        "params": false
+       }
+      }
+     },
+     {
+      "value": {
+       "state_information": {
+        "value": {
+         "battery_state": {
+          "ts_after_anchor": 300,
+          "battery_soc": 99.9,
+          "battery_voltage_timestwo": 7.4,
+          "charging_state": {
+           "pluged_in": {
+            "is_charging": true
+           }
+          }
+         }
+        }
+       }
+      }
+     },
+     {
+      "value": {
+       "state_information": {
+        "value": {
+         "circuitry_state": {
+          "ts_after_anchor": 7,
+          "circuitry": "GNSS",
+          "state": "On"
+         }
+        }
+       }
+      }
+     },
+     {
+      "value": {
+       "state_information": {
+        "value": {
+         "time_anchor": {
+          "ts_epoch_after_foj2025": 99
+         }
+        }
+       }
+      }
+     },
+     {
+      "value": {
+       "error": {
+        "err": "UnspecifiedError",
+        "err_msg": "battery low: 3.1V (#42)"
+       }
+      }
+     }
+    ],
+    "nonce": 101
+   }
+  },
+  {
+   "schema": "cara",
+   "name": "dts_msg_empty",
+   "message": "DTS_Msg",
+   "value": {
+    "msgs": [],
+    "nonce": 0
+   }
+  },
+  {
+   "schema": "cara",
+   "name": "std_msg_wrapper_error",
+   "message": "STD_MsgWrapper",
+   "value": {
+    "value": {
+     "error": "TimeOut"
+    }
+   }
+  },
+  {
+   "schema": "cara",
+   "name": "std_msg",
+   "message": "STD_Msg",
+   "value": {
+    "msgs": [
+     {
+      "value": {
+       "error": "WrongNonce"
+      }
+     },
+     {
+      "value": {
+       "time": {
+        "epoch_after_foj2025": 4294967295
+       }
+      }
+     },
+     {
+      "value": {
+       "base_parameters": {
+        "server_contact_retry_interval_on_error_d2": 65535,
+        "max_num_wlan_macs_add": 9,
+        "max_num_tower_add": 5,
+        "timeout_at_least_one_satelite_d2": 63,
+        "timeout_gnss_position_add_d8": 200,
+        "status_interval_if_online_d4": 17,
+        "report_circuitry_state": true,
+        "report_gnss_status": false
+       }
+      }
+     },
+     {
+      "value": {
+       "functionality_parameters": {
+        "server_contact_min_interval_d4": 300,
+        "server_contact_max_interval_add_d4": 0,
+        "positions_min_interval_d4": 1,
+        "positions_max_interval_add_d4": 65534,
+        "force_send_positions_immediately": true,
+        "num_gnss_positions_per_pos": 15,
+        "provide_wlan_pos": true,
+        "provide_gnss_pos": false,
+        "provide_tower_pos": true,
+        "keep_gnss_on_while_online": true
+       }
+      }
+     },
+     {
+      "value": {
+       "interaction_parameters": {
+        "min_online_time": {
+         "motoo": {
+          "secs_d4_minus_ten": 511
+         }
+        },
+        "positions_interval_if_online": 40000
+       }
+      }
+     },
+     {
+      "value": {
+       "temp_min_online_time": {
+        "min_online_time": {
+         "motoo": {
+          "std_msg_ip_stay_online_indefinetly": {}
+         }
+        }
+       }
+      }
+     },
+     {
+      "value": {
+       "draw_attention": {
+        "beep_for_secs_d2": 3,
+        "led_blink_for_secs_d2": 60
+       }
+      }
+     }
+    ],
+    "new_nonce": 127
+   }
+  },
+  {
+   "schema": "cara",
+   "name": "std_msg_no_nonce",
+   "message": "STD_Msg",
+   "value": {
+    "msgs": [
+     {
+      "value": {
+       "time": {
+        "epoch_after_foj2025": 1
+       }
+      }
+     }
+    ]
+   }
+  },
+  {
+   "schema": "cara",
+   "name": "sts_msg_wrapper_pos",
+   "message": "STS_MsgWrapper",
+   "value": {
+    "value": {
+     "pos_gen_data": {
+      "epoch_after_foj2025": 77,
+      "lat": -33.865143,
+      "lng": 151.2099,
+      "height": -2147483647,
+      "speed": 32767,
+      "accuracy": 12.75,
+      "sub_id": 4294967295,
+      "pos_container_id": "18446744073709551615",
+      "source": "celltower",
+      "contains_wlan_info": true,
+      "contains_celltower_info": false,
+      "contains_gnss_info": true
+     }
+    }
+   }
+  },
+  {
+   "schema": "cara",
+   "name": "sts_msg",
+   "message": "STS_Msg",
+   "value": {
+    "device_id": 1234567,
+    "msgs": [
+     {
+      "value": {
+       "device_state": {
+        "wakeup_reason": "WakeupMotion",
+        "epoch_after_foj2025": 123456789,
+        "battery_soc": 55.5,
+        "remaining_online_time": 1023,
+        "is_plugged_in": true,
+        "charging_state": "ConstantVoltage",
+        "do_close_connection": false
+       }
+      }
+     },
+     {
+      "value": {
+       "online_state_changed_online": {
+        "force_parameter_to_device": true
+       }
+      }
+     },
+     {
+      "value": {
+       "online_state_changed_offline": {}
+      }
+     },
+     {
+      "value": {
+       "wlan_pos_received": {
+        "pos_container_id": "-9223372036854775807",
+        "sub_id": -2147483647,
+        "ts_epoch_after_foj2025_container": 9007199254740991,
+        "wlan_infos": {
+         "ts_after_cps": 12,
+         "macs": [
+          {
+           "mac_element": [
+            0,
+            17,
+            34,
+            51,
+            68,
+            255
+           ],
+           "signal_strength": -127
+          },
+          {
+           "mac_element": [
+            170,
+            187,
+            204,
+            221,
+            238,
+            1
+           ],
+           "signal_strength": 127
+          },
+          {
+           "mac_element": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+           ],
+           "signal_strength": 0
+          }
+         ]
+        }
+       }
+      }
+     },
+     {
+      "value": {
+       "pos_gen_data": {
+        "epoch_after_foj2025": 77,
+        "lat": -33.865143,
+        "lng": 151.2099,
+        "height": -2147483647,
+        "speed": 32767,
+        "accuracy": 12.75,
+        "sub_id": 4294967295,
+        "pos_container_id": "18446744073709551615",
+        "source": "celltower",
+        "contains_wlan_info": true,
+        "contains_celltower_info": false,
+        "contains_gnss_info": true
+       }
+      }
+     },
+     {
+      "value": {
+       "pos_gen_data": {
+        "epoch_after_foj2025": 0,
+        "lat": 0,
+        "lng": 0,
+        "pos_container_id": "9007199254740993",
+        "source": "derived",
+        "contains_wlan_info": false,
+        "contains_celltower_info": false,
+        "contains_gnss_info": false
+       }
+      }
+     },
+     {
+      "value": {
+       "geo_pos_ready": {
+        "pos_container_id": 42
+       }
+      }
+     },
+     {
+      "value": {
+       "gnss_position": {
+        "ts_after_cps": 0,
+        "lat": -90,
+        "lng": 180,
+        "altitude": {
+         "state": "underflow"
+        },
+        "speed": 1001,
+        "direction": -1,
+        "sats_in_view": 0,
+        "err_lat": 0,
+        "err_lng": 100,
+        "err_alt": {
+         "state": "overflow"
+        }
+       }
+      }
+     },
+     {
+      "value": {
+       "state_information": {
+        "value": {
+         "battery_state": {
+          "ts_after_anchor": 511,
+          "battery_soc": 0,
+          "charging_state": {
+           "not_pluged_in": {}
+          }
+         }
+        }
+       }
+      }
+     },
+     {
+      "value": {
+       "draw_attention": {
+        "beep_for_secs_d2": 3,
+        "led_blink_for_secs_d2": 60
+       }
+      }
+     },
+     {
+      "value": {
+       "base_parameters": {
+        "server_contact_retry_interval_on_error_d2": 65535,
+        "max_num_wlan_macs_add": 9,
+        "max_num_tower_add": 5,
+        "timeout_at_least_one_satelite_d2": 63,
+        "timeout_gnss_position_add_d8": 200,
+        "status_interval_if_online_d4": 17,
+        "report_circuitry_state": true,
+        "report_gnss_status": false
+       }
+      }
+     },
+     {
+      "value": {
+       "functionality_parameters": {
+        "server_contact_min_interval_d4": 300,
+        "server_contact_max_interval_add_d4": 0,
+        "positions_min_interval_d4": 1,
+        "positions_max_interval_add_d4": 65534,
+        "force_send_positions_immediately": true,
+        "num_gnss_positions_per_pos": 15,
+        "provide_wlan_pos": true,
+        "provide_gnss_pos": false,
+        "provide_tower_pos": true,
+        "keep_gnss_on_while_online": true
+       }
+      }
+     },
+     {
+      "value": {
+       "interaction_parameters": {
+        "min_online_time": {
+         "motoo": {
+          "secs_d4_minus_ten": 511
+         }
+        },
+        "positions_interval_if_online": 40000
+       }
+      }
+     },
+     {
+      "value": {
+       "temp_min_online_time": {
+        "min_online_time": {
+         "motoo": {
+          "std_msg_ip_stay_online_indefinetly": {}
+         }
+        }
+       }
+      }
+     },
+     {
+      "value": {
+       "acknowledge": {
+        "draw_attention": true,
+        "params": false
+       }
+      }
+     },
+     {
+      "value": {
+       "client_pos_end": {
+        "ts_after_cps": 2047
+       }
+      }
+     },
+     {
+      "value": {
+       "client_pos_start": {
+        "ts_epoch_after_foj2025": 2147483648
+       }
+      }
+     },
+     {
+      "value": {
+       "wlan_infos": {
+        "ts_after_cps": 12,
+        "macs": [
+         {
+          "mac_element": [
+           0,
+           17,
+           34,
+           51,
+           68,
+           255
+          ],
+          "signal_strength": -127
+         },
+         {
+          "mac_element": [
+           170,
+           187,
+           204,
+           221,
+           238,
+           1
+          ],
+          "signal_strength": 127
+         },
+         {
+          "mac_element": [
+           1,
+           2,
+           3,
+           4,
+           5,
+           6
+          ],
+          "signal_strength": 0
+         }
+        ]
+       }
+      }
+     }
+    ]
+   }
+  },
+  {
+   "schema": "test_schema",
+   "name": "papa",
+   "message": "Papa",
+   "value": {
+    "oo_lala": {
+     "test2": 1.5
+    }
+   }
+  },
+  {
+   "schema": "test_schema",
+   "name": "papa_default_element",
+   "message": "Papa",
+   "value": {
+    "oo_lala": {
+     "test": 255
+    }
+   }
+  },
+  {
+   "schema": "test_schema",
+   "name": "pipi",
+   "message": "Pipi",
+   "value": {
+    "num": "Two"
+   }
+  },
+  {
+   "schema": "test_schema",
+   "name": "lala",
+   "message": "Lala",
+   "value": {
+    "lili": [
+     true,
+     false,
+     true
+    ],
+    "lala": [
+     0,
+     1,
+     4294967295,
+     16
+    ],
+    "lolo": 4095,
+    "qwert": -1234.5678,
+    "lele": "AAEC/w==",
+    "name": "Hello, bitis!",
+    "signed_val": -31,
+    "signed_dyn_val": -32767,
+    "fixed_point": 1.25,
+    "pipi": {
+     "num": "Three"
+    },
+    "nah": "OneAndAHalf",
+    "oo_lala": {
+     "papa": {
+      "oo_lala": {
+       "test2": 1.5
+      }
+     }
+    }
+   }
+  },
+  {
+   "schema": "test_schema",
+   "name": "lala_minimal",
+   "message": "Lala",
+   "value": {
+    "lili": [],
+    "lala": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "qwert": 0.0,
+    "lele": "",
+    "name": "",
+    "signed_val": 31,
+    "signed_dyn_val": 0,
+    "fixed_point": {
+     "state": "underflow"
+    },
+    "pipi": {
+     "num": "One"
+    },
+    "nah": "TwoAndAHalf",
+    "oo_lala": {
+     "test2": -0.25
+    }
+   }
+  },
+  {
+   "schema": "test_schema",
+   "name": "lali",
+   "message": "Lali",
+   "value": {
+    "lulu": true,
+    "loli": 179.99
+   }
+  },
+  {
+   "schema": "all_types",
+   "name": "all_types",
+   "message": "AllTypes",
+   "value": {
+    "b": true,
+    "u1": 1,
+    "u17": 131071,
+    "u64v": "18446744073709551615",
+    "i5": -31,
+    "i33": "-8589934591",
+    "ud": 4294967295,
+    "id": -32767,
+    "f": 3.140000104904175,
+    "d": 2.718281828459045,
+    "fp": -1.5,
+    "lat": 47.123456789,
+    "s": "~ASCII 0x7e~",
+    "data": "3q2+7w==",
+    "color": "BLUE_LIGHT",
+    "inner": {
+     "a": 5
+    },
+    "empty": {},
+    "opt_u": 127,
+    "opt_inner": {
+     "a": 7
+    },
+    "opt_empty": {},
+    "rf_b": [
+     true,
+     true,
+     false
+    ],
+    "rf_inner": [
+     {
+      "a": 1
+     },
+     {
+      "a": 2
+     }
+    ],
+    "rd_u": [
+     15,
+     0,
+     7
+    ],
+    "rd_color": [
+     "Red",
+     "Green",
+     "BLUE_LIGHT"
+    ],
+    "rd_inner": [
+     {
+      "a": 3
+     }
+    ],
+    "choice": {
+     "text": "hey"
+    }
+   }
+  },
+  {
+   "schema": "all_types",
+   "name": "all_types_choice_flag",
+   "message": "AllTypes",
+   "value": {
+    "b": true,
+    "u1": 1,
+    "u17": 131071,
+    "u64v": "18446744073709551615",
+    "i5": -31,
+    "i33": "-8589934591",
+    "ud": 4294967295,
+    "id": -32767,
+    "f": 3.140000104904175,
+    "d": 2.718281828459045,
+    "fp": -1.5,
+    "lat": 47.123456789,
+    "s": "~ASCII 0x7e~",
+    "data": "3q2+7w==",
+    "color": "BLUE_LIGHT",
+    "inner": {
+     "a": 5
+    },
+    "empty": {},
+    "opt_u": 127,
+    "opt_inner": {
+     "a": 7
+    },
+    "opt_empty": {},
+    "rf_b": [
+     true,
+     true,
+     false
+    ],
+    "rf_inner": [
+     {
+      "a": 1
+     },
+     {
+      "a": 2
+     }
+    ],
+    "rd_u": [
+     15,
+     0,
+     7
+    ],
+    "rd_color": [
+     "Red",
+     "Green",
+     "BLUE_LIGHT"
+    ],
+    "rd_inner": [
+     {
+      "a": 3
+     }
+    ],
+    "choice": {
+     "flag": true
+    }
+   }
+  },
+  {
+   "schema": "all_types",
+   "name": "all_types_choice_number",
+   "message": "AllTypes",
+   "value": {
+    "b": true,
+    "u1": 1,
+    "u17": 131071,
+    "u64v": "18446744073709551615",
+    "i5": -31,
+    "i33": "-8589934591",
+    "ud": 4294967295,
+    "id": -32767,
+    "f": 3.140000104904175,
+    "d": 2.718281828459045,
+    "fp": -1.5,
+    "lat": 47.123456789,
+    "s": "~ASCII 0x7e~",
+    "data": "3q2+7w==",
+    "color": "BLUE_LIGHT",
+    "inner": {
+     "a": 5
+    },
+    "empty": {},
+    "opt_u": 127,
+    "opt_inner": {
+     "a": 7
+    },
+    "opt_empty": {},
+    "rf_b": [
+     true,
+     true,
+     false
+    ],
+    "rf_inner": [
+     {
+      "a": 1
+     },
+     {
+      "a": 2
+     }
+    ],
+    "rd_u": [
+     15,
+     0,
+     7
+    ],
+    "rd_color": [
+     "Red",
+     "Green",
+     "BLUE_LIGHT"
+    ],
+    "rd_inner": [
+     {
+      "a": 3
+     }
+    ],
+    "choice": {
+     "number": 4095
+    }
+   }
+  },
+  {
+   "schema": "all_types",
+   "name": "all_types_choice_inner_val",
+   "message": "AllTypes",
+   "value": {
+    "b": true,
+    "u1": 1,
+    "u17": 131071,
+    "u64v": "18446744073709551615",
+    "i5": -31,
+    "i33": "-8589934591",
+    "ud": 4294967295,
+    "id": -32767,
+    "f": 3.140000104904175,
+    "d": 2.718281828459045,
+    "fp": -1.5,
+    "lat": 47.123456789,
+    "s": "~ASCII 0x7e~",
+    "data": "3q2+7w==",
+    "color": "BLUE_LIGHT",
+    "inner": {
+     "a": 5
+    },
+    "empty": {},
+    "opt_u": 127,
+    "opt_inner": {
+     "a": 7
+    },
+    "opt_empty": {},
+    "rf_b": [
+     true,
+     true,
+     false
+    ],
+    "rf_inner": [
+     {
+      "a": 1
+     },
+     {
+      "a": 2
+     }
+    ],
+    "rd_u": [
+     15,
+     0,
+     7
+    ],
+    "rd_color": [
+     "Red",
+     "Green",
+     "BLUE_LIGHT"
+    ],
+    "rd_inner": [
+     {
+      "a": 3
+     }
+    ],
+    "choice": {
+     "inner_val": {
+      "a": 6
+     }
+    }
+   }
+  },
+  {
+   "schema": "all_types",
+   "name": "all_types_choice_color_val",
+   "message": "AllTypes",
+   "value": {
+    "b": true,
+    "u1": 1,
+    "u17": 131071,
+    "u64v": "18446744073709551615",
+    "i5": -31,
+    "i33": "-8589934591",
+    "ud": 4294967295,
+    "id": -32767,
+    "f": 3.140000104904175,
+    "d": 2.718281828459045,
+    "fp": -1.5,
+    "lat": 47.123456789,
+    "s": "~ASCII 0x7e~",
+    "data": "3q2+7w==",
+    "color": "BLUE_LIGHT",
+    "inner": {
+     "a": 5
+    },
+    "empty": {},
+    "opt_u": 127,
+    "opt_inner": {
+     "a": 7
+    },
+    "opt_empty": {},
+    "rf_b": [
+     true,
+     true,
+     false
+    ],
+    "rf_inner": [
+     {
+      "a": 1
+     },
+     {
+      "a": 2
+     }
+    ],
+    "rd_u": [
+     15,
+     0,
+     7
+    ],
+    "rd_color": [
+     "Red",
+     "Green",
+     "BLUE_LIGHT"
+    ],
+    "rd_inner": [
+     {
+      "a": 3
+     }
+    ],
+    "choice": {
+     "color_val": "Red"
+    }
+   }
+  },
+  {
+   "schema": "all_types",
+   "name": "all_types_choice_nothing",
+   "message": "AllTypes",
+   "value": {
+    "b": true,
+    "u1": 1,
+    "u17": 131071,
+    "u64v": "18446744073709551615",
+    "i5": -31,
+    "i33": "-8589934591",
+    "ud": 4294967295,
+    "id": -32767,
+    "f": 3.140000104904175,
+    "d": 2.718281828459045,
+    "fp": -1.5,
+    "lat": 47.123456789,
+    "s": "~ASCII 0x7e~",
+    "data": "3q2+7w==",
+    "color": "BLUE_LIGHT",
+    "inner": {
+     "a": 5
+    },
+    "empty": {},
+    "opt_u": 127,
+    "opt_inner": {
+     "a": 7
+    },
+    "opt_empty": {},
+    "rf_b": [
+     true,
+     true,
+     false
+    ],
+    "rf_inner": [
+     {
+      "a": 1
+     },
+     {
+      "a": 2
+     }
+    ],
+    "rd_u": [
+     15,
+     0,
+     7
+    ],
+    "rd_color": [
+     "Red",
+     "Green",
+     "BLUE_LIGHT"
+    ],
+    "rd_inner": [
+     {
+      "a": 3
+     }
+    ],
+    "choice": {
+     "nothing": {}
+    }
+   }
+  },
+  {
+   "schema": "all_types",
+   "name": "all_types_special",
+   "message": "AllTypes",
+   "value": {
+    "b": true,
+    "u1": 1,
+    "u17": 131071,
+    "u64v": 0,
+    "i5": -31,
+    "i33": "8589934591",
+    "ud": 4294967295,
+    "id": -32767,
+    "f": "NaN",
+    "d": "-Infinity",
+    "fp": {
+     "state": "overflow"
+    },
+    "lat": 47.123456789,
+    "s": "",
+    "data": "",
+    "color": "BLUE_LIGHT",
+    "inner": {
+     "a": 5
+    },
+    "empty": {},
+    "rf_b": [
+     true,
+     true,
+     false
+    ],
+    "rf_inner": [
+     {
+      "a": 1
+     },
+     {
+      "a": 2
+     }
+    ],
+    "rd_u": [
+     15,
+     0,
+     7
+    ],
+    "rd_color": [
+     "Red",
+     "Green",
+     "BLUE_LIGHT"
+    ],
+    "rd_inner": [
+     {
+      "a": 3
+     }
+    ],
+    "choice": {
+     "text": "hey"
+    }
+   }
+  },
+  {
+   "schema": "all_types",
+   "name": "inner",
+   "message": "Inner",
+   "value": {
+    "a": 5
+   }
+  },
+  {
+   "schema": "all_types",
+   "name": "empty",
+   "message": "Empty",
+   "value": {}
+  }
+ ]
+}

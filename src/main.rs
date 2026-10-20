@@ -29,7 +29,9 @@ enum Language {
     /// generate python library (based on generated rust code and maturin)
     Python,
     /// generate c++ code
-    Cpp
+    Cpp,
+    /// generate one dart library (uses the dart package `bitis`)
+    Dart,
 }
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 enum System {
@@ -43,15 +45,15 @@ enum Commands {
         /// Input file(s) with extension .bitis; give the option once per file or list several files
         #[arg(short, long, value_name = "FILE", num_args = 1.., required = true)]
         input_files: Vec<PathBuf>,
-        /// Directory for the output file if no output file or path is given (rust and cpp)
+        /// Directory for the output file if no output file or path is given (rust, cpp and dart)
         #[arg(long, short = 'p')]
         input_base_path: Option<PathBuf>,
 
         /// Language to generate code for
         #[arg(short, long)]
         lang: Language,
-        /// Output file or directory. rust/cpp: file, or directory to write <input name>.rs/.h
-        /// (messages.rs/.h for multiple input files) into; python: directory of the maturin project
+        /// Output file or directory. rust/cpp/dart: file, or directory to write <input name>.rs/.h/.dart
+        /// (messages.rs/.h/.dart for multiple input files) into; python: directory of the maturin project
         #[arg(short, long)]
         output_file_or_path: Option<PathBuf>,
 
@@ -91,7 +93,7 @@ fn write_output(path: &Path, content: &str) {
     }
 }
 
-/// Output file of the rust and cpp targets.
+/// Output file of the rust, cpp and dart targets.
 fn output_file_for(output_file_opt: Option<PathBuf>, input_base_path: Option<PathBuf>, input_file_dir: Option<PathBuf>,
                    file_name: &str) -> PathBuf {
     if let Some(of) = output_file_opt {
@@ -238,6 +240,17 @@ fn main() {
                         print_error(format!("'maturin develop' failed: {}", String::from_utf8_lossy(&out.stderr)));
                     }
                     println!("\n🎉 * Bitis compile and python lib build was successfully executed!\n");
+                }
+                Language::Dart => {
+                    if cli.debug > 0 { println!("* Generating dart code ..."); }
+                    let output_file = output_file_for(output_file_opt, input_base_path, input_file_dir,
+                                                      &format!("{output_stem}.dart"));
+                    if cli.debug > 0 { println!("output-file: '{}'", output_file.display()); }
+
+                    let rendered = render_dart(&processed_bitis).unwrap_or_else(|e| exit_with_errors(&[e], &sources));
+                    if cli.debug > 3 { println!("{}", rendered); }
+                    write_output(&output_file, &rendered);
+                    if cli.debug > 0 { println!("* Wrote file: {}", output_file.display()); }
                 }
                 Language::Cpp => {
                     if cli.debug > 0 { println!("* Generating cpp code ..."); }
