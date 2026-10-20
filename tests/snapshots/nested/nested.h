@@ -126,15 +126,14 @@ struct OO_Outer_Inner  {
         OO_X, 
         OO_E
     >, OO_X, 1> T_OOEnum;
+    T_OOEnum oo_selector;
 
     typedef oneof_helper::UnionT<  // UnionDynSizeT
         OO_X::OOType, OO_E::OOType
     > T_OOValue;
-    // the value first: the selector fills the padding after it
     T_OOValue oo_value;
-    T_OOEnum oo_selector;
 
-    OO_Outer_Inner() : oo_value(), oo_selector() {}
+    OO_Outer_Inner() : oo_selector() {}
 
     template<typename OOT>
     OO_Outer_Inner set_oo(typename OOT::OOType v) {
@@ -198,15 +197,14 @@ struct OO_Top_Outer  {
         OO_Leaf, 
         OO_Inner
     >, OO_Leaf, 2> T_OOEnum;
+    T_OOEnum oo_selector;
 
     typedef oneof_helper::UnionT<  // UnionDynSizeT
         OO_Leaf::OOType, OO_Inner::OOType
     > T_OOValue;
-    // the value first: the selector fills the padding after it
     T_OOValue oo_value;
-    T_OOEnum oo_selector;
 
-    OO_Top_Outer() : oo_value(), oo_selector() {}
+    OO_Top_Outer() : oo_selector() {}
 
     template<typename OOT>
     OO_Top_Outer set_oo(typename OOT::OOType v) {

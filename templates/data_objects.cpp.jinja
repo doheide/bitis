@@ -47,15 +47,14 @@ struct {{ coo.name }}  {
     typedef BitisEnum<bitis_helper::Collector<{%- for ca in coo.attributes %}
         OO_{{ca.base.name|pascal_case}}{% if !loop.last %}, {% endif %}{%- endfor %}
     >, OO_{{coo.default_attrib_name|pascal_case}}, {{coo.dyn_bits}}> T_OOEnum;
+    T_OOEnum oo_selector;
 
     typedef oneof_helper::UnionT<  // UnionDynSizeT
         {% for ca in coo.attributes -%}OO_{{ca.base.name|pascal_case}}::OOType{% if !loop.last %}, {% endif %}{%- endfor %}
     > T_OOValue;
-    // the value first: the selector fills the padding after it
     T_OOValue oo_value;
-    T_OOEnum oo_selector;
 
-    {{ coo.name }}() : oo_value(), oo_selector() {}
+    {{ coo.name }}() : oo_selector() {}
 
     template<typename OOT>
     {{ coo.name }} set_oo(typename OOT::OOType v) {

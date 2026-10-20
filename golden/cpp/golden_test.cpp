@@ -438,4 +438,34 @@ TEST(GoldenSpotCheck, Encoder) {
     EXPECT_EQ(try_serialize(bad_text, out), BitisError::ValueOutOfRange);
 }
 
+// max_bits (docs/WIRE_FORMAT.md section 4), computed by hand from the schema
+TEST(GoldenMaxBits, HandComputed) {
+    // fixed size: max = min
+    EXPECT_EQ(bitis_max_bits<Ints>(), 360u);
+    EXPECT_EQ(bitis_max_bits<Floats>(), 96u);
+    EXPECT_EQ(bitis_max_bits<FixedPoints>(), 2u + 10u + 34u + 35u + 53u);
+    EXPECT_EQ(bitis_max_bits<Empty>(), 0u);
+    // dynmax(X, Y) = X + ceil(X / Y), signed + 1: u8d3 11, u32d4 40, u64d64 65, u64d7 74, i16d5 21, i64d8 73
+    EXPECT_EQ(bitis_max_bits<DynInts>(), 11u + 40u + 65u + 74u + 21u + 73u);
+    EXPECT_EQ(bitis_max_bytes<DynInts>(), 36u);
+    // enums: dyn(k - 1, 32, Y); Color 6 values Y=2: 5 -> 1+2+1+2+1, Level 3 values Y=1: 2 -> 1+1+1+1+1
+    EXPECT_EQ(bitis_max_bits<Color>(), 7u);
+    EXPECT_EQ(bitis_max_bits<Level>(), 5u);
+    // astr / binary / repeated_dyn without a maximum length are unbounded, and so is everything containing them
+    for (const std::size_t b : {bitis_max_bits<Texts>(), bitis_max_bits<Leaf>(), bitis_max_bits<Mid>(),
+                                bitis_max_bits<Nested>(), bitis_max_bits<Containers>(), bitis_max_bits<Enums>(),
+                                bitis_max_bits<IntList>(), bitis_max_bits<Choice>(), bitis_max_bits<Everything>()}) {
+        EXPECT_EQ(b, BITIS_UNBOUNDED);
+    }
+    EXPECT_EQ(bitis_max_bytes<Everything>(), BITIS_UNBOUNDED);
+    // never below min_bits; the encodings of the valid vectors stay within the bound
+    for (const auto &r : records("valid")) {
+        const auto it = types().find(r.type);
+        ASSERT_NE(it, types().end());
+        if (r.type == "Ints") { EXPECT_LE(r.bits, bitis_max_bits<Ints>()); }
+        if (r.type == "DynInts") { EXPECT_LE(r.bits, bitis_max_bits<DynInts>()); }
+        if (r.type == "FixedPoints") { EXPECT_EQ(r.bits, bitis_max_bits<FixedPoints>()); }
+    }
+}
+
 }

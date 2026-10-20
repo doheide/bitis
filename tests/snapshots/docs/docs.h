@@ -50,15 +50,14 @@ struct OO_Documented_Sel  {
         OO_Flag, 
         OO_Num
     >, OO_Flag, 2> T_OOEnum;
+    T_OOEnum oo_selector;
 
     typedef oneof_helper::UnionT<  // UnionDynSizeT
         OO_Flag::OOType, OO_Num::OOType
     > T_OOValue;
-    // the value first: the selector fills the padding after it
     T_OOValue oo_value;
-    T_OOEnum oo_selector;
 
-    OO_Documented_Sel() : oo_value(), oo_selector() {}
+    OO_Documented_Sel() : oo_selector() {}
 
     template<typename OOT>
     OO_Documented_Sel set_oo(typename OOT::OOType v) {

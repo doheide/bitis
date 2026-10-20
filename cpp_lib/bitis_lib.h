@@ -84,8 +84,8 @@ constexpr uint64_t calc_bitmask(T bits) {
     if (bits >= 64) return ~static_cast<uint64_t>(0);
     return (static_cast<uint64_t>(1) << bits) - 1;
 }
-static const uint8_t bit_masks[] = {0, 1, 3, 7, 15, 31, 63, 127, 255};
-static const uint8_t max_bitmask = 8;
+inline constexpr uint8_t bit_masks[] = {0, 1, 3, 7, 15, 31, 63, 127, 255};   // one copy per program
+inline constexpr uint8_t max_bitmask = 8;
 
 // ***************************************************************
 enum class BitisError : uint8_t {
@@ -1032,8 +1032,12 @@ struct Binary : BinaryBase<DYN_BITS>{
 
     static bitis_helper::BitiaDeserializerHelper<Binary> deserialize(BitisDeserializer &des) {
         Binary r;
-        const auto bits = BinaryBase<DYN_BITS>::deserialize_bytes(des, r.values, false, 0);
+        const auto bits = r.read_into(des);
         return bitis_helper::BitiaDeserializerHelper<Binary>{bits, std::move(r)};
+    }
+    // see bitis_helper::read_into(); returns the consumed bits
+    std::size_t read_into(BitisDeserializer &des) {
+        return BinaryBase<DYN_BITS>::deserialize_bytes(des, this->values, false, 0);
     }
 
 #ifndef BITIS_NO_PRINT
@@ -1093,9 +1097,14 @@ struct BitisAString : BinaryBase<DYN_BITS>{
     }
     static bitis_helper::BitiaDeserializerHelper<BitisAString> deserialize(BitisDeserializer &des) {
         BitisAString r;
-        const auto bits = BinaryBase<DYN_BITS>::deserialize_bytes(des, r.values, true, 1);
-        r.values.push_back(0);
+        const auto bits = r.read_into(des);
         return bitis_helper::BitiaDeserializerHelper<BitisAString>{bits, std::move(r)};
+    }
+    // see bitis_helper::read_into(); returns the consumed bits
+    std::size_t read_into(BitisDeserializer &des) {
+        const auto bits = BinaryBase<DYN_BITS>::deserialize_bytes(des, this->values, true, 1);
+        this->values.push_back(0);
+        return bits;
     }
 
 #ifndef BITIS_NO_PRINT
@@ -1714,7 +1723,7 @@ namespace oneof_helper {
         static bool equal_value(const OOT_STRUCT *self, const OOT_STRUCT *other, std::index_sequence<Is...>) {
             const uint32_t sel = self->oo_selector.value.value;
             bool r = false;
-            ((sel == Is && (r = self->oo_value.template get<OOType<Is>>()->is_equal(
+            (void) ((sel == Is && (r = self->oo_value.template get<OOType<Is>>()->is_equal(
                 *other->oo_value.template get<OOType<Is>>()), true)) || ...);
             return r;
         }

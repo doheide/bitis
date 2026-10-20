@@ -160,15 +160,14 @@ struct OO_AllTypes_Payload  {
         OO_Pt, 
         OO_Nothing
     >, OO_Flag, 2> T_OOEnum;
+    T_OOEnum oo_selector;
 
     typedef oneof_helper::UnionT<  // UnionDynSizeT
         OO_Flag::OOType, OO_Text::OOType, OO_Num::OOType, OO_Pt::OOType, OO_Nothing::OOType
     > T_OOValue;
-    // the value first: the selector fills the padding after it
     T_OOValue oo_value;
-    T_OOEnum oo_selector;
 
-    OO_AllTypes_Payload() : oo_value(), oo_selector() {}
+    OO_AllTypes_Payload() : oo_selector() {}
 
     template<typename OOT>
     OO_AllTypes_Payload set_oo(typename OOT::OOType v) {
@@ -348,15 +347,14 @@ struct OO_Xl_Val  {
         OO_Inner, 
         OO_Big
     >, OO_Flag, 3> T_OOEnum;
+    T_OOEnum oo_selector;
 
     typedef oneof_helper::UnionT<  // UnionDynSizeT
         OO_Flag::OOType, OO_Num::OOType, OO_Inner::OOType, OO_Big::OOType
     > T_OOValue;
-    // the value first: the selector fills the padding after it
     T_OOValue oo_value;
-    T_OOEnum oo_selector;
 
-    OO_Xl_Val() : oo_value(), oo_selector() {}
+    OO_Xl_Val() : oo_selector() {}
 
     template<typename OOT>
     OO_Xl_Val set_oo(typename OOT::OOType v) {
@@ -577,15 +575,14 @@ struct OO_MsgKvoo_Value  {
         OO_BoolVal, 
         OO_IntVal
     >, OO_BoolVal, 2> T_OOEnum;
+    T_OOEnum oo_selector;
 
     typedef oneof_helper::UnionT<  // UnionDynSizeT
         OO_StrVal::OOType, OO_NumVal::OOType, OO_BoolVal::OOType, OO_IntVal::OOType
     > T_OOValue;
-    // the value first: the selector fills the padding after it
     T_OOValue oo_value;
-    T_OOEnum oo_selector;
 
-    OO_MsgKvoo_Value() : oo_value(), oo_selector() {}
+    OO_MsgKvoo_Value() : oo_selector() {}
 
     template<typename OOT>
     OO_MsgKvoo_Value set_oo(typename OOT::OOType v) {

@@ -629,7 +629,7 @@ pub const RESERVED_TYPE_NAMES: &[&str] = &[
 ];
 
 /// Members generated into every C++ message struct (besides the attributes).
-const CPP_MSG_MEMBERS: &[&str] = &["MsgT", "msg_attr", "serialize", "deserialize", "print", "is_equal"];
+const CPP_MSG_MEMBERS: &[&str] = &["MsgT", "msg_attr", "serialize", "deserialize", "print", "is_equal", "min_bits", "max_bits"];
 /// Methods generated into every Python (pyo3) message class (besides the attributes).
 const PY_MSG_MEMBERS: &[&str] = &["default", "serialize", "deserialize", "to_rust", "from_rust_obj"];
 /// Members of every Dart message class (and members of `Object`), compared with the Dart field names
@@ -817,7 +817,6 @@ pub fn validate_bitis(values: &[Value], files: Option<&[SourceFile]>) -> Vec<Com
             let an = a.name.as_str();
             cpp_members.push((a.name.clone(), a.name_span, an));
             cpp_members.push((format!("{}_T", a.name.to_pascal_case()), a.name_span, an));
-            cpp_members.push((format!("str_{}", a.name), a.name_span, an));
             py_members.push((a.name.clone(), a.name_span, an));
             if let AttributeDetails::AttributeOneOf(oo) = &a.specific_details {
                 let base = a.name.to_snake_case();
