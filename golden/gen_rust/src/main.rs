@@ -107,6 +107,16 @@ fn decode_by_name(ty: &str, data: &[u8], exact: bool) -> Result<(Vec<u8>, u64), 
         Choice, Everything)
 }
 
+const TYPES: &[&str] = &["Empty", "Ints", "DynInts", "Floats", "FixedPoints", "Texts", "Leaf", "Mid", "Nested",
+    "Containers", "Enums", "IntList", "Choice", "Everything"];
+fn min_bits_by_name(ty: &str) -> u64 {
+    macro_rules! dispatch { ($($t:ident),*) => {
+        match ty { $(stringify!($t) => <$t as BiserdiTrait>::min_bits(),)* _ => panic!("unknown message type '{ty}'") }
+    } }
+    dispatch!(Empty, Ints, DynInts, Floats, FixedPoints, Texts, Leaf, Mid, Nested, Containers, Enums, IntList,
+        Choice, Everything)
+}
+
 fn hex(d: &[u8]) -> String {
     if d.is_empty() { return "-".into(); }
     d.iter().map(|b| format!("{:02x}", b)).collect()
@@ -255,6 +265,10 @@ fn choice(v: OO_Choice_Value, tail: bool) -> Choice { Choice { value: v, tail } 
 fn build() -> Gen {
     let mut g = Gen { lines: Vec::new(), names: HashSet::new(), valid: BTreeMap::new() };
     use DecodeError::*;
+
+    // ************************************************************ min_bits
+    g.section("min_bits of every message type (spec section 4)");
+    for ty in TYPES { g.lines.push(format!("min_bits {ty} {}", min_bits_by_name(ty))); }
 
     // ************************************************************ valid
     g.section("valid: fixed size integers (spec 2.1-2.3)");
@@ -540,6 +554,7 @@ fn render(g: &Gen) -> String {
     let _ = writeln!(s, "# valid    <case> <MsgType> <total_bits> <hex>");
     let _ = writeln!(s, "# noncanon <case> <MsgType> <total_bits> <input_hex> <canonical_hex>");
     let _ = writeln!(s, "# invalid  <case> <MsgType> <error> <default|exact> <hex>");
+    let _ = writeln!(s, "# min_bits <MsgType> <min_bits>");
     let _ = writeln!(s, "# hex: lower-case, '-' = empty input");
     for l in &g.lines { let _ = writeln!(s, "{l}"); }
     s
@@ -557,9 +572,11 @@ fn main() {
                 cargo run --manifest-path golden/gen_rust/Cargo.toml");
             std::process::exit(1);
         }
-        println!("manifest up to date ({} valid, {} noncanon, {} invalid)", n("valid "), n("noncanon "), n("invalid "));
+        println!("manifest up to date ({} valid, {} noncanon, {} invalid, {} min_bits)", n("valid "), n("noncanon "),
+            n("invalid "), n("min_bits "));
     } else {
         std::fs::write(MANIFEST_PATH, content).expect("write manifest");
-        println!("wrote {} ({} valid, {} noncanon, {} invalid)", MANIFEST_PATH, n("valid "), n("noncanon "), n("invalid "));
+        println!("wrote {} ({} valid, {} noncanon, {} invalid, {} min_bits)", MANIFEST_PATH, n("valid "),
+            n("noncanon "), n("invalid "), n("min_bits "));
     }
 }

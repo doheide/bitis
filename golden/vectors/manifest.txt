@@ -3,7 +3,23 @@
 # valid    <case> <MsgType> <total_bits> <hex>
 # noncanon <case> <MsgType> <total_bits> <input_hex> <canonical_hex>
 # invalid  <case> <MsgType> <error> <default|exact> <hex>
+# min_bits <MsgType> <min_bits>
 # hex: lower-case, '-' = empty input
+# --- min_bits of every message type (spec section 4)
+min_bits Empty 0
+min_bits Ints 360
+min_bits DynInts 8
+min_bits Floats 96
+min_bits FixedPoints 134
+min_bits Texts 2
+min_bits Leaf 9
+min_bits Mid 17
+min_bits Nested 18
+min_bits Containers 50
+min_bits Enums 3
+min_bits IntList 1
+min_bits Choice 2
+min_bits Everything 676
 # --- valid: fixed size integers (spec 2.1-2.3)
 valid ints_default Ints 360 000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 valid ints_max Ints 360 fffffffffffffffffffffffffffffffffffffffffffffffffff5f7ffe7ffffffcfffffff7fffffffffffffff7f

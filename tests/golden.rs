@@ -6,6 +6,7 @@
 //!   decoder fails with `TrailingData`,
 //! - `noncanon`: decoding succeeds with `total_bits`, re-encoding gives the canonical bytes,
 //! - `invalid`: decoding fails with the given error kind,
+//! - `min_bits`: `min_bits()` of every message type,
 //! - spot checks of decoded field values and of the encoder for a few cases,
 //! - the generated code in golden/gen/ is up to date with the compiler.
 
@@ -29,6 +30,7 @@ enum Record {
     Valid { case: String, ty: String, bits: u64, data: Vec<u8> },
     NonCanon { case: String, ty: String, bits: u64, data: Vec<u8>, canonical: Vec<u8> },
     Invalid { case: String, ty: String, error: DecodeError, exact: bool, data: Vec<u8> },
+    MinBits { ty: String, bits: u64 },
 }
 
 fn unhex(s: &str) -> Vec<u8> {
@@ -66,6 +68,8 @@ fn manifest() -> Vec<Record> {
             "invalid" if f.len() == 6 => recs.push(Record::Invalid { case: f[1].into(), ty: f[2].into(),
                 error: parse_error(f[3]), exact: match f[4] { "exact" => true, "default" => false, _ => malformed(n, line) },
                 data: unhex(f[5]) }),
+            "min_bits" if f.len() == 3 => recs.push(Record::MinBits { ty: f[1].into(),
+                bits: f[2].parse().unwrap_or_else(|_| malformed(n, line)) }),
             _ => malformed(n, line),
         }
     }
@@ -96,6 +100,13 @@ fn roundtrip<T: BiserdiTrait>(data: &[u8], exact: bool) -> Result<(Vec<u8>, u64)
 fn decode_by_name(ty: &str, data: &[u8], exact: bool) -> Result<(Vec<u8>, u64), DecodeError> {
     macro_rules! dispatch { ($($t:ident),*) => {
         match ty { $(stringify!($t) => roundtrip::<$t>(data, exact),)* _ => panic!("unknown message type '{ty}'") }
+    } }
+    dispatch!(Empty, Ints, DynInts, Floats, FixedPoints, Texts, Leaf, Mid, Nested, Containers, Enums, IntList,
+        Choice, Everything)
+}
+fn min_bits_by_name(ty: &str) -> u64 {
+    macro_rules! dispatch { ($($t:ident),*) => {
+        match ty { $(stringify!($t) => <$t as BiserdiTrait>::min_bits(),)* _ => panic!("unknown message type '{ty}'") }
     } }
     dispatch!(Empty, Ints, DynInts, Floats, FixedPoints, Texts, Leaf, Mid, Nested, Containers, Enums, IntList,
         Choice, Everything)
@@ -172,6 +183,15 @@ fn golden_invalid() {
             Err(e) => Err(format!("{case}: error {e:?}, expected {error:?}")),
             Ok((re, b)) => Err(format!("{case}: decoded ({b} bits, re-encoded {}), expected {error:?}", hex(&re))),
         }
+    });
+}
+
+#[test]
+fn golden_min_bits() {
+    check_all(|r| matches!(r, Record::MinBits { .. }), |r| {
+        let Record::MinBits { ty, bits } = r else { unreachable!() };
+        let b = min_bits_by_name(ty);
+        if b == *bits { Ok(()) } else { Err(format!("min_bits({ty}) = {b}, expected {bits}")) }
     });
 }
 
