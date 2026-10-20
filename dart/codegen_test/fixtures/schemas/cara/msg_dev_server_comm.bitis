@@ -1,0 +1,48 @@
+// *********************************************************************************************
+msg XTX_Msg_Header {
+    bool is_encrypted;
+    uint_2 size_low;
+    uint_9d3 size_high;
+}
+
+// *********************************************************************************************
+msg DTS_MsgWrapper {
+    oneof value(4) {
+        *DTS_Error error;
+        DTS_Msg_DeviceState device_state;
+        DTS_Msg_ClientPosStart client_pos_start;
+        DTS_Msg_ClientPosEnd client_pos_end;
+        DTS_Msg_WLanInfos wlan_infos;
+        DTS_Msg_GNSSPosition gnss_position;
+        DTS_Msg_Acknowledge acknowledge;
+        DTS_Msg_StateInformation state_information;
+    }
+}
+msg DTS_Msg {
+  repeated_dyn_3 DTS_MsgWrapper msgs;
+  //| number used once to authenticate the message
+  uint_7 nonce;
+}
+
+// *********************************************************************************************
+msg STD_MsgWrapper {
+    oneof value(4) {
+        *STD_Error_Enum error;
+
+        STD_Msg_Time time;
+
+        STD_Msg_BaseParameters base_parameters;
+        STD_Msg_FunctionalityParameters functionality_parameters;
+        STD_Msg_InteractionParameters interaction_parameters;
+
+        STD_Msg_TempMinOnlineTime temp_min_online_time;
+
+        STD_Msg_DrawAttention draw_attention;
+    }
+}
+msg STD_Msg {
+    repeated_dyn_3 STD_MsgWrapper msgs;
+	//! number used once to authenticate the message.if none, message is not a response to a previous message
+    optional uint_7 new_nonce;
+}
+

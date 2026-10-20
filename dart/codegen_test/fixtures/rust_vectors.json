@@ -1,0 +1,2270 @@
+{
+  "generator": "bitis 0.10.5 Rust runtime (dart/codegen_test/tool/rust_vectors)",
+  "schemas": {
+    "cara": "d5335166ee94e131",
+    "test_schema": "0071b70312e9fef8",
+    "all_types": "75e29d4c3b290c0e"
+  },
+  "vectors": [
+    {
+      "schema": "cara",
+      "name": "default_STD_Msg_Time",
+      "message": "STD_Msg_Time",
+      "value": null,
+      "bits": 32,
+      "hex": "00000000"
+    },
+    {
+      "schema": "cara",
+      "name": "default_STD_Msg_BaseParameters",
+      "message": "STD_Msg_BaseParameters",
+      "value": null,
+      "bits": 45,
+      "hex": "000000000000"
+    },
+    {
+      "schema": "cara",
+      "name": "default_STD_Msg_FunctionalityParameters",
+      "message": "STD_Msg_FunctionalityParameters",
+      "value": null,
+      "bits": 73,
+      "hex": "00000000000000000000"
+    },
+    {
+      "schema": "cara",
+      "name": "default_STD_Msg_IP_OnlineOnlyForSending",
+      "message": "STD_Msg_IP_OnlineOnlyForSending",
+      "value": null,
+      "bits": 0,
+      "hex": ""
+    },
+    {
+      "schema": "cara",
+      "name": "default_STD_Msg_IP_StayOnlineIndefinetly",
+      "message": "STD_Msg_IP_StayOnlineIndefinetly",
+      "value": null,
+      "bits": 0,
+      "hex": ""
+    },
+    {
+      "schema": "cara",
+      "name": "default_STD_Msg_MinOnlineTime",
+      "message": "STD_Msg_MinOnlineTime",
+      "value": null,
+      "bits": 1,
+      "hex": "00"
+    },
+    {
+      "schema": "cara",
+      "name": "default_STD_Msg_InteractionParameters",
+      "message": "STD_Msg_InteractionParameters",
+      "value": null,
+      "bits": 2,
+      "hex": "00"
+    },
+    {
+      "schema": "cara",
+      "name": "default_STD_Msg_TempMinOnlineTime",
+      "message": "STD_Msg_TempMinOnlineTime",
+      "value": null,
+      "bits": 1,
+      "hex": "00"
+    },
+    {
+      "schema": "cara",
+      "name": "default_STD_Msg_DrawAttention",
+      "message": "STD_Msg_DrawAttention",
+      "value": null,
+      "bits": 12,
+      "hex": "0000"
+    },
+    {
+      "schema": "cara",
+      "name": "default_DTS_Error",
+      "message": "DTS_Error",
+      "value": null,
+      "bits": 2,
+      "hex": "00"
+    },
+    {
+      "schema": "cara",
+      "name": "default_DTS_Msg_DeviceState",
+      "message": "DTS_Msg_DeviceState",
+      "value": null,
+      "bits": 51,
+      "hex": "000000003e0000"
+    },
+    {
+      "schema": "cara",
+      "name": "default_DTS_Msg_ClientPosStart",
+      "message": "DTS_Msg_ClientPosStart",
+      "value": null,
+      "bits": 32,
+      "hex": "00000000"
+    },
+    {
+      "schema": "cara",
+      "name": "default_DTS_Msg_ClientPosEnd",
+      "message": "DTS_Msg_ClientPosEnd",
+      "value": null,
+      "bits": 11,
+      "hex": "0000"
+    },
+    {
+      "schema": "cara",
+      "name": "default_DTS_Msg_WLanInfo_Entry",
+      "message": "DTS_Msg_WLanInfo_Entry",
+      "value": null,
+      "bits": 57,
+      "hex": "0000000000000000"
+    },
+    {
+      "schema": "cara",
+      "name": "default_DTS_Msg_WLanInfos",
+      "message": "DTS_Msg_WLanInfos",
+      "value": null,
+      "bits": 12,
+      "hex": "0000"
+    },
+    {
+      "schema": "cara",
+      "name": "default_DTS_Msg_GNSSPosition",
+      "message": "DTS_Msg_GNSSPosition",
+      "value": null,
+      "bits": 135,
+      "hex": "00f8ffffffffffffffffffffff3ff8ff7f"
+    },
+    {
+      "schema": "cara",
+      "name": "default_DTS_Msg_Ping",
+      "message": "DTS_Msg_Ping",
+      "value": null,
+      "bits": 2,
+      "hex": "00"
+    },
+    {
+      "schema": "cara",
+      "name": "default_DTS_Msg_StateTimeAnchor",
+      "message": "DTS_Msg_StateTimeAnchor",
+      "value": null,
+      "bits": 32,
+      "hex": "00000000"
+    },
+    {
+      "schema": "cara",
+      "name": "default_DTS_Msg_NotPlugedIn",
+      "message": "DTS_Msg_NotPlugedIn",
+      "value": null,
+      "bits": 0,
+      "hex": ""
+    },
+    {
+      "schema": "cara",
+      "name": "default_DTS_Msg_PlugedIn",
+      "message": "DTS_Msg_PlugedIn",
+      "value": null,
+      "bits": 1,
+      "hex": "00"
+    },
+    {
+      "schema": "cara",
+      "name": "default_DTS_Msg_BatteryState",
+      "message": "DTS_Msg_BatteryState",
+      "value": null,
+      "bits": 18,
+      "hex": "00fe00"
+    },
+    {
+      "schema": "cara",
+      "name": "default_DTS_Msg_CircuitryState",
+      "message": "DTS_Msg_CircuitryState",
+      "value": null,
+      "bits": 13,
+      "hex": "000c"
+    },
+    {
+      "schema": "cara",
+      "name": "default_DTS_Msg_GNSSState",
+      "message": "DTS_Msg_GNSSState",
+      "value": null,
+      "bits": 16,
+      "hex": "0000"
+    },
+    {
+      "schema": "cara",
+      "name": "default_DTS_Msg_Acknowledge",
+      "message": "DTS_Msg_Acknowledge",
+      "value": null,
+      "bits": 2,
+      "hex": "00"
+    },
+    {
+      "schema": "cara",
+      "name": "default_DTS_Msg_StateInformation",
+      "message": "DTS_Msg_StateInformation",
+      "value": null,
+      "bits": 33,
+      "hex": "0000000000"
+    },
+    {
+      "schema": "cara",
+      "name": "default_DTS_DeviceAuthHandshake",
+      "message": "DTS_DeviceAuthHandshake",
+      "value": null,
+      "bits": 32,
+      "hex": "00000000"
+    },
+    {
+      "schema": "cara",
+      "name": "default_DTS_DeviceSendChallengeResponse",
+      "message": "DTS_DeviceSendChallengeResponse",
+      "value": null,
+      "bits": 16,
+      "hex": "0000"
+    },
+    {
+      "schema": "cara",
+      "name": "default_STD_ResponseHandshakeOk",
+      "message": "STD_ResponseHandshakeOk",
+      "value": null,
+      "bits": 3,
+      "hex": "00"
+    },
+    {
+      "schema": "cara",
+      "name": "default_STD_ResponseGreeting",
+      "message": "STD_ResponseGreeting",
+      "value": null,
+      "bits": 0,
+      "hex": ""
+    },
+    {
+      "schema": "cara",
+      "name": "default_STD_HandshakeResponse",
+      "message": "STD_HandshakeResponse",
+      "value": null,
+      "bits": 1,
+      "hex": "00"
+    },
+    {
+      "schema": "cara",
+      "name": "default_XTX_Msg_Header",
+      "message": "XTX_Msg_Header",
+      "value": null,
+      "bits": 4,
+      "hex": "00"
+    },
+    {
+      "schema": "cara",
+      "name": "default_DTS_MsgWrapper",
+      "message": "DTS_MsgWrapper",
+      "value": null,
+      "bits": 3,
+      "hex": "00"
+    },
+    {
+      "schema": "cara",
+      "name": "default_DTS_Msg",
+      "message": "DTS_Msg",
+      "value": null,
+      "bits": 8,
+      "hex": "00"
+    },
+    {
+      "schema": "cara",
+      "name": "default_STD_MsgWrapper",
+      "message": "STD_MsgWrapper",
+      "value": null,
+      "bits": 2,
+      "hex": "00"
+    },
+    {
+      "schema": "cara",
+      "name": "default_STD_Msg",
+      "message": "STD_Msg",
+      "value": null,
+      "bits": 2,
+      "hex": "00"
+    },
+    {
+      "schema": "cara",
+      "name": "default_STS_Msg_OnlineStateChanged_Online",
+      "message": "STS_Msg_OnlineStateChanged_Online",
+      "value": null,
+      "bits": 1,
+      "hex": "00"
+    },
+    {
+      "schema": "cara",
+      "name": "default_STS_Msg_OnlineStateChanged_Offline",
+      "message": "STS_Msg_OnlineStateChanged_Offline",
+      "value": null,
+      "bits": 0,
+      "hex": ""
+    },
+    {
+      "schema": "cara",
+      "name": "default_STS_Msg_WLANPosReceived",
+      "message": "STS_Msg_WLANPosReceived",
+      "value": null,
+      "bits": 175,
+      "hex": "00000000000000000000000000000000000000000000"
+    },
+    {
+      "schema": "cara",
+      "name": "default_STS_Msg_PosGenData",
+      "message": "STS_Msg_PosGenData",
+      "value": null,
+      "bits": 168,
+      "hex": "00000000ffffffffffffffff000000000000000000"
+    },
+    {
+      "schema": "cara",
+      "name": "default_STS_Msg_GeoPosReady",
+      "message": "STS_Msg_GeoPosReady",
+      "value": null,
+      "bits": 64,
+      "hex": "0000000000000000"
+    },
+    {
+      "schema": "cara",
+      "name": "default_STS_MsgWrapper",
+      "message": "STS_MsgWrapper",
+      "value": null,
+      "bits": 52,
+      "hex": "000000007c0000"
+    },
+    {
+      "schema": "cara",
+      "name": "default_STS_Msg",
+      "message": "STS_Msg",
+      "value": null,
+      "bits": 28,
+      "hex": "00000000"
+    },
+    {
+      "schema": "test_schema",
+      "name": "default_Papa",
+      "message": "Papa",
+      "value": null,
+      "bits": 9,
+      "hex": "0000"
+    },
+    {
+      "schema": "test_schema",
+      "name": "default_Pipi",
+      "message": "Pipi",
+      "value": null,
+      "bits": 1,
+      "hex": "00"
+    },
+    {
+      "schema": "test_schema",
+      "name": "default_Lala",
+      "message": "Lala",
+      "value": null,
+      "bits": 104,
+      "hex": "00000000000000000000ff1b00"
+    },
+    {
+      "schema": "test_schema",
+      "name": "default_Lali",
+      "message": "Lali",
+      "value": null,
+      "bits": 33,
+      "hex": "feffffff01"
+    },
+    {
+      "schema": "all_types",
+      "name": "default_Inner",
+      "message": "Inner",
+      "value": null,
+      "bits": 3,
+      "hex": "00"
+    },
+    {
+      "schema": "all_types",
+      "name": "default_Empty",
+      "message": "Empty",
+      "value": null,
+      "bits": 0,
+      "hex": ""
+    },
+    {
+      "schema": "all_types",
+      "name": "default_AllTypes",
+      "message": "AllTypes",
+      "value": null,
+      "bits": 292,
+      "hex": "000000000000000000000000000000000000000000000000000000c0ffffffffff33000000"
+    },
+    {
+      "schema": "cara",
+      "name": "std_time",
+      "message": "STD_Msg_Time",
+      "value": {
+        "epoch_after_foj2025": 4294967295
+      },
+      "bits": 32,
+      "hex": "ffffffff"
+    },
+    {
+      "schema": "cara",
+      "name": "std_base_parameters",
+      "message": "STD_Msg_BaseParameters",
+      "value": {
+        "server_contact_retry_interval_on_error_d2": 65535,
+        "max_num_wlan_macs_add": 9,
+        "max_num_tower_add": 5,
+        "timeout_at_least_one_satelite_d2": 63,
+        "timeout_gnss_position_add_d8": 200,
+        "status_interval_if_online_d4": 17,
+        "report_circuitry_state": true,
+        "report_gnss_status": false
+      },
+      "bits": 45,
+      "hex": "ffffd91f390a"
+    },
+    {
+      "schema": "cara",
+      "name": "std_functionality_parameters",
+      "message": "STD_Msg_FunctionalityParameters",
+      "value": {
+        "server_contact_min_interval_d4": 300,
+        "server_contact_max_interval_add_d4": 0,
+        "positions_min_interval_d4": 1,
+        "positions_max_interval_add_d4": 65534,
+        "force_send_positions_immediately": true,
+        "num_gnss_positions_per_pos": 15,
+        "provide_wlan_pos": true,
+        "provide_gnss_pos": false,
+        "provide_tower_pos": true,
+        "keep_gnss_on_while_online": true
+      },
+      "bits": 73,
+      "hex": "2c0100000100feffbf01"
+    },
+    {
+      "schema": "cara",
+      "name": "std_ip_online_only_for_sending",
+      "message": "STD_Msg_IP_OnlineOnlyForSending",
+      "value": {},
+      "bits": 0,
+      "hex": ""
+    },
+    {
+      "schema": "cara",
+      "name": "std_ip_stay_online_indefinetly",
+      "message": "STD_Msg_IP_StayOnlineIndefinetly",
+      "value": {},
+      "bits": 0,
+      "hex": ""
+    },
+    {
+      "schema": "cara",
+      "name": "std_min_online_time_secs",
+      "message": "STD_Msg_MinOnlineTime",
+      "value": {
+        "motoo": {
+          "secs_d4_minus_ten": 511
+        }
+      },
+      "bits": 13,
+      "hex": "f51f"
+    },
+    {
+      "schema": "cara",
+      "name": "std_min_online_time_stay",
+      "message": "STD_Msg_MinOnlineTime",
+      "value": {
+        "motoo": {
+          "std_msg_ip_stay_online_indefinetly": {}
+        }
+      },
+      "bits": 4,
+      "hex": "03"
+    },
+    {
+      "schema": "cara",
+      "name": "std_min_online_time_sending",
+      "message": "STD_Msg_MinOnlineTime",
+      "value": {
+        "motoo": {
+          "std_msg_ip_online_only_for_sending": {}
+        }
+      },
+      "bits": 1,
+      "hex": "00"
+    },
+    {
+      "schema": "cara",
+      "name": "std_interaction_parameters",
+      "message": "STD_Msg_InteractionParameters",
+      "value": {
+        "min_online_time": {
+          "motoo": {
+            "secs_d4_minus_ten": 511
+          }
+        },
+        "positions_interval_if_online": 40000
+      },
+      "bits": 33,
+      "hex": "f53f289e01"
+    },
+    {
+      "schema": "cara",
+      "name": "std_temp_min_online_time",
+      "message": "STD_Msg_TempMinOnlineTime",
+      "value": {
+        "min_online_time": {
+          "motoo": {
+            "std_msg_ip_stay_online_indefinetly": {}
+          }
+        }
+      },
+      "bits": 4,
+      "hex": "03"
+    },
+    {
+      "schema": "cara",
+      "name": "std_draw_attention",
+      "message": "STD_Msg_DrawAttention",
+      "value": {
+        "beep_for_secs_d2": 3,
+        "led_blink_for_secs_d2": 60
+      },
+      "bits": 12,
+      "hex": "030f"
+    },
+    {
+      "schema": "cara",
+      "name": "dts_error",
+      "message": "DTS_Error",
+      "value": {
+        "err": "UnspecifiedError",
+        "err_msg": "battery low: 3.1V (#42)"
+      },
+      "bits": 196,
+      "hex": "de2016464757269707c2f676a70332e3126305823242239302"
+    },
+    {
+      "schema": "cara",
+      "name": "dts_device_state",
+      "message": "DTS_Msg_DeviceState",
+      "value": {
+        "wakeup_reason": "WakeupMotion",
+        "epoch_after_foj2025": 123456789,
+        "battery_soc": 55.5,
+        "remaining_online_time": 1023,
+        "is_plugged_in": true,
+        "charging_state": "ConstantVoltage",
+        "do_close_connection": false
+      },
+      "bits": 57,
+      "hex": "55d1bc7510ff5f00"
+    },
+    {
+      "schema": "cara",
+      "name": "dts_device_state_overflow",
+      "message": "DTS_Msg_DeviceState",
+      "value": {
+        "wakeup_reason": "ColdStart",
+        "epoch_after_foj2025": 0,
+        "battery_soc": {
+          "state": "overflow"
+        },
+        "remaining_online_time": 0,
+        "is_plugged_in": false,
+        "charging_state": "ChargingDoneOrDisabled",
+        "do_close_connection": true
+      },
+      "bits": 54,
+      "hex": "000000003e002e"
+    },
+    {
+      "schema": "cara",
+      "name": "dts_client_pos_start",
+      "message": "DTS_Msg_ClientPosStart",
+      "value": {
+        "ts_epoch_after_foj2025": 2147483648
+      },
+      "bits": 32,
+      "hex": "00000080"
+    },
+    {
+      "schema": "cara",
+      "name": "dts_client_pos_end",
+      "message": "DTS_Msg_ClientPosEnd",
+      "value": {
+        "ts_after_cps": 2047
+      },
+      "bits": 11,
+      "hex": "ff07"
+    },
+    {
+      "schema": "cara",
+      "name": "dts_wlan_info_entry",
+      "message": "DTS_Msg_WLanInfo_Entry",
+      "value": {
+        "mac_element": [
+          0,
+          17,
+          34,
+          51,
+          68,
+          255
+        ],
+        "signal_strength": -127
+      },
+      "bits": 57,
+      "hex": "0011223344ffff00"
+    },
+    {
+      "schema": "cara",
+      "name": "dts_wlan_infos",
+      "message": "DTS_Msg_WLanInfos",
+      "value": {
+        "ts_after_cps": 12,
+        "macs": [
+          {
+            "mac_element": [
+              0,
+              17,
+              34,
+              51,
+              68,
+              255
+            ],
+            "signal_strength": -127
+          },
+          {
+            "mac_element": [
+              170,
+              187,
+              204,
+              221,
+              238,
+              1
+            ],
+            "signal_strength": 127
+          },
+          {
+            "mac_element": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6
+            ],
+            "signal_strength": 0
+          }
+        ]
+      },
+      "bits": 187,
+      "hex": "0c380011223344ffff547799bbdd03fc05080c1014180000"
+    },
+    {
+      "schema": "cara",
+      "name": "dts_wlan_infos_empty",
+      "message": "DTS_Msg_WLanInfos",
+      "value": {
+        "ts_after_cps": 1,
+        "macs": []
+      },
+      "bits": 12,
+      "hex": "0100"
+    },
+    {
+      "schema": "cara",
+      "name": "dts_gnss_position",
+      "message": "DTS_Msg_GNSSPosition",
+      "value": {
+        "ts_after_cps": 1500,
+        "lat": 52.520008,
+        "lng": 13.404954,
+        "altitude": 34.5,
+        "speed": 87.0,
+        "direction": 270.0,
+        "sats_in_view": 31,
+        "err_lat": 2.5,
+        "err_lng": 3.25,
+        "err_alt": 10.0
+      },
+      "bits": 135,
+      "hex": "dc7d713e56b9224c8889a1a1c5ef27140e"
+    },
+    {
+      "schema": "cara",
+      "name": "dts_gnss_position_limits",
+      "message": "DTS_Msg_GNSSPosition",
+      "value": {
+        "ts_after_cps": 0,
+        "lat": -90,
+        "lng": 180,
+        "altitude": {
+          "state": "underflow"
+        },
+        "speed": 1001,
+        "direction": -1,
+        "sats_in_view": 0,
+        "err_lat": 0,
+        "err_lng": 100,
+        "err_alt": {
+          "state": "overflow"
+        }
+      },
+      "bits": 135,
+      "hex": "0008000000c0ffffffff00f03f0008f87f"
+    },
+    {
+      "schema": "cara",
+      "name": "dts_ping",
+      "message": "DTS_Msg_Ping",
+      "value": {
+        "dummy": 3
+      },
+      "bits": 2,
+      "hex": "03"
+    },
+    {
+      "schema": "cara",
+      "name": "dts_state_time_anchor",
+      "message": "DTS_Msg_StateTimeAnchor",
+      "value": {
+        "ts_epoch_after_foj2025": 99
+      },
+      "bits": 32,
+      "hex": "63000000"
+    },
+    {
+      "schema": "cara",
+      "name": "dts_not_pluged_in",
+      "message": "DTS_Msg_NotPlugedIn",
+      "value": {},
+      "bits": 0,
+      "hex": ""
+    },
+    {
+      "schema": "cara",
+      "name": "dts_pluged_in",
+      "message": "DTS_Msg_PlugedIn",
+      "value": {
+        "is_charging": true
+      },
+      "bits": 1,
+      "hex": "01"
+    },
+    {
+      "schema": "cara",
+      "name": "dts_battery_state",
+      "message": "DTS_Msg_BatteryState",
+      "value": {
+        "ts_after_anchor": 300,
+        "battery_soc": 99.9,
+        "battery_voltage_timestwo": 7.4,
+        "charging_state": {
+          "pluged_in": {
+            "is_charging": true
+          }
+        }
+      },
+      "bits": 28,
+      "hex": "2cfd990b"
+    },
+    {
+      "schema": "cara",
+      "name": "dts_battery_state_no_voltage",
+      "message": "DTS_Msg_BatteryState",
+      "value": {
+        "ts_after_anchor": 511,
+        "battery_soc": 0,
+        "charging_state": {
+          "not_pluged_in": {}
+        }
+      },
+      "bits": 18,
+      "hex": "ff0300"
+    },
+    {
+      "schema": "cara",
+      "name": "dts_circuitry_state",
+      "message": "DTS_Msg_CircuitryState",
+      "value": {
+        "ts_after_anchor": 7,
+        "circuitry": "GNSS",
+        "state": "On"
+      },
+      "bits": 14,
+      "hex": "070a"
+    },
+    {
+      "schema": "cara",
+      "name": "dts_gnss_state",
+      "message": "DTS_Msg_GNSSState",
+      "value": {
+        "ts_after_anchor": 8,
+        "error": 1234.5,
+        "sats_in_view": 9,
+        "has_fix": true
+      },
+      "bits": 25,
+      "hex": "08024901"
+    },
+    {
+      "schema": "cara",
+      "name": "dts_gnss_state_no_error",
+      "message": "DTS_Msg_GNSSState",
+      "value": {
+        "ts_after_anchor": 8,
+        "sats_in_view": 0,
+        "has_fix": false
+      },
+      "bits": 16,
+      "hex": "0800"
+    },
+    {
+      "schema": "cara",
+      "name": "dts_acknowledge",
+      "message": "DTS_Msg_Acknowledge",
+      "value": {
+        "draw_attention": true,
+        "params": false
+      },
+      "bits": 2,
+      "hex": "01"
+    },
+    {
+      "schema": "cara",
+      "name": "dts_state_information_battery",
+      "message": "DTS_Msg_StateInformation",
+      "value": {
+        "value": {
+          "battery_state": {
+            "ts_after_anchor": 300,
+            "battery_soc": 99.9,
+            "battery_voltage_timestwo": 7.4,
+            "charging_state": {
+              "pluged_in": {
+                "is_charging": true
+              }
+            }
+          }
+        }
+      },
+      "bits": 32,
+      "hex": "c3d29fb9"
+    },
+    {
+      "schema": "cara",
+      "name": "dts_state_information_gnss",
+      "message": "DTS_Msg_StateInformation",
+      "value": {
+        "value": {
+          "gnss_state": {
+            "ts_after_anchor": 8,
+            "error": 1234.5,
+            "sats_in_view": 9,
+            "has_fix": true
+          }
+        }
+      },
+      "bits": 29,
+      "hex": "87209014"
+    },
+    {
+      "schema": "cara",
+      "name": "dts_device_auth_handshake",
+      "message": "DTS_DeviceAuthHandshake",
+      "value": {
+        "device_id": 134217727,
+        "device_protocol_version": 5,
+        "reserved": 0,
+        "MUST_BE_ONE": 1
+      },
+      "bits": 32,
+      "hex": "ffffffaf"
+    },
+    {
+      "schema": "cara",
+      "name": "dts_device_send_challenge_response",
+      "message": "DTS_DeviceSendChallengeResponse",
+      "value": {
+        "challenge_response": 4095,
+        "do_send_time": true,
+        "do_send_all_params": false,
+        "reserved": 1,
+        "MUST_BE_ONE": 1
+      },
+      "bits": 16,
+      "hex": "ffdf"
+    },
+    {
+      "schema": "cara",
+      "name": "std_response_handshake_ok",
+      "message": "STD_ResponseHandshakeOk",
+      "value": {
+        "connection_timeout": 6
+      },
+      "bits": 3,
+      "hex": "06"
+    },
+    {
+      "schema": "cara",
+      "name": "std_response_greeting",
+      "message": "STD_ResponseGreeting",
+      "value": {},
+      "bits": 0,
+      "hex": ""
+    },
+    {
+      "schema": "cara",
+      "name": "std_handshake_response_ok",
+      "message": "STD_HandshakeResponse",
+      "value": {
+        "value": {
+          "handshake_ok": {
+            "connection_timeout": 2
+          }
+        }
+      },
+      "bits": 7,
+      "hex": "23"
+    },
+    {
+      "schema": "cara",
+      "name": "std_handshake_response_err",
+      "message": "STD_HandshakeResponse",
+      "value": {
+        "value": {
+          "err": "UnexpectedData"
+        }
+      },
+      "bits": 9,
+      "hex": "b500"
+    },
+    {
+      "schema": "cara",
+      "name": "std_handshake_response_greeting",
+      "message": "STD_HandshakeResponse",
+      "value": {
+        "value": {
+          "greeting": {}
+        }
+      },
+      "bits": 1,
+      "hex": "00"
+    },
+    {
+      "schema": "cara",
+      "name": "sts_online",
+      "message": "STS_Msg_OnlineStateChanged_Online",
+      "value": {
+        "force_parameter_to_device": true
+      },
+      "bits": 1,
+      "hex": "01"
+    },
+    {
+      "schema": "cara",
+      "name": "sts_offline",
+      "message": "STS_Msg_OnlineStateChanged_Offline",
+      "value": {},
+      "bits": 0,
+      "hex": ""
+    },
+    {
+      "schema": "cara",
+      "name": "sts_wlan_pos_received",
+      "message": "STS_Msg_WLANPosReceived",
+      "value": {
+        "pos_container_id": "-9223372036854775807",
+        "sub_id": -2147483647,
+        "ts_epoch_after_foj2025_container": 9007199254740991,
+        "wlan_infos": {
+          "ts_after_cps": 12,
+          "macs": [
+            {
+              "mac_element": [
+                0,
+                17,
+                34,
+                51,
+                68,
+                255
+              ],
+              "signal_strength": -127
+            },
+            {
+              "mac_element": [
+                170,
+                187,
+                204,
+                221,
+                238,
+                1
+              ],
+              "signal_strength": 127
+            },
+            {
+              "mac_element": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6
+              ],
+              "signal_strength": 0
+            }
+          ]
+        }
+      },
+      "bits": 350,
+      "hex": "fffffffffffffffffefffffff9ffffffffffff0060c00188109921faffa7bacbdced1ee02f406080a0c00000"
+    },
+    {
+      "schema": "cara",
+      "name": "sts_pos_gen_data",
+      "message": "STS_Msg_PosGenData",
+      "value": {
+        "epoch_after_foj2025": 77,
+        "lat": -33.865143,
+        "lng": 151.2099,
+        "height": -2147483647,
+        "speed": 32767,
+        "accuracy": 12.75,
+        "sub_id": 4294967295,
+        "pos_container_id": "18446744073709551615",
+        "source": "celltower",
+        "contains_wlan_info": true,
+        "contains_celltower_info": false,
+        "contains_gnss_info": true
+      },
+      "bits": 318,
+      "hex": "4d000000e513d64f16ec86ebfffffffff5ff1700000000003005e8ffffffffffffffffffffffff29"
+    },
+    {
+      "schema": "cara",
+      "name": "sts_pos_gen_data_no_optionals",
+      "message": "STS_Msg_PosGenData",
+      "value": {
+        "epoch_after_foj2025": 0,
+        "lat": 0,
+        "lng": 0,
+        "pos_container_id": "9007199254740993",
+        "source": "derived",
+        "contains_wlan_info": false,
+        "contains_celltower_info": false,
+        "contains_gnss_info": false
+      },
+      "bits": 168,
+      "hex": "000000000000008000000080100000000000000200"
+    },
+    {
+      "schema": "cara",
+      "name": "sts_geo_pos_ready",
+      "message": "STS_Msg_GeoPosReady",
+      "value": {
+        "pos_container_id": 42
+      },
+      "bits": 64,
+      "hex": "2a00000000000000"
+    },
+    {
+      "schema": "cara",
+      "name": "xtx_header",
+      "message": "XTX_Msg_Header",
+      "value": {
+        "is_encrypted": true,
+        "size_low": 3,
+        "size_high": 300
+      },
+      "bits": 15,
+      "hex": "cf4d"
+    },
+    {
+      "schema": "cara",
+      "name": "dts_msg_wrapper_error",
+      "message": "DTS_MsgWrapper",
+      "value": {
+        "value": {
+          "error": {
+            "err": "UnspecifiedError",
+            "err_msg": "battery low: 3.1V (#42)"
+          }
+        }
+      },
+      "bits": 197,
+      "hex": "bc412c8c8eae4c2e0f84eded4e0764c625c60a046584462605"
+    },
+    {
+      "schema": "cara",
+      "name": "dts_msg",
+      "message": "DTS_Msg",
+      "value": {
+        "msgs": [
+          {
+            "value": {
+              "device_state": {
+                "wakeup_reason": "WakeupMotion",
+                "epoch_after_foj2025": 123456789,
+                "battery_soc": 55.5,
+                "remaining_online_time": 1023,
+                "is_plugged_in": true,
+                "charging_state": "ConstantVoltage",
+                "do_close_connection": false
+              }
+            }
+          },
+          {
+            "value": {
+              "client_pos_start": {
+                "ts_epoch_after_foj2025": 2147483648
+              }
+            }
+          },
+          {
+            "value": {
+              "wlan_infos": {
+                "ts_after_cps": 12,
+                "macs": [
+                  {
+                    "mac_element": [
+                      0,
+                      17,
+                      34,
+                      51,
+                      68,
+                      255
+                    ],
+                    "signal_strength": -127
+                  },
+                  {
+                    "mac_element": [
+                      170,
+                      187,
+                      204,
+                      221,
+                      238,
+                      1
+                    ],
+                    "signal_strength": 127
+                  },
+                  {
+                    "mac_element": [
+                      1,
+                      2,
+                      3,
+                      4,
+                      5,
+                      6
+                    ],
+                    "signal_strength": 0
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "value": {
+              "gnss_position": {
+                "ts_after_cps": 1500,
+                "lat": 52.520008,
+                "lng": 13.404954,
+                "altitude": 34.5,
+                "speed": 87.0,
+                "direction": 270.0,
+                "sats_in_view": 31,
+                "err_lat": 2.5,
+                "err_lng": 3.25,
+                "err_alt": 10.0
+              }
+            }
+          },
+          {
+            "value": {
+              "client_pos_end": {
+                "ts_after_cps": 2047
+              }
+            }
+          },
+          {
+            "value": {
+              "acknowledge": {
+                "draw_attention": true,
+                "params": false
+              }
+            }
+          },
+          {
+            "value": {
+              "state_information": {
+                "value": {
+                  "battery_state": {
+                    "ts_after_anchor": 300,
+                    "battery_soc": 99.9,
+                    "battery_voltage_timestwo": 7.4,
+                    "charging_state": {
+                      "pluged_in": {
+                        "is_charging": true
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "value": {
+              "state_information": {
+                "value": {
+                  "circuitry_state": {
+                    "ts_after_anchor": 7,
+                    "circuitry": "GNSS",
+                    "state": "On"
+                  }
+                }
+              }
+            }
+          },
+          {
+            "value": {
+              "state_information": {
+                "value": {
+                  "time_anchor": {
+                    "ts_epoch_after_foj2025": 99
+                  }
+                }
+              }
+            }
+          },
+          {
+            "value": {
+              "error": {
+                "err": "UnspecifiedError",
+                "err_msg": "battery low: 3.1V (#42)"
+              }
+            }
+          }
+        ],
+        "nonce": 101
+      },
+      "bits": 774,
+      "hex": "3586aa68de3a88ff2f0500000060c2800310213243f4ff4f7597b9db3dc05f80c0004181018085bb2fcec72a578409313134b4f8fd84c271fcbfe91996fecc7dea40798c010000f006b1303aba32b93c10b6b73b1d901997182b1094111a999432"
+    },
+    {
+      "schema": "cara",
+      "name": "dts_msg_empty",
+      "message": "DTS_Msg",
+      "value": {
+        "msgs": [],
+        "nonce": 0
+      },
+      "bits": 8,
+      "hex": "00"
+    },
+    {
+      "schema": "cara",
+      "name": "std_msg_wrapper_error",
+      "message": "STD_MsgWrapper",
+      "value": {
+        "value": {
+          "error": "TimeOut"
+        }
+      },
+      "bits": 7,
+      "hex": "0e"
+    },
+    {
+      "schema": "cara",
+      "name": "std_msg",
+      "message": "STD_Msg",
+      "value": {
+        "msgs": [
+          {
+            "value": {
+              "error": "WrongNonce"
+            }
+          },
+          {
+            "value": {
+              "time": {
+                "epoch_after_foj2025": 4294967295
+              }
+            }
+          },
+          {
+            "value": {
+              "base_parameters": {
+                "server_contact_retry_interval_on_error_d2": 65535,
+                "max_num_wlan_macs_add": 9,
+                "max_num_tower_add": 5,
+                "timeout_at_least_one_satelite_d2": 63,
+                "timeout_gnss_position_add_d8": 200,
+                "status_interval_if_online_d4": 17,
+                "report_circuitry_state": true,
+                "report_gnss_status": false
+              }
+            }
+          },
+          {
+            "value": {
+              "functionality_parameters": {
+                "server_contact_min_interval_d4": 300,
+                "server_contact_max_interval_add_d4": 0,
+                "positions_min_interval_d4": 1,
+                "positions_max_interval_add_d4": 65534,
+                "force_send_positions_immediately": true,
+                "num_gnss_positions_per_pos": 15,
+                "provide_wlan_pos": true,
+                "provide_gnss_pos": false,
+                "provide_tower_pos": true,
+                "keep_gnss_on_while_online": true
+              }
+            }
+          },
+          {
+            "value": {
+              "interaction_parameters": {
+                "min_online_time": {
+                  "motoo": {
+                    "secs_d4_minus_ten": 511
+                  }
+                },
+                "positions_interval_if_online": 40000
+              }
+            }
+          },
+          {
+            "value": {
+              "temp_min_online_time": {
+                "min_online_time": {
+                  "motoo": {
+                    "std_msg_ip_stay_online_indefinetly": {}
+                  }
+                }
+              }
+            }
+          },
+          {
+            "value": {
+              "draw_attention": {
+                "beep_for_secs_d2": 3,
+                "led_blink_for_secs_d2": 60
+              }
+            }
+          }
+        ],
+        "new_nonce": 127
+      },
+      "bits": 255,
+      "hex": "4f31fcffffff17ffffd91f39ea600900000800f0ffff9dd4ffa0785ea619f87f"
+    },
+    {
+      "schema": "cara",
+      "name": "std_msg_no_nonce",
+      "message": "STD_Msg",
+      "value": {
+        "msgs": [
+          {
+            "value": {
+              "time": {
+                "epoch_after_foj2025": 1
+              }
+            }
+          }
+        ]
+      },
+      "bits": 44,
+      "hex": "630800000000"
+    },
+    {
+      "schema": "cara",
+      "name": "sts_msg_wrapper_pos",
+      "message": "STS_MsgWrapper",
+      "value": {
+        "value": {
+          "pos_gen_data": {
+            "epoch_after_foj2025": 77,
+            "lat": -33.865143,
+            "lng": 151.2099,
+            "height": -2147483647,
+            "speed": 32767,
+            "accuracy": 12.75,
+            "sub_id": 4294967295,
+            "pos_container_id": "18446744073709551615",
+            "source": "celltower",
+            "contains_wlan_info": true,
+            "contains_celltower_info": false,
+            "contains_gnss_info": true
+          }
+        }
+      },
+      "bits": 326,
+      "hex": "154d000000e513d64f16ec86ebfffffffff5ff1700000000003005e8ffffffffffffffffffffffff29"
+    },
+    {
+      "schema": "cara",
+      "name": "sts_msg",
+      "message": "STS_Msg",
+      "value": {
+        "device_id": 1234567,
+        "msgs": [
+          {
+            "value": {
+              "device_state": {
+                "wakeup_reason": "WakeupMotion",
+                "epoch_after_foj2025": 123456789,
+                "battery_soc": 55.5,
+                "remaining_online_time": 1023,
+                "is_plugged_in": true,
+                "charging_state": "ConstantVoltage",
+                "do_close_connection": false
+              }
+            }
+          },
+          {
+            "value": {
+              "online_state_changed_online": {
+                "force_parameter_to_device": true
+              }
+            }
+          },
+          {
+            "value": {
+              "online_state_changed_offline": {}
+            }
+          },
+          {
+            "value": {
+              "wlan_pos_received": {
+                "pos_container_id": "-9223372036854775807",
+                "sub_id": -2147483647,
+                "ts_epoch_after_foj2025_container": 9007199254740991,
+                "wlan_infos": {
+                  "ts_after_cps": 12,
+                  "macs": [
+                    {
+                      "mac_element": [
+                        0,
+                        17,
+                        34,
+                        51,
+                        68,
+                        255
+                      ],
+                      "signal_strength": -127
+                    },
+                    {
+                      "mac_element": [
+                        170,
+                        187,
+                        204,
+                        221,
+                        238,
+                        1
+                      ],
+                      "signal_strength": 127
+                    },
+                    {
+                      "mac_element": [
+                        1,
+                        2,
+                        3,
+                        4,
+                        5,
+                        6
+                      ],
+                      "signal_strength": 0
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "value": {
+              "pos_gen_data": {
+                "epoch_after_foj2025": 77,
+                "lat": -33.865143,
+                "lng": 151.2099,
+                "height": -2147483647,
+                "speed": 32767,
+                "accuracy": 12.75,
+                "sub_id": 4294967295,
+                "pos_container_id": "18446744073709551615",
+                "source": "celltower",
+                "contains_wlan_info": true,
+                "contains_celltower_info": false,
+                "contains_gnss_info": true
+              }
+            }
+          },
+          {
+            "value": {
+              "pos_gen_data": {
+                "epoch_after_foj2025": 0,
+                "lat": 0,
+                "lng": 0,
+                "pos_container_id": "9007199254740993",
+                "source": "derived",
+                "contains_wlan_info": false,
+                "contains_celltower_info": false,
+                "contains_gnss_info": false
+              }
+            }
+          },
+          {
+            "value": {
+              "geo_pos_ready": {
+                "pos_container_id": 42
+              }
+            }
+          },
+          {
+            "value": {
+              "gnss_position": {
+                "ts_after_cps": 0,
+                "lat": -90,
+                "lng": 180,
+                "altitude": {
+                  "state": "underflow"
+                },
+                "speed": 1001,
+                "direction": -1,
+                "sats_in_view": 0,
+                "err_lat": 0,
+                "err_lng": 100,
+                "err_alt": {
+                  "state": "overflow"
+                }
+              }
+            }
+          },
+          {
+            "value": {
+              "state_information": {
+                "value": {
+                  "battery_state": {
+                    "ts_after_anchor": 511,
+                    "battery_soc": 0,
+                    "charging_state": {
+                      "not_pluged_in": {}
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "value": {
+              "draw_attention": {
+                "beep_for_secs_d2": 3,
+                "led_blink_for_secs_d2": 60
+              }
+            }
+          },
+          {
+            "value": {
+              "base_parameters": {
+                "server_contact_retry_interval_on_error_d2": 65535,
+                "max_num_wlan_macs_add": 9,
+                "max_num_tower_add": 5,
+                "timeout_at_least_one_satelite_d2": 63,
+                "timeout_gnss_position_add_d8": 200,
+                "status_interval_if_online_d4": 17,
+                "report_circuitry_state": true,
+                "report_gnss_status": false
+              }
+            }
+          },
+          {
+            "value": {
+              "functionality_parameters": {
+                "server_contact_min_interval_d4": 300,
+                "server_contact_max_interval_add_d4": 0,
+                "positions_min_interval_d4": 1,
+                "positions_max_interval_add_d4": 65534,
+                "force_send_positions_immediately": true,
+                "num_gnss_positions_per_pos": 15,
+                "provide_wlan_pos": true,
+                "provide_gnss_pos": false,
+                "provide_tower_pos": true,
+                "keep_gnss_on_while_online": true
+              }
+            }
+          },
+          {
+            "value": {
+              "interaction_parameters": {
+                "min_online_time": {
+                  "motoo": {
+                    "secs_d4_minus_ten": 511
+                  }
+                },
+                "positions_interval_if_online": 40000
+              }
+            }
+          },
+          {
+            "value": {
+              "temp_min_online_time": {
+                "min_online_time": {
+                  "motoo": {
+                    "std_msg_ip_stay_online_indefinetly": {}
+                  }
+                }
+              }
+            }
+          },
+          {
+            "value": {
+              "acknowledge": {
+                "draw_attention": true,
+                "params": false
+              }
+            }
+          },
+          {
+            "value": {
+              "client_pos_end": {
+                "ts_after_cps": 2047
+              }
+            }
+          },
+          {
+            "value": {
+              "client_pos_start": {
+                "ts_epoch_after_foj2025": 2147483648
+              }
+            }
+          },
+          {
+            "value": {
+              "wlan_infos": {
+                "ts_after_cps": 12,
+                "macs": [
+                  {
+                    "mac_element": [
+                      0,
+                      17,
+                      34,
+                      51,
+                      68,
+                      255
+                    ],
+                    "signal_strength": -127
+                  },
+                  {
+                    "mac_element": [
+                      170,
+                      187,
+                      204,
+                      221,
+                      238,
+                      1
+                    ],
+                    "signal_strength": 127
+                  },
+                  {
+                    "mac_element": [
+                      1,
+                      2,
+                      3,
+                      4,
+                      5,
+                      6
+                    ],
+                    "signal_strength": 0
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "bits": 1687,
+      "hex": "87d612a8a22a9ab70ee2ffcbc38889ffffffffffffff7ffffffffffcffffffffff7f0030e0004488cc10fdff53dd65ee760ff017203040506000a0a2090000a07cc2fac982dd70fdffffffbffeff020000000000a600fdffffffffffffffffffffff3fad000000000000000004000000840000000000001000b8500100000000000048004000000000feffffff0780ff0140c0ff37ccff0021039ff1ff9ffd91a336580200000200fcff7f77d4ffa078fe98850afe3f0000000078c0800310213243f4ff4f7597b9db3dc05f80c00041810100"
+    },
+    {
+      "schema": "test_schema",
+      "name": "papa",
+      "message": "Papa",
+      "value": {
+        "oo_lala": {
+          "test2": 1.5
+        }
+      },
+      "bits": 36,
+      "hex": "030000fc03"
+    },
+    {
+      "schema": "test_schema",
+      "name": "papa_default_element",
+      "message": "Papa",
+      "value": {
+        "oo_lala": {
+          "test": 255
+        }
+      },
+      "bits": 9,
+      "hex": "fe01"
+    },
+    {
+      "schema": "test_schema",
+      "name": "pipi",
+      "message": "Pipi",
+      "value": {
+        "num": "Two"
+      },
+      "bits": 6,
+      "hex": "03"
+    },
+    {
+      "schema": "test_schema",
+      "name": "lala",
+      "message": "Lala",
+      "value": {
+        "lili": [
+          true,
+          false,
+          true
+        ],
+        "lala": [
+          0,
+          1,
+          4294967295,
+          16
+        ],
+        "lolo": 4095,
+        "qwert": -1234.5678,
+        "lele": "AAEC/w==",
+        "name": "Hello, bitis!",
+        "signed_val": -31,
+        "signed_dyn_val": -32767,
+        "fixed_point": 1.25,
+        "pipi": {
+          "num": "Three"
+        },
+        "nah": "OneAndAHalf",
+        "oo_lala": {
+          "papa": {
+            "oo_lala": {
+              "test2": 1.5
+            }
+          }
+        }
+      },
+      "bits": 376,
+      "hex": "470dffffffffff61f8ffadfa5c6d454a93c0094080c0ff8654c6c6f6c602229646973617f2ffffbf4c0b350000c03f"
+    },
+    {
+      "schema": "test_schema",
+      "name": "lala_minimal",
+      "message": "Lala",
+      "value": {
+        "lili": [],
+        "lala": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "qwert": 0.0,
+        "lele": "",
+        "name": "",
+        "signed_val": 31,
+        "signed_dyn_val": 0,
+        "fixed_point": {
+          "state": "underflow"
+        },
+        "pipi": {
+          "num": "One"
+        },
+        "nah": "TwoAndAHalf",
+        "oo_lala": {
+          "test2": -0.25
+        }
+      },
+      "bits": 131,
+      "hex": "0000000000000000003e0098010000f405"
+    },
+    {
+      "schema": "test_schema",
+      "name": "lali",
+      "message": "Lali",
+      "value": {
+        "lulu": true,
+        "loli": 179.99
+      },
+      "bits": 33,
+      "hex": "9d51fbff01"
+    },
+    {
+      "schema": "all_types",
+      "name": "all_types",
+      "message": "AllTypes",
+      "value": {
+        "b": true,
+        "u1": 1,
+        "u17": 131071,
+        "u64v": "18446744073709551615",
+        "i5": -31,
+        "i33": "-8589934591",
+        "ud": 4294967295,
+        "id": -32767,
+        "f": 3.140000104904175,
+        "d": 2.718281828459045,
+        "fp": -1.5,
+        "lat": 47.123456789,
+        "s": "~ASCII 0x7e~",
+        "data": "3q2+7w==",
+        "color": "BLUE_LIGHT",
+        "inner": {
+          "a": 5
+        },
+        "empty": {},
+        "opt_u": 127,
+        "opt_inner": {
+          "a": 7
+        },
+        "opt_empty": {},
+        "rf_b": [
+          true,
+          true,
+          false
+        ],
+        "rf_inner": [
+          {
+            "a": 1
+          },
+          {
+            "a": 2
+          }
+        ],
+        "rd_u": [
+          15,
+          0,
+          7
+        ],
+        "rd_color": [
+          "Red",
+          "Green",
+          "BLUE_LIGHT"
+        ],
+        "rd_inner": [
+          {
+            "a": 3
+          }
+        ],
+        "choice": {
+          "text": "hey"
+        }
+      },
+      "bits": 569,
+      "hex": "ffffffffffffffffffffffffffffffffffffffffffffff86eb9180d2ae2816157e0b80ce8810a46038f30b9a1a4a4a0281c1bb29f34bf06ef57daffeff45f770c7d4b074d0caf200"
+    },
+    {
+      "schema": "all_types",
+      "name": "all_types_choice_flag",
+      "message": "AllTypes",
+      "value": {
+        "b": true,
+        "u1": 1,
+        "u17": 131071,
+        "u64v": "18446744073709551615",
+        "i5": -31,
+        "i33": "-8589934591",
+        "ud": 4294967295,
+        "id": -32767,
+        "f": 3.140000104904175,
+        "d": 2.718281828459045,
+        "fp": -1.5,
+        "lat": 47.123456789,
+        "s": "~ASCII 0x7e~",
+        "data": "3q2+7w==",
+        "color": "BLUE_LIGHT",
+        "inner": {
+          "a": 5
+        },
+        "empty": {},
+        "opt_u": 127,
+        "opt_inner": {
+          "a": 7
+        },
+        "opt_empty": {},
+        "rf_b": [
+          true,
+          true,
+          false
+        ],
+        "rf_inner": [
+          {
+            "a": 1
+          },
+          {
+            "a": 2
+          }
+        ],
+        "rd_u": [
+          15,
+          0,
+          7
+        ],
+        "rd_color": [
+          "Red",
+          "Green",
+          "BLUE_LIGHT"
+        ],
+        "rd_inner": [
+          {
+            "a": 3
+          }
+        ],
+        "choice": {
+          "flag": true
+        }
+      },
+      "bits": 537,
+      "hex": "ffffffffffffffffffffffffffffffffffffffffffffff86eb9180d2ae2816157e0b80ce8810a46038f30b9a1a4a4a0281c1bb29f34bf06ef57daffeff45f770c7d43001"
+    },
+    {
+      "schema": "all_types",
+      "name": "all_types_choice_number",
+      "message": "AllTypes",
+      "value": {
+        "b": true,
+        "u1": 1,
+        "u17": 131071,
+        "u64v": "18446744073709551615",
+        "i5": -31,
+        "i33": "-8589934591",
+        "ud": 4294967295,
+        "id": -32767,
+        "f": 3.140000104904175,
+        "d": 2.718281828459045,
+        "fp": -1.5,
+        "lat": 47.123456789,
+        "s": "~ASCII 0x7e~",
+        "data": "3q2+7w==",
+        "color": "BLUE_LIGHT",
+        "inner": {
+          "a": 5
+        },
+        "empty": {},
+        "opt_u": 127,
+        "opt_inner": {
+          "a": 7
+        },
+        "opt_empty": {},
+        "rf_b": [
+          true,
+          true,
+          false
+        ],
+        "rf_inner": [
+          {
+            "a": 1
+          },
+          {
+            "a": 2
+          }
+        ],
+        "rd_u": [
+          15,
+          0,
+          7
+        ],
+        "rd_color": [
+          "Red",
+          "Green",
+          "BLUE_LIGHT"
+        ],
+        "rd_inner": [
+          {
+            "a": 3
+          }
+        ],
+        "choice": {
+          "number": 4095
+        }
+      },
+      "bits": 552,
+      "hex": "ffffffffffffffffffffffffffffffffffffffffffffff86eb9180d2ae2816157e0b80ce8810a46038f30b9a1a4a4a0281c1bb29f34bf06ef57daffeff45f770c7d4b0f1ff"
+    },
+    {
+      "schema": "all_types",
+      "name": "all_types_choice_inner_val",
+      "message": "AllTypes",
+      "value": {
+        "b": true,
+        "u1": 1,
+        "u17": 131071,
+        "u64v": "18446744073709551615",
+        "i5": -31,
+        "i33": "-8589934591",
+        "ud": 4294967295,
+        "id": -32767,
+        "f": 3.140000104904175,
+        "d": 2.718281828459045,
+        "fp": -1.5,
+        "lat": 47.123456789,
+        "s": "~ASCII 0x7e~",
+        "data": "3q2+7w==",
+        "color": "BLUE_LIGHT",
+        "inner": {
+          "a": 5
+        },
+        "empty": {},
+        "opt_u": 127,
+        "opt_inner": {
+          "a": 7
+        },
+        "opt_empty": {},
+        "rf_b": [
+          true,
+          true,
+          false
+        ],
+        "rf_inner": [
+          {
+            "a": 1
+          },
+          {
+            "a": 2
+          }
+        ],
+        "rd_u": [
+          15,
+          0,
+          7
+        ],
+        "rd_color": [
+          "Red",
+          "Green",
+          "BLUE_LIGHT"
+        ],
+        "rd_inner": [
+          {
+            "a": 3
+          }
+        ],
+        "choice": {
+          "inner_val": {
+            "a": 6
+          }
+        }
+      },
+      "bits": 543,
+      "hex": "ffffffffffffffffffffffffffffffffffffffffffffff86eb9180d2ae2816157e0b80ce8810a46038f30b9a1a4a4a0281c1bb29f34bf06ef57daffeff45f770c7d4b062"
+    },
+    {
+      "schema": "all_types",
+      "name": "all_types_choice_color_val",
+      "message": "AllTypes",
+      "value": {
+        "b": true,
+        "u1": 1,
+        "u17": 131071,
+        "u64v": "18446744073709551615",
+        "i5": -31,
+        "i33": "-8589934591",
+        "ud": 4294967295,
+        "id": -32767,
+        "f": 3.140000104904175,
+        "d": 2.718281828459045,
+        "fp": -1.5,
+        "lat": 47.123456789,
+        "s": "~ASCII 0x7e~",
+        "data": "3q2+7w==",
+        "color": "BLUE_LIGHT",
+        "inner": {
+          "a": 5
+        },
+        "empty": {},
+        "opt_u": 127,
+        "opt_inner": {
+          "a": 7
+        },
+        "opt_empty": {},
+        "rf_b": [
+          true,
+          true,
+          false
+        ],
+        "rf_inner": [
+          {
+            "a": 1
+          },
+          {
+            "a": 2
+          }
+        ],
+        "rd_u": [
+          15,
+          0,
+          7
+        ],
+        "rd_color": [
+          "Red",
+          "Green",
+          "BLUE_LIGHT"
+        ],
+        "rd_inner": [
+          {
+            "a": 3
+          }
+        ],
+        "choice": {
+          "color_val": "Red"
+        }
+      },
+      "bits": 541,
+      "hex": "ffffffffffffffffffffffffffffffffffffffffffffff86eb9180d2ae2816157e0b80ce8810a46038f30b9a1a4a4a0281c1bb29f34bf06ef57daffeff45f770c7d4b003"
+    },
+    {
+      "schema": "all_types",
+      "name": "all_types_choice_nothing",
+      "message": "AllTypes",
+      "value": {
+        "b": true,
+        "u1": 1,
+        "u17": 131071,
+        "u64v": "18446744073709551615",
+        "i5": -31,
+        "i33": "-8589934591",
+        "ud": 4294967295,
+        "id": -32767,
+        "f": 3.140000104904175,
+        "d": 2.718281828459045,
+        "fp": -1.5,
+        "lat": 47.123456789,
+        "s": "~ASCII 0x7e~",
+        "data": "3q2+7w==",
+        "color": "BLUE_LIGHT",
+        "inner": {
+          "a": 5
+        },
+        "empty": {},
+        "opt_u": 127,
+        "opt_inner": {
+          "a": 7
+        },
+        "opt_empty": {},
+        "rf_b": [
+          true,
+          true,
+          false
+        ],
+        "rf_inner": [
+          {
+            "a": 1
+          },
+          {
+            "a": 2
+          }
+        ],
+        "rd_u": [
+          15,
+          0,
+          7
+        ],
+        "rd_color": [
+          "Red",
+          "Green",
+          "BLUE_LIGHT"
+        ],
+        "rd_inner": [
+          {
+            "a": 3
+          }
+        ],
+        "choice": {
+          "nothing": {}
+        }
+      },
+      "bits": 540,
+      "hex": "ffffffffffffffffffffffffffffffffffffffffffffff86eb9180d2ae2816157e0b80ce8810a46038f30b9a1a4a4a0281c1bb29f34bf06ef57daffeff45f770c7d4b005"
+    },
+    {
+      "schema": "all_types",
+      "name": "all_types_special",
+      "message": "AllTypes",
+      "value": {
+        "b": true,
+        "u1": 1,
+        "u17": 131071,
+        "u64v": 0,
+        "i5": -31,
+        "i33": "8589934591",
+        "ud": 4294967295,
+        "id": -32767,
+        "f": "NaN",
+        "d": "-Infinity",
+        "fp": {
+          "state": "overflow"
+        },
+        "lat": 47.123456789,
+        "s": "",
+        "data": "",
+        "color": "BLUE_LIGHT",
+        "inner": {
+          "a": 5
+        },
+        "empty": {},
+        "rf_b": [
+          true,
+          true,
+          false
+        ],
+        "rf_inner": [
+          {
+            "a": 1
+          },
+          {
+            "a": 2
+          }
+        ],
+        "rd_u": [
+          15,
+          0,
+          7
+        ],
+        "rd_color": [
+          "Red",
+          "Green",
+          "BLUE_LIGHT"
+        ],
+        "rd_inner": [
+          {
+            "a": 3
+          }
+        ],
+        "choice": {
+          "text": "hey"
+        }
+      },
+      "bits": 419,
+      "hex": "ffff0700000000000000f8fdffffffffffffffffffffff000080ff000000000000e0ffff8f10a460982a16ddc31d53c3d2412bcb03"
+    },
+    {
+      "schema": "all_types",
+      "name": "inner",
+      "message": "Inner",
+      "value": {
+        "a": 5
+      },
+      "bits": 3,
+      "hex": "05"
+    },
+    {
+      "schema": "all_types",
+      "name": "empty",
+      "message": "Empty",
+      "value": {},
+      "bits": 0,
+      "hex": ""
+    }
+  ]
+}

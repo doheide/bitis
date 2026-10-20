@@ -1,0 +1,97 @@
+// *********************************************************************************************
+enum DTS_Error_Enum(4) {
+  *UnspecifiedError,
+}
+
+msg DTS_Error {
+    DTS_Error_Enum err;
+    astr_d4 err_msg;
+}
+
+enum DTS_WakeupReason_Enum(2) { *ColdStart, WakeupTimer, WakeupMotion, WakeupButton }
+enum ChargerState_Enum(2) { *NotCharging, ConstantCurrent, ConstantVoltage, ChargingDoneOrDisabled }
+msg DTS_Msg_DeviceState {
+    DTS_WakeupReason_Enum wakeup_reason;
+    uint_32 epoch_after_foj2025;
+    fp_5[0,100] battery_soc;
+    uint_10 remaining_online_time;
+    bool is_plugged_in;
+    ChargerState_Enum charging_state;
+    bool do_close_connection;
+}
+
+msg DTS_Msg_ClientPosStart {
+    uint_32 ts_epoch_after_foj2025;
+}
+msg DTS_Msg_ClientPosEnd {
+    // To be set by the backend
+    uint_11 ts_after_cps;
+}
+
+msg DTS_Msg_WLanInfo_Entry {
+    repeated_fixed_6 uint_8 mac_element;
+    int_8 signal_strength;
+}
+msg DTS_Msg_WLanInfos {
+    uint_11 ts_after_cps;
+    repeated_dyn_3 DTS_Msg_WLanInfo_Entry macs;
+}
+msg DTS_Msg_GNSSPosition {
+    uint_11 ts_after_cps;
+	fp_34[-90, 90] lat;
+	fp_35[-180, 180] lng;
+    //! 5 Meter accuracy
+	fp_12[-2000, 18000] altitude;
+	// 1 kmh accuracy
+	fp_10[0, 1000] speed;
+	fp_8[0, 360] direction;
+	uint_5 sats_in_view;
+	fp_7[0, 100] err_lat;
+	fp_7[0, 100] err_lng;
+	fp_6[0, 100] err_alt;
+}
+msg DTS_Msg_Ping {
+  uint_2 dummy;
+}
+
+// ***
+// DeviceState
+msg DTS_Msg_StateTimeAnchor {
+    uint_32 ts_epoch_after_foj2025;
+}
+msg DTS_Msg_NotPlugedIn { }
+msg DTS_Msg_PlugedIn { bool is_charging; }
+msg DTS_Msg_BatteryState {
+    uint_9 ts_after_anchor;
+    fp_7[0,100] battery_soc;
+    optional fp_7[5,9] battery_voltage_timestwo;
+    oneof charging_state(1) {
+        *DTS_Msg_NotPlugedIn not_pluged_in;
+        DTS_Msg_PlugedIn pluged_in;
+    }
+}
+enum DTS_Device_Circuitry(2) { *CPU, LTE, GNSS, WLAN }
+enum DTS_Device_State(1) { On, *Off }
+msg DTS_Msg_CircuitryState {
+    uint_9 ts_after_anchor;
+    DTS_Device_Circuitry circuitry;
+    DTS_Device_State state;
+}
+msg DTS_Msg_GNSSState {
+    uint_9 ts_after_anchor;
+    optional fp_9[0,10000] error;
+    uint_5 sats_in_view;
+    bool has_fix;
+}
+msg DTS_Msg_Acknowledge {
+    bool draw_attention;
+    bool params;
+}
+msg DTS_Msg_StateInformation {
+    oneof value(2) {
+        *DTS_Msg_StateTimeAnchor time_anchor;
+        DTS_Msg_BatteryState battery_state;
+        DTS_Msg_CircuitryState circuitry_state;
+        DTS_Msg_GNSSState gnss_state;
+    }
+}

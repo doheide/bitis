@@ -1,0 +1,82 @@
+
+// *********************************************************************************************
+// *********************************************************************************************
+// ***
+enum STD_Error_Enum(4) {
+    *UnspecifiedError,
+	InternalServerError,
+    WrongNonce,
+    TimeOut
+}
+
+msg STD_Msg_Time {
+    uint_32 epoch_after_foj2025;
+}
+
+msg STD_Msg_BaseParameters {
+    //! multiply by 2 -> seconds, 0=disabled
+    uint_16 server_contact_retry_interval_on_error_d2;
+	//! number of wlans -> 0 means 3 wlans
+    uint_4 max_num_wlan_macs_add;
+	//! number of towers -> 0 means 3 towers
+    uint_3 max_num_tower_add;
+
+	//! multiply by 2 -> seconds, 0=disabled
+    uint_6 timeout_at_least_one_satelite_d2;
+	//! multiply by 8 -> seconds, 0=disabled
+    uint_8 timeout_gnss_position_add_d8;
+
+    uint_6 status_interval_if_online_d4;
+
+	// reporting parameters
+	bool report_circuitry_state;
+	bool report_gnss_status;
+}
+msg STD_Msg_FunctionalityParameters {
+    //! multiply by 4 -> seconds, 0=disabled
+    uint_16 server_contact_min_interval_d4;
+    //! multiply by 4 -> seconds, 0=disabled
+    uint_16 server_contact_max_interval_add_d4;
+
+    //! multiply by 4 -> seconds, 0=disabled
+    uint_16 positions_min_interval_d4;
+    //! multiply by 4 -> seconds, 0=disabled
+    uint_16 positions_max_interval_add_d4;
+
+	bool force_send_positions_immediately;
+
+	//! number of gnss positions per position
+    uint_4 num_gnss_positions_per_pos;
+
+    bool provide_wlan_pos;
+    bool provide_gnss_pos;
+    bool provide_tower_pos;
+	bool keep_gnss_on_while_online;
+}
+msg STD_Msg_IP_OnlineOnlyForSending { }
+msg STD_Msg_IP_StayOnlineIndefinetly { }
+msg STD_Msg_MinOnlineTime {
+    oneof motoo(2) {
+        *STD_Msg_IP_OnlineOnlyForSending std_msg_ip_online_only_for_sending;
+        STD_Msg_IP_StayOnlineIndefinetly std_msg_ip_stay_online_indefinetly;
+	    uint_9 secs_d4_minus_ten;
+    }
+}
+msg STD_Msg_InteractionParameters {
+    STD_Msg_MinOnlineTime min_online_time;
+    uint_16d5 positions_interval_if_online;
+}
+
+msg STD_Msg_TempMinOnlineTime {
+    STD_Msg_MinOnlineTime min_online_time;
+}
+
+msg STD_Msg_DrawAttention {
+    //! number of secondes times two
+    uint_6 beep_for_secs_d2;
+    //! number of secondes times two
+    uint_6 led_blink_for_secs_d2;
+}
+
+
+

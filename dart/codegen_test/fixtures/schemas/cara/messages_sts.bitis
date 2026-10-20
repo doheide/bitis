@@ -1,0 +1,82 @@
+// *********************************************************************************************
+msg STS_Msg_OnlineStateChanged_Online {
+	bool force_parameter_to_device;
+}
+msg STS_Msg_OnlineStateChanged_Offline {
+}
+
+msg STS_Msg_WLANPosReceived {
+    int_64 pos_container_id;
+    int_32 sub_id;
+	int_64 ts_epoch_after_foj2025_container;
+    DTS_Msg_WLanInfos wlan_infos;
+}
+
+enum STS_PosSource_Enum(3) {
+    *derived, gnss, wlan, celltower
+}
+msg STS_Msg_PosGenData {
+    uint_32 epoch_after_foj2025;
+
+    fp_32[-90,90] lat;
+    fp_32[-180,180] lng;
+
+    optional int_32 height;
+    optional int_16 speed;
+    optional double accuracy;
+
+    optional uint_32 sub_id;
+    uint_64 pos_container_id;
+
+    STS_PosSource_Enum source;
+
+    bool contains_wlan_info;
+    bool contains_celltower_info;
+    bool contains_gnss_info;
+}
+
+msg STS_Msg_GeoPosReady {
+    uint_64 pos_container_id;
+}
+
+// *********************************************************************************************
+// *********************************************************************************************
+msg STS_MsgWrapper {
+    oneof value(6) {
+		// DTS
+        *DTS_Msg_DeviceState device_state;
+
+        DTS_Msg_ClientPosStart client_pos_start;
+        DTS_Msg_ClientPosEnd client_pos_end;
+
+        DTS_Msg_WLanInfos wlan_infos;
+        DTS_Msg_GNSSPosition gnss_position;
+
+        DTS_Msg_Acknowledge acknowledge;
+
+        DTS_Msg_StateInformation state_information;
+
+		// STS
+        STS_Msg_OnlineStateChanged_Online online_state_changed_online;
+		STS_Msg_OnlineStateChanged_Offline online_state_changed_offline;
+
+        STS_Msg_WLANPosReceived wlan_pos_received;
+        STS_Msg_PosGenData pos_gen_data;
+
+        STS_Msg_GeoPosReady geo_pos_ready;
+
+		// STD
+		STD_Msg_BaseParameters base_parameters;
+		STD_Msg_FunctionalityParameters functionality_parameters;
+		STD_Msg_InteractionParameters interaction_parameters;
+
+        STD_Msg_TempMinOnlineTime temp_min_online_time;
+
+		STD_Msg_DrawAttention draw_attention;
+    }
+}
+
+msg STS_Msg {
+    uint_27 device_id;
+    repeated_dyn_3 STS_MsgWrapper msgs;
+}
