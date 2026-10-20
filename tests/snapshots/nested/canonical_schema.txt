@@ -1,0 +1,6 @@
+bitis-schema-v1
+enum E(1){*A,B}
+msg Leaf{uint_2 v;}
+msg Middle{repeated_dyn_2 Leaf leaves;optional E e;}
+msg Top{Middle m;oneof outer(2){*Leaf leaf;oneof inner(1){*bool x;E e;};};}
+f9d3f02b9ff943e5

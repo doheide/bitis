@@ -162,3 +162,49 @@ bool 1; `uint_X` X; `int_X` X+1; `uint_XdY` 1; `int_XdY` 2; float 32; double 64;
 `fp_N` N; astr/binary/repeated_dyn 1 (count zero); optional 1;
 `repeated_fixed_N T` N·min_bits(T); enum 1;
 oneof `1 + min over variants of min_bits(variant)`; msg Σ attributes.
+
+## 5. Schema hash
+
+The schema hash is not part of the encoding (messages carry no header). Generated
+code exposes it (with the compiler version) so that peers can compare schemas
+out of band, e.g. in a handshake.
+
+`schema_hash = first 8 bytes of SHA-256(canonical schema)`, read as a big-endian
+unsigned 64-bit integer; as text it is written as 16 lower-case hex digits
+without prefix (i.e. the first 16 hex digits of the SHA-256 hex digest).
+
+The canonical schema is ASCII text (implemented by `canonical_schema()` in
+`src/lib_impl/compiler.rs`, reusable by every target):
+
+```
+bitis-schema-v1\n
+<one line per enum / message, sorted by name (byte order), each ending with \n>
+```
+
+- enum: `enum NAME(Y){V1,*V2,V3}` — values in declaration order, the default
+  value prefixed with `*`, `Y` the dyn bit size.
+- message: `msg NAME{ATTR;ATTR;}` or, with a parent, `msg NAME:PARENT{ATTR;}`;
+  attributes in declaration order, each followed by `;` (`msg NAME{}` if empty).
+- attribute: `[MOD ]TYPE NAME` with `MOD` one of `optional`, `repeated_fixed_N`,
+  `repeated_dyn_Y`.
+- oneof attribute: `oneof NAME(Y){[*]TYPE NAME;...}` — elements in declaration
+  order, the default element prefixed with `*` (nested oneofs recursively).
+- TYPE: `bool`, `uint_X`, `int_X`, `uint_XdY`, `int_XdY`, `float`, `double`,
+  `fp_N[MIN,MAX]` (decimal integers, `-` for negative values, no `+`, no
+  leading zeros), `astr_dY`, `binary_dY`, or the name of a message / enum.
+- Single spaces only where shown above; no other whitespace, no comments.
+
+Example: `enum E(2) { *A, B }` and `msg M { optional uint_3 x; oneof o(2) { *bool b; E e; } }`
+give
+
+```
+bitis-schema-v1
+enum E(2){*A,B}
+msg M{optional uint_3 x;oneof o(2){*bool b;E e;};}
+```
+
+with the schema hash `04ee18ca6b3375b1` (check: `printf 'bitis-schema-v1\nenum E(2){*A,B}\nmsg M{optional uint_3 x;oneof o(2){*bool b;E e;};}\n' | sha256sum`).
+
+The hash therefore depends on all names, types, bit sizes, defaults and the
+attribute / value order, but not on comments, formatting, the order of the
+definitions or the split into input files.

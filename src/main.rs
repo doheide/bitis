@@ -1,18 +1,12 @@
 mod utils;
 
 use std::fs;
-use std::fs::write;
 use std::path::{Path, PathBuf};
-use askama::Template;
-use logos::Logos;
+use std::process::{Command, Stdio};
 
 use bitis_lib::*;
 
-// use std::env;
-use std::process::{abort, exit, Command, Stdio};
-
 use clap::{crate_version, Parser, Subcommand, ValueEnum};
-// use regex::Regex;
 use toml_edit::{value, DocumentMut};
 use utils::*;
 
@@ -20,7 +14,7 @@ use utils::*;
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
 struct Cli {
-    /// Turn debugging information on
+    /// Turn debugging information on (can be given multiple times)
     #[arg(short, long, action = clap::ArgAction::Count)]
     debug: u8,
 
@@ -32,7 +26,7 @@ struct Cli {
 enum Language {
     /// generate rust code
     Rust,
-    /// generate python library (based on generated rust code and maturin) 
+    /// generate python library (based on generated rust code and maturin)
     Python,
     /// generate c++ code
     Cpp
@@ -44,41 +38,36 @@ enum System {
 }
 #[derive(Subcommand)]
 enum Commands {
-    /// Test bitis data objects file
-    // Test {},
-    /// Compile bitis data objects file
+    /// Compile bitis definition files to code
     Compile {
-        /// Sets a custom config file
-        #[arg(short, long, value_name = "FILE", num_args = 1..)]
+        /// Input file(s) with extension .bitis; give the option once per file or list several files
+        #[arg(short, long, value_name = "FILE", num_args = 1.., required = true)]
         input_files: Vec<PathBuf>,
+        /// Directory for the output file if no output file or path is given (rust and cpp)
         #[arg(long, short = 'p')]
         input_base_path: Option<PathBuf>,
 
-        /// compile language
+        /// Language to generate code for
         #[arg(short, long)]
         lang: Language,
-        /// output file
+        /// Output file or directory. rust/cpp: file, or directory to write <input name>.rs/.h
+        /// (messages.rs/.h for multiple input files) into; python: directory of the maturin project
         #[arg(short, long)]
         output_file_or_path: Option<PathBuf>,
 
+        /// Name (path relative to the generated header) of the bitis header lib that is included by
+        /// and written next to the generated header (cpp only, default: bitis_lib.h)
         #[clap(long)]
-        /* Name of the bitis header lib that is included in the message file (cpp only option) */
         bitis_header_lib_file_name: Option<String>,
 
+        /// Do not write the bitis header lib (cpp only)
         #[clap(long)]
-        /* switch if the header lib should be written (cpp only option) */
         prevent_write_bitis_header_lib: bool,
 
+        /// Do not set the bitis dependency in Cargo.toml of the maturin project (python only)
         #[clap(long)]
-        /* switch if the header lib should be written (cpp only option) */
         prevent_update_bitis_lib_in_crate: bool
     },
-    /// Compare bitis data objects file
-    // Compare {
-    //     /// file to compare to input_file
-    //     #[arg(short, long)]
-    //     compare_file: PathBuf,
-    // },
     /// Setup directory and file structures
     Setup {
         /// system to set up
@@ -88,319 +77,186 @@ enum Commands {
     }
 }
 
+/// Prints errors in the form `file:line:col: error: message` to stderr and exits with code 1.
+fn exit_with_errors(errors: &[CompileError], files: &[SourceFile]) -> ! {
+    for e in errors {
+        eprintln!("{}", e.render(files));
+    }
+    std::process::exit(1);
+}
 
+fn write_output(path: &Path, content: &str) {
+    if let Err(e) = fs::write(path, content) {
+        print_error(format!("could not write file '{}': {}", path.display(), e));
+    }
+}
+
+/// Output file of the rust and cpp targets.
+fn output_file_for(output_file_opt: Option<PathBuf>, input_base_path: Option<PathBuf>, input_file_dir: Option<PathBuf>,
+                   file_name: &str) -> PathBuf {
+    if let Some(of) = output_file_opt {
+        if of.is_dir() { of.join(file_name) } else { of }
+    } else if let Some(dir) = input_base_path {
+        dir.join(file_name)
+    } else if let Some(dir) = input_file_dir {
+        dir.join(file_name)
+    } else {
+        print_error("an output file or path (-o) is required if more than one input file is given".into());
+    }
+}
 
 fn main() {
     let cli = Cli::parse();
 
-    println!("BitisVersion: {}", crate_version!());
-    
-    // ******
+    if cli.debug > 0 { println!("BitisVersion: {}", crate_version!()); }
+
     match cli.command {
-        // Commands::Test {} => {
-        // }
         Commands::Compile {
             input_files, input_base_path,
             lang, output_file_or_path: output_file_opt,
             bitis_header_lib_file_name, prevent_write_bitis_header_lib,
             prevent_update_bitis_lib_in_crate
         } => {
-            let base_input_path = input_base_path.clone().unwrap_or(PathBuf::from("./"));
-            if !base_input_path.exists() { println!("Base input path {:?} does not exist.", base_input_path); abort(); }
-            if !base_input_path.is_dir() { println!("Base input path {:?} is not a directory.", base_input_path); abort(); }
-            if cli.debug > 0 { println!("Base input path: {:?}", base_input_path); }
-
-            if input_files.len() == 0 {
-                println!("Error: No input files given.");
-                abort();
+            if let Some(base) = &input_base_path {
+                if !base.is_dir() { print_error(format!("base input path '{}' is not a directory", base.display())); }
+                if cli.debug > 0 { println!("Base input path: {:?}", base); }
             }
 
-            let mut content = String::new();
-            input_files.iter().for_each(|input_file| {
-                if !input_file.exists() {
-                    println!("Input file {:?} does not exist.", input_file); abort();
-                }
-                if input_file.extension().unwrap() != "bitis" {
-                    println!("Input file extension needs to be 'bitis'."); abort()
+            // ***
+            let mut sources = Vec::new();
+            for input_file in &input_files {
+                if input_file.extension().and_then(|e| e.to_str()) != Some("bitis") {
+                    print_error(format!("input file '{}' must have the extension '.bitis'", input_file.display()));
                 }
                 if cli.debug > 0 { println!("Reading input file: {:?}", input_file); }
-                let cur_content = fs::read_to_string(input_file).unwrap();
+                let content = match fs::read_to_string(input_file) {
+                    Ok(c) => c,
+                    Err(e) => print_error(format!("could not read input file '{}': {}", input_file.display(), e)),
+                };
+                sources.push(SourceFile { name: input_file.display().to_string(), content });
+            }
 
-                content.push_str("\n\n".into());
-                content.push_str(&cur_content);
-            });
-
-            let (input_file_wo_ext, input_file_path) = if input_files.len() == 1 {
-                (input_files[0].file_stem().unwrap(), Some(input_files[0].parent().unwrap()))
-            } else { (Path::new("messages").file_stem().unwrap(), None) };
-
-            // let content = fs::read_to_string("test.bitis").expect("File not found");
-/*            let input_file_path = Path::new(&input_file);
-            let input_dir = input_file_path.parent().unwrap();
-            let input_dir = if let None = input_dir.parent() { PathBuf::from("./") } else { input_dir.to_owned() };
-            let input_file_wo_ext = input_file_path.file_stem().unwrap();
-
-            if cli.debug > 0 { println!("Input file: {:?} (dir: {})", input_file_path, input_dir.to_str().unwrap()); }
-
-            // println!("input_dir: {input_dir:?}");
-            // println!("inout_file_wo_ext: {inout_file_wo_ext:?}");
-
-
-            let re = Regex::new(r".+\.v([0-9]+)").unwrap();
-            let ver_files: Vec<_> = fs::read_dir(input_dir.clone()).unwrap().into_iter().filter_map(|x| {
-                let cf = x.unwrap().path();
-                let cf_stem = cf.file_stem().unwrap();
-                let v = match re.captures(&cf_stem.to_str().unwrap()) {
-                    Some(v) => match v.get(1) {
-                        Some(vv) => { vv.as_str().parse::<u16>().unwrap() }, None => 0 }, None => 0 };
-                if cf_stem != input_file_wo_ext &&
-                    v == 0 { None }
-                else if cf.extension().unwrap() != "bitis" { None }
-                else { Some((cf, v)) }
-            }).collect();
-            if cli.debug > 0 { println!("Inputs version files: {:?}", ver_files.iter().map(|x| x).collect::<Vec<_>>()); }
-
-
-            let parsed_bitis: Vec<_> = ver_files.iter().map(|f| {
-                let content = fs::read_to_string(&(f.0)).expect("Input File not found");
-                let mut lexer = Token::lexer(content.as_str());
-                lexer.extras = f.1;
-                if cli.debug > 3 { println!("file: {} ver: {}", f.0.to_str().unwrap(), f.1); }
-                if cli.debug > 3 { println!("bitis-file content:\n{}", content); }
-                match parse_root(&mut lexer) {
-                    Ok(v) => v,
-                    Err(e) => {
-                        let (err_str, err_span) = e.clone();
-                        let content_err = &content[err_span];
-                        println!("Error: {}\n  -> Source: '{}'", err_str, content_err);
-                        abort()
-                    }
-                }
-            }).flatten().collect();*/
-
-            let mut lexer = Token::lexer(content.as_str());
-            let parsed_bitis = match parse_root(&mut lexer) {
-                Ok(v) => v,
-                Err(e) => {
-                    let (err_str, err_span) = e.clone();
-                    let content_err = &content[err_span];
-                    println!("Error: {}\n  -> Source: '{}'", err_str, content_err);
-                    abort()
-                }
+            let processed_bitis = match compile_sources(&sources) {
+                Ok(p) => p,
+                Err(errors) => exit_with_errors(&errors, &sources),
             };
-            if cli.debug > 1 { println!("parsed_bitis: {:?}", parsed_bitis); }
-
-            let processed_bitis = process_and_validate_bitis(&parsed_bitis);
             if cli.debug > 2 { println!("processed_bitis: {:?}", processed_bitis); }
+            if cli.debug > 0 {
+                let summary = fixed_point_summary(&processed_bitis);
+                if !summary.is_empty() { println!("FixedPoint summary:\n{}", summary); }
+                println!("Schema hash: {}", schema_hash_hex(&processed_bitis));
+            }
+            if cli.debug > 1 { println!("Canonical schema:\n{}", canonical_schema(&processed_bitis)); }
+
+            let (output_stem, input_file_dir) = if input_files.len() == 1 {
+                let stem = input_files[0].file_stem().and_then(|s| s.to_str()).unwrap_or("messages").to_string();
+                let dir = input_files[0].parent().map(|p| if p.as_os_str().is_empty() { PathBuf::from(".") } else { p.to_path_buf() });
+                (stem, dir)
+            } else { ("messages".to_string(), None) };
 
             match lang {
                 Language::Rust => {
                     if cli.debug > 0 { println!("* Generating rust code ..."); }
-                    let output_file = if let Some(output_file_opt_set) = output_file_opt {
-                        if output_file_opt_set.is_dir() {
-                            let mut of = output_file_opt_set.clone();
-                            of.push(format!("{}.rs", input_file_wo_ext.to_str().unwrap()).as_str());
-                            of
-                        }
-                        else { output_file_opt_set }
-                    }
-                    else{
-                        if let Some(input_dir) = input_base_path {
-                            let mut of = input_dir.clone();
-                            of.push(format!("{}.rs", input_file_wo_ext.to_str().unwrap()).as_str());
-                            of
-                        } else {
-                            if let Some(ibp) = input_file_path {
-                                let mut of = ibp.to_path_buf();
-                                of.push(format!("{}.rs", input_file_wo_ext.to_str().unwrap()).as_str());
-                                of
-                            }
-                            else {
-                                println!("Error: Output path has to be set for rust language compiler \
-                                or path from inpuit file is used if there is only one input file.");
-                                abort()
-                            }
-                        }
-                    };
-                    if cli.debug > 0 { println!("output-file: '{}'", output_file.to_str().unwrap()); }
+                    let output_file = output_file_for(output_file_opt, input_base_path, input_file_dir,
+                                                      &format!("{output_stem}.rs"));
+                    if cli.debug > 0 { println!("output-file: '{}'", output_file.display()); }
 
-                    let rdo = RustDataObjects{ d: JinjaData{enums: processed_bitis.enums,
-                        msgs: to_rust_messages(&processed_bitis.msgs),
-                        oos: to_rust_oneofs(&processed_bitis.oo_enums,&processed_bitis.msgs) } };
-
-                    let rendered = rdo.render().unwrap();
-                    println!("{}", rendered);
-                    fs::write(output_file.clone(), rendered).expect("Unable to write file");
-                    if cli.debug > 0 { println!("* Wrote file: {}", output_file.as_path().to_str().unwrap()); }
-
+                    let rendered = render_rust(&processed_bitis).unwrap_or_else(|e| exit_with_errors(&[e], &sources));
+                    if cli.debug > 3 { println!("{}", rendered); }
+                    write_output(&output_file, &rendered);
+                    if cli.debug > 0 { println!("* Wrote file: {}", output_file.display()); }
                 },
                 Language::Python => {
                     if cli.debug > 0 { println!("* Generating python code ..."); }
-                    if output_file_opt.is_none() {
-                        println!("Error: Output path has to be set for python language compiler.");
-                        exit(-1);
-                    }
-                    let output_path = match fs::canonicalize(&output_file_opt.unwrap())  {
-                        Ok(v) => v, Err(e) => {
-                            println!("Error: Output path could not be converted to an absolute path: {:?}", e);
-                            exit(-1);
-                        }
+                    let Some(output_path) = output_file_opt else {
+                        print_error("an output path (-o) is required for the python target".into());
                     };
-                    if cli.debug > 0 { println!("output-path: '{}'", output_path.to_str().unwrap()); }
-
+                    let output_path = match fs::canonicalize(&output_path) {
+                        Ok(v) => v,
+                        Err(e) => print_error(format!("output path '{}' could not be resolved: {}", output_path.display(), e)),
+                    };
+                    if cli.debug > 0 { println!("output-path: '{}'", output_path.display()); }
                     if !output_path.is_dir() {
-                        println!("Error: Output path has to be a directory for python language compiler.")
+                        print_error(format!("output path '{}' has to be a directory for the python target", output_path.display()));
                     }
-
-                    let lib_name = match output_path.file_name() {
-                        Some(v) => v.to_str().unwrap(), None => {
-                            println!("Error: Output path has to consist of the lib-name."); exit(-1); }
+                    let Some(lib_name) = output_path.file_name().and_then(|v| v.to_str()).map(|s| s.to_string()) else {
+                        print_error("the output path has to end with the lib name".into());
                     };
-
                     if cli.debug > 0 { println!("* Lib-name: {}\n", lib_name); }
 
-                    if !{ let mut t = output_path.clone(); t.push(lib_name); t }.is_dir() {
-                        println!("The python lib seems not to be setup correctly: Expected subdir '{}' in output path ({}) -> There has to be a subdir with the same name as the selected directory.",
-                                 lib_name, output_path.to_str().unwrap());
-                        exit(-1);
+                    if !output_path.join(&lib_name).is_dir() {
+                        print_error(format!("the python lib seems not to be set up correctly: expected subdir '{}' in output path ({}); \
+                            there has to be a subdir with the same name as the selected directory", lib_name, output_path.display()));
                     }
-                    if !{ let mut t = output_path.clone(); t.push("src"); t }.is_dir() {
-                        println!("The python lib seems not to be setup correctly: Expected subdir 'src' in output path ({})", output_path.to_str().unwrap());
-                        exit(-1);
+                    if !output_path.join("src").is_dir() {
+                        print_error(format!("the python lib seems not to be set up correctly: expected subdir 'src' in output path ({})",
+                                            output_path.display()));
                     }
 
-                    let d = JinjaData{
-                        enums: processed_bitis.enums,
-                        msgs: to_rust_messages(&processed_bitis.msgs),
-                        oos: to_rust_oneofs(&processed_bitis.oo_enums, &processed_bitis.msgs)
-                    };
-
-                    fn write_file(base_path: &PathBuf, file: &str, content: &str, show_debug: bool) {
-                        let mut cp = base_path.clone();
-                        cp.push(file);
-                        if fs::write(cp.clone(), content).is_err() {
-                            println!("Could not write file '{}'", cp.to_str().unwrap());
-                        } else {
-                            if show_debug {
-                                println!("Wrote file '{}'", cp.to_str().unwrap());
-                            }
-                        }
+                    let out = render_python(&processed_bitis, &lib_name).unwrap_or_else(|e| exit_with_errors(&[e], &sources));
+                    for (file, content) in [
+                        ("src/messages.rs".to_string(), &out.messages_rs), ("src/pyrust.rs".to_string(), &out.pyrust_rs),
+                        ("src/lib.rs".to_string(), &out.lib_rs), (format!("{lib_name}/{lib_name}.pyi"), &out.pyi),
+                    ] {
+                        let path = output_path.join(file);
+                        write_output(&path, content);
+                        if cli.debug > 0 { println!("Wrote file '{}'", path.display()); }
                     }
-                    let rdo = RustDataObjects{ d: d.clone() };
-                    let rendered_rust = rdo.render().unwrap();
-                    write_file(&output_path, "src/messages.rs", rendered_rust.as_str(), cli.debug > 0);
-
-                    let rdo = RustPyDataObjects{ d: d.clone() };
-                    let rendered_py_rust_itfc = rdo.render().unwrap();
-                    write_file(&output_path, "src/pyrust.rs", rendered_py_rust_itfc.as_str(), cli.debug > 0);
-
-                    let rdo = RustPyLib{ d: d.clone(), lib_name: String::from(lib_name) };
-                    let pyrust_lib = rdo.render().unwrap();
-                    write_file(&output_path, "src/lib.rs", pyrust_lib.as_str(), cli.debug > 0);
-
-                    let rdo = PyTypeHints{ d };
-                    let py_type_hints = rdo.render().unwrap();
-                    // write_file(&output_path, format!("{}/bitis_msgs.pyi", lib_name).as_str(), py_type_hints.as_str(), cli.debug > 0);
-                    write_file(&output_path, format!("{}/{}.pyi", lib_name, lib_name).as_str(), py_type_hints.as_str(), cli.debug > 0);
 
                     // *************************************
-                    {
-                        let toml_file = output_path.join("Cargo.toml");
-                        if toml_file.exists() && !prevent_update_bitis_lib_in_crate {
-                            if cli.debug > 0 { println!("- Found toml file and setting bitis-dependency"); }
-
-                            let cct_content = match fs::read(toml_file.clone()) {
-                                Ok(content) => String::from_utf8(content).unwrap(),
-                                Err(e) => { print_error(format!("Could not read lock file '{}': {:?}", toml_file.display(), e)); }
-                            };
-                            let mut toml_doc = match cct_content.parse::<DocumentMut>() {
-                                Ok(v) => v, Err(e) => {
-                                    print_error(format!("Could not parse toml from lock file '{}': {:?}", toml_file.display(), e)); }
-                            };
-
-                            toml_doc["dependencies"]["bitis"] = value(crate_version!());
-
-                            if let Err(e) = write(toml_file.clone(), toml_doc.to_string()) {
-                                print_error(format!("Failed to write to lock '{}': {}", toml_file.display(), e));
-                            }
-                        }
-                        else { print_warn("There was no toml file found in the base directory.".into()) }
+                    let toml_file = output_path.join("Cargo.toml");
+                    if prevent_update_bitis_lib_in_crate {
+                        if cli.debug > 0 { println!("- Not updating the bitis dependency in Cargo.toml"); }
                     }
+                    else if toml_file.exists() {
+                        if cli.debug > 0 { println!("- Found toml file and setting bitis-dependency"); }
+
+                        let cct_content = match fs::read_to_string(&toml_file) {
+                            Ok(content) => content,
+                            Err(e) => print_error(format!("could not read '{}': {}", toml_file.display(), e)),
+                        };
+                        let mut toml_doc = match cct_content.parse::<DocumentMut>() {
+                            Ok(v) => v,
+                            Err(e) => print_error(format!("could not parse toml file '{}': {}", toml_file.display(), e)),
+                        };
+                        toml_doc["dependencies"]["bitis"] = value(crate_version!());
+                        write_output(&toml_file, &toml_doc.to_string());
+                    }
+                    else { print_warn("There was no Cargo.toml found in the output directory.".into()) }
 
                     // ********************************************
-                    let r = match Command::new("maturin").args(["develop"]).current_dir(output_path.clone())
-                        .stdout(Stdio::piped()).spawn() {
-                        Ok(v) => v, Err(_) => { println!("Could not execute 'maturin develop'"); exit(-1) }
+                    let r = match Command::new("maturin").args(["develop"]).current_dir(&output_path)
+                        .stdout(Stdio::piped()).stderr(Stdio::piped()).spawn() {
+                        Ok(v) => v,
+                        Err(e) => print_error(format!("could not execute 'maturin develop': {e}")),
                     };
                     let out = match r.wait_with_output() {
-                        Ok(v) => v, Err(e) => { println!("Error waiting for 'maturin develop': {}", e); exit(-1) }
+                        Ok(v) => v,
+                        Err(e) => print_error(format!("error waiting for 'maturin develop': {e}")),
                     };
                     if !out.status.success() {
-                        println!("Error: 'maturin develop' returned error {}'", String::from_utf8(out.stderr).unwrap());
-                        exit(-1);
+                        print_error(format!("'maturin develop' failed: {}", String::from_utf8_lossy(&out.stderr)));
                     }
-                    else { println!("\n🎉 * Bitis compile and python lib build was successfully executed!\n"); }
-
+                    println!("\n🎉 * Bitis compile and python lib build was successfully executed!\n");
                 }
                 Language::Cpp => {
                     if cli.debug > 0 { println!("* Generating cpp code ..."); }
 
-/*                    let output_file = if let Some(output_file_opt_set) = output_file_opt {
-                        if output_file_opt_set.is_dir() {
-                            let mut of = output_file_opt_set.clone();
-                            of.push(format!("{}.h", input_file_wo_ext.to_str().unwrap()).as_str());
-                            of
-                        }
-                        else { output_file_opt_set }
-                    }
-                    else{
-                        let mut pb = PathBuf::new();
-                        pb.push(input_dir.clone().to_str().unwrap());
-                        pb.push(format!("{}.h", input_file_wo_ext.to_str().unwrap()).as_str());
-                        pb
-                    };*/
-
-                    let output_file = if let Some(output_file_opt_set) = output_file_opt {
-                        if output_file_opt_set.is_dir() {
-                            let mut of = output_file_opt_set.clone();
-                            of.push(format!("{}.h", input_file_wo_ext.to_str().unwrap()).as_str());
-                            of
-                        }
-                        else { output_file_opt_set }
-                    }
-                    else{
-                        if let Some(input_dir) = input_base_path {
-                            let mut of = input_dir.clone();
-                            of.push(format!("{}.h", input_file_wo_ext.to_str().unwrap()).as_str());
-                            of
-                        } else {
-                            if let Some(ibp) = input_file_path {
-                                let mut of = ibp.to_path_buf();
-                                of.push(format!("{}.h", input_file_wo_ext.to_str().unwrap()).as_str());
-                                of
-                            }
-                            else {
-                                println!("Error: Output path has to be set for rust language compiler \
-                                or path from inpuit file is used if there is only one input file.");
-                                abort()
-                            }
-                        }
-                    };
-                    if cli.debug > 0 { println!("output-file: '{}'", output_file.to_str().unwrap()); }
+                    let output_file = output_file_for(output_file_opt, input_base_path, input_file_dir,
+                                                      &format!("{output_stem}.h"));
+                    if cli.debug > 0 { println!("output-file: '{}'", output_file.display()); }
 
                     let bitis_header_lib_file_name = bitis_header_lib_file_name.unwrap_or("bitis_lib.h".to_string());
+                    let stamp_name = stamp_name_from(output_file.file_stem().and_then(|s| s.to_str()).unwrap_or("messages"));
 
-                    let jd = JinjaData{enums: processed_bitis.enums,
-                        msgs: to_cpp_messages(&processed_bitis.msgs),
-                        oos: to_cpp_oneofs(&processed_bitis.oo_enums, &processed_bitis.msgs) };
-                    let object_order = dependencies_process(jd.clone());
-                    let rdo = CppDataObjects{ d: jd, object_order, bitis_header_lib_file_name,
-                        bitis_version: crate_version!().to_string() };
-
-                    let rendered = rdo.render().unwrap();
-                    // println!("{}", rendered);
-                    fs::write(output_file.clone(), rendered).expect("Unable to write file");
-                    if cli.debug > 0 { println!("Written to {}", output_file.to_str().unwrap()); }
+                    if cli.debug > 1 {
+                        println!("Declaration order: {:?}", dependencies_process(JinjaData::for_cpp(&processed_bitis)));
+                    }
+                    let rendered = render_cpp(&processed_bitis, &bitis_header_lib_file_name, &stamp_name)
+                        .unwrap_or_else(|e| exit_with_errors(&[e], &sources));
+                    if cli.debug > 3 { println!("{}", rendered); }
+                    write_output(&output_file, &rendered);
+                    if cli.debug > 0 { println!("Written to {}", output_file.display()); }
 
                     if !prevent_write_bitis_header_lib {
                         let header_file_content = include_str!("../cpp_lib/bitis_lib.h");
@@ -414,100 +270,66 @@ fn main() {
                             //#define BITIS_CPP_LIB_VERSION \"{}\"\n\n{}", crate_version!(), crate_version!(),
                         header_file_content);
 
-                        let header_file_name = format!("{}/bitis_lib.h", output_file.parent().unwrap().to_str().unwrap());
-                        // println!("testing header_file_name: {}", header_file_name);
-                        let is_writeable_and_not_symlink = {
-                            match fs::exists(&header_file_name) {
-                                Ok(true) => {
-                                    // println!("  File exists ...");
-                                    let md = fs::symlink_metadata(&header_file_name);
-                                    if let Ok(md) = md {
-                                        // println!("  is symlink: {}", md.is_symlink());
-                                        !md.is_symlink()
-                                    } else { false }
-                                },
-                                Ok(false) => {
-                                    // println!("  File does not exist.");
-                                    true
-                                },
-                                Err(_) => false
-                            }
-                        };
-                        if is_writeable_and_not_symlink {
-                            fs::write(header_file_name.clone(), header_file_content).expect("Unable to write file");
-                            println!("Written cpp-header-lib to {}", header_file_name);
+                        // the header lib is included relative to the generated header
+                        let output_dir = output_file.parent().filter(|p| !p.as_os_str().is_empty())
+                            .map(|p| p.to_path_buf()).unwrap_or_else(|| PathBuf::from("."));
+                        let header_file_name = output_dir.join(&bitis_header_lib_file_name);
+                        let is_symlink = fs::symlink_metadata(&header_file_name).map(|m| m.is_symlink()).unwrap_or(false);
+                        if !is_symlink {
+                            write_output(&header_file_name, &header_file_content);
+                            if cli.debug > 0 { println!("Written cpp-header-lib to {}", header_file_name.display()); }
                         }
-                        else {
-                            println!("Not writing cpp-header-lib to {} as it is a symlink", header_file_name);
+                        else if cli.debug > 0 {
+                            println!("Not writing cpp-header-lib to {} as it is a symlink", header_file_name.display());
                         }
                     }
                 }
         } },
-        // Commands::Compare{ compare_file: _compare_file } => {
-        //     println!("\n*** Compare not implemented yet\n");
-        // },
         Commands::Setup{system, output_path} => {
             match system {
                 System::Maturin => {
-                    let lib_name = match output_path.file_name() {
-                        Some(v) => v.to_str().unwrap(), None => {
-                            println!("Error: Output path has to be the future lib name."); exit(-1); }
+                    let Some(lib_name) = output_path.file_name().and_then(|v| v.to_str()).map(|s| s.to_string()) else {
+                        print_error("the output path has to be the future lib name".into());
                     };
                     if cli.debug > 1 { println!("* Lib-name: {}\n", lib_name); }
 
                     // check if venv is enabled
                     let r = match Command::new("pip").args(["-V"]).output() {
-                        Ok(v) => v, Err(_) => { println!("Could not find pip executable"); exit(-1) }
+                        Ok(v) => v, Err(_) => print_error("could not find pip executable".into()),
                     };
-                    if !String::from_utf8(r.stdout).unwrap().contains(".venv") {
-                        println!("Venv needs to be activated for setting up pylib"); exit(-1)
+                    if !String::from_utf8_lossy(&r.stdout).contains(".venv") {
+                        print_error("a venv needs to be activated for setting up the python lib".into());
                     }
                     // check for maturin
-                    match Command::new("maturin").args(["--version"]).output() {
-                        Ok(v) => v, Err(_) => { println!("Maturin python package not installed. Please install it with\n\n  pip install maturin\n"); exit(-1) }
-                    };
+                    if Command::new("maturin").args(["--version"]).output().is_err() {
+                        print_error("maturin python package not installed. Please install it with\n\n  pip install maturin\n".into());
+                    }
                     // make dir
-                    if !output_path.exists() {
-                        if fs::create_dir_all(output_path.clone()).is_err() {
-                            println!("Unable to create output directory {}", output_path.clone().to_str().unwrap());
-                            exit(-1);
-                        }
+                    if !output_path.exists() && fs::create_dir_all(&output_path).is_err() {
+                        print_error(format!("unable to create output directory {}", output_path.display()));
                     }
                     // if there is no src directory, call maturin init
-                    if !{ let mut t = output_path.clone(); t.push("src"); t}.exists() {
+                    if !output_path.join("src").exists() {
                         if cli.debug > 1 { println!("Initializing maturin project ..."); }
-                        let r = match Command::new("maturin").args(["init", "-b", "pyo3"])
-                            .current_dir(output_path.clone().to_str().unwrap()).output() {
-                            Ok(v) => v, Err(e) => { println!("'maturin init' failed: {}", e); exit(-1) }
+                        let r = match Command::new("maturin").args(["init", "-b", "pyo3"]).current_dir(&output_path).output() {
+                            Ok(v) => v, Err(e) => print_error(format!("'maturin init' failed: {}", e)),
                         };
                         if !r.status.success() {
-                            println!("'maturin init' failed: {}", String::from_utf8(r.stderr).unwrap()); exit(-1)
+                            print_error(format!("'maturin init' failed: {}", String::from_utf8_lossy(&r.stderr)));
                         }
-                        println!("maturin response: {:?}", r);
-                        if cli.debug > 1 { println!("  done!"); }
+                        if cli.debug > 1 { println!("maturin response: {:?}\n  done!", r); }
                     }
-                    let mut py_code_dir = output_path.clone();
-                    py_code_dir.push(lib_name);
+                    let py_code_dir = output_path.join(&lib_name);
                     if !py_code_dir.exists() {
                         if fs::create_dir_all(&py_code_dir).is_err() {
-                            println!("Could not create directory '{}'", py_code_dir.to_str().unwrap()); exit(-1);
+                            print_error(format!("could not create directory '{}'", py_code_dir.display()));
                         }
-                        // if fs::write({let mut t = py_code_dir.clone(); t.push("__init__.py"); t},
-                        //              format!("from .{} import *", lib_name).as_str()).is_err() {
-                        //     println!("Could not create file '__init__.py' in dir '{}'", py_code_dir.to_str().unwrap()); exit(-1);
-                        // }
-                        if fs::write({let mut t = py_code_dir.clone(); t.push("__init__.py"); t},
-                                     format!("from .{lib_name} import *").as_str()).is_err() {
-                            println!("Could not create file '__init__.py' in dir '{}'", py_code_dir.to_str().unwrap()); exit(-1);
-                        }
-                        if fs::write({let mut t = py_code_dir.clone(); t.push("py.typed"); t}, "").is_err() {
-                            println!("Could not create file 'py.typed' in dir '{}'", py_code_dir.to_str().unwrap()); exit(-1);
-                        }
+                        write_output(&py_code_dir.join("__init__.py"), &format!("from .{lib_name} import *"));
+                        write_output(&py_code_dir.join("py.typed"), "");
                     }
                     println!("*** Project successfully setup.");
                 }
             }
-
         }
     }
 }

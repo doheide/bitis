@@ -1,33 +1,27 @@
-// compiler language missing:
-// * one_of
-// * Msgs / Enums as attributes
-// * tests
-// * check:
-//   * MessageNames
-//   * EnumNames
-//   * references
+// Example bitis definition file covering the language.
+// Compile e.g. with: bitis compile -l rust -i test.bitis -o test.rs
 
-
-// lala
-enum Numbers(fixed, 4) {
+//| Numbers are encoded as dynamic integer (chunks of 4 bits) of the zero based index
+enum Numbers(4) {
   // There is no number here, as this is done automatically
-  One,
+  *One,
   Two,
-  Three
+  Three,
 }
 
-enum NumbersAndAHalf(dyn, 4) {
+enum NumbersAndAHalf(2) {
   OneAndAHalf,
-  TwoAndAHalf,
+  *TwoAndAHalf,
   ThreeAndAHalf
 }
 
 msg Papa {
   oneof oo_lala(2) {
-    uint_8 test;
+    *uint_8 test;
     float test2;
   }
 }
+
 //| Pipi is the message containing the num
 msg Pipi {
   //| num means ...
@@ -41,19 +35,25 @@ msg Lala {
   repeated_fixed_4 uint_32d4 lala;
   optional uint_12 lolo;
   double qwert;
-  // the string has variable size
-  binary lele;
+  // the binary data has variable size
+  binary_d4 lele;
+  astr_d4 name;
+  int_5 signed_val;
+  int_16d4 signed_dyn_val;
+  fp_10[-2, 3] fixed_point;
 
   Pipi pipi;
+  NumbersAndAHalf nah;
 
-  oneof oo_lala {
-    uint_8 test;
+  oneof oo_lala(2) {
+    *uint_8 test;
     float test2;
+    Papa papa;
   }
 }
 
+//| The parent is informational only, attributes are not inherited.
 msg Lali : Lala {
   bool lulu;
-  ufp_32[-100,180] loli;
+  fp_32[-100, 180] loli;
 }
-

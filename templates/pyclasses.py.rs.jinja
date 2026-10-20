@@ -16,15 +16,12 @@ fn do_val_from<T: ValFromInto<U>, U>(v: &U) -> T {
 // *****************************************************************
 // *****************************************************************
 // Enums
-{%+ for ce in d.enums ~%}
-{%- if let Some(comment_impl) = ce.comment -%}
-///{{comment_impl}}
-{%- endif %}
-#[pyclass]
+{%+ for ce in d.enums %}
+{% if let Some(c) = ce.comment %}{{ c|rs_doc("") }}{% endif %}#[pyclass]
 #[derive(Debug, Clone)]
 pub enum {{ ce.name }} {
 {%- for cv in ce.values +%}
-  {{ cv|pascal_case }},
+{% if let Some(c) = ce.value_comment(loop.index0) %}{{ c|rs_doc("  ") }}{% endif %}  {{ cv|pascal_case }},
 {%- endfor %}
 }
 impl std::fmt::Display for {{ ce.name }} {
@@ -60,7 +57,7 @@ impl ValFromInto<{{ ce.name }}> for messages::{{ ce.name }} {
 #[allow(dead_code)]
 pub enum {{ coo.name }} {
 {%- for ca in coo.attributes +%}
-  {% include "pyclasses_oo_attr.py.rs.jinja" %}
+{% if let Some(c) = ca.base.comment %}{{ c|rs_doc("  ") }}{% endif %}  {% include "pyclasses_oo_attr.py.rs.jinja" %}
 {%- endfor %}
 }
 
@@ -77,7 +74,7 @@ impl {{ coo.name }} {
 {%- for ca in coo.attributes +%}
   #[staticmethod]
   fn new_{{ca.base.name|snake_case}}({{ca.base.name|snake_case}}: {%+ if ca.is_msg || ca.is_oo +%}Py<{%- endif -%}
-      {{ ca.base_type_str|safe }}{%- if ca.is_msg || ca.is_oo -%}>{% endif %}) -> PyResult<Py<Self>> {
+      {{ ca.base_type_str }}{%- if ca.is_msg || ca.is_oo -%}>{% endif %}) -> PyResult<Py<Self>> {
     Ok(Python::with_gil(|_py| { Py::new(_py, Self::{{ca.base.name|pascal_case}}({{ca.base.name|snake_case}})) })?)
   }
 {%- endfor %}
@@ -129,20 +126,13 @@ impl ValFromInto<Py<{{coo.name}}>> for messages::{{coo.name}} {
 // *****************************************************************
 // *****************************************************************
 // *** Messages
-{% for cm in d.msgs ~%}
-{%- if let Some(comment_impl) = cm.comment -%}
-///{{comment_impl}}
-{%- endif %}
-#[pyclass]
+{% for cm in d.msgs %}
+{% if let Some(c) = cm.comment %}{{ c|rs_doc("") }}{% endif %}#[pyclass]
 #[derive(Debug)]
 pub struct {{cm.name}} {
-// lala
 {% if let Some(p) = cm.parent -%}// parent: {{ p }}{%- endif -%}
 {% for ca in cm.attributes +%}
-{%- if let Some(comment_impl) = ca.base.comment -%}
-//{{comment_impl}}
-{%- endif -%}
-{# !ca.is_py_wrapped #}
+{%- if let Some(c) = ca.base.comment -%}{{ c|rs_doc("  ") }}{%- endif -%}
 {%- if !ca.is_oo +%}  #[pyo3(get, set)]
 {%+ endif +%}  pub {{ca.base.name}}: {% include "pyclasses_attr.py.rs.jinja" %}
 {% endfor -%}
@@ -184,13 +174,13 @@ impl {{cm.name}} {
 {%- for caa in coo.attributes +%}
   #[getter({{ca.base.name|snake_case}}_{{caa.base.name|snake_case}})]
   fn {{ca.base.name|snake_case}}_get_{{caa.base.name|snake_case}}(&self) -> Option<{%- if !caa.is_enum -%}&{%- endif -%}
-    {%- if caa.is_msg || caa.is_oo -%}Py<{%endif%}{{caa.base_type_str|safe}}{%- if caa.is_msg || caa.is_oo -%}>{%endif%}> {
+    {%- if caa.is_msg || caa.is_oo -%}Py<{%endif%}{{caa.base_type_str}}{%- if caa.is_msg || caa.is_oo -%}>{%endif%}> {
     match self.{{ca.base.name|snake_case}}.get() {
       {{ca.rust_type_str}}::{{caa.base.name|pascal_case}}(v) => Some(v{%- if caa.is_enum -%}.clone(){%- endif -%}), _ => None
   } }
   #[setter({{ca.base.name|snake_case}}_{{caa.base.name|snake_case}})]
   fn {{ca.base.name|snake_case}}_set_{{caa.base.name|snake_case}}(&mut self, v: {%- if caa.is_msg || caa.is_oo -%}
-    Py<{%endif%}{{caa.base_type_str|safe}}{%- if caa.is_msg || caa.is_oo -%}>{%endif%}) -> PyResult<()> {
+    Py<{%endif%}{{caa.base_type_str}}{%- if caa.is_msg || caa.is_oo -%}>{%endif%}) -> PyResult<()> {
     Python::with_gil(|py| {
       self.{{ca.base.name|snake_case}} = Py::new(py, {{ca.rust_type_str}}::{{caa.base.name|pascal_case}}(v))?;
       Ok(())

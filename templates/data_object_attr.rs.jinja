@@ -1,6 +1,3 @@
-{%- if let Some(comment_impl) = ca.base.comment -%}
-//{{comment_impl}}
-{%- endif -%}
 pub {{ca.base.name}}: {%~ if ca.base.is_optional -%}BitisOption<{%- endif -%}
 {%- if let Some(repeated_type) = ca.base.is_repeated_and_size -%}
 {%- match repeated_type -%}
@@ -8,7 +5,7 @@ pub {{ca.base.name}}: {%~ if ca.base.is_optional -%}BitisOption<{%- endif -%}
 {%- when DynOrFixedType::Fixed with (s) ~%}FixedArray<
 {%- endmatch -%}
 {%- endif -%}
-{{ ca.rust_type_str|safe }}
+{{ ca.rust_type_str }}
 {%- if let Some(repeated_type) = ca.base.is_repeated_and_size -%}
 {%- match repeated_type -%}
 {%- when DynOrFixedType::Dyn with (s) -%},{{s}}>
