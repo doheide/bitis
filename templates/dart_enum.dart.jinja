@@ -1,0 +1,32 @@
+
+{% if let Some(c) = e.comment %}{{ c|dart_doc(0) }}{% else %}/// Enum `{{ e.name }}`.{% endif %}
+enum {{ e.name }} {
+{%- for v in e.values %}
+{%- if !loop.first %}
+{% endif %}
+{% if let Some(c) = v.comment %}{{ c|dart_doc(2) }}{% else %}  /// `{{ v.bitis_name }}`{% endif %}
+  {{ v.dart_name }}('{{ v.bitis_name }}'){% if loop.last %};{% else %},{% endif %}
+{%- endfor %}
+
+  const {{ e.name }}(this.bitisName);
+
+  /// Name of the value as written in the schema (used in JSON).
+  final String bitisName;
+
+  /// The default value (marked with `*` in the schema).
+{{ e.default_decl }}
+
+  /// Writes the zero based index (`uint_32d{{ e.dyn_bits }}`).
+{{ e.write }}
+
+  /// Reads a value.
+{{ e.read }}
+
+  /// JSON representation: [bitisName].
+  String toJson() => bitisName;
+
+  /// Parses the JSON representation ([bitisName]).
+{{ e.from_json }}
+
+{{ e.by_name }}
+}
