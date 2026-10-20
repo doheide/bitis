@@ -16,9 +16,16 @@ golden/
   schema/golden.bitis       one schema covering every type and edge
   gen/rust/golden.rs        generated from the schema (committed, see "Regeneration")
   gen/cpp/golden.h          generated from the schema (includes "bitis_lib.h" from cpp_lib/)
+  gen/dart/golden.dart      generated from the schema (imports package:bitis)
   vectors/manifest.txt      the vectors (GENERATED, do not edit)
   gen_rust/                 generator of manifest.txt (cargo project, path dependency on bitis)
   cpp/golden_test.cpp       C++ test (gtest target bitis_golden, built by cpp_lib/tests)
+  dart/                     Dart test package (path dependency on dart/bitis)
+    tool/embed_manifest.dart  writes test/manifest.g.dart from vectors/manifest.txt
+    test/manifest.g.dart      the manifest as a Dart string (GENERATED, for the web)
+    test/manifest.dart        parser, dispatch over the 14 message types
+    test/golden_test.dart     the per-record checks + JSON round trip
+    test/spot_checks_test.dart decoded values and encoder spot checks
   run_all.sh                runs all golden tests
 tests/golden.rs             Rust test (cargo test --test golden)
 ```
@@ -73,7 +80,7 @@ Notes on the vectors:
 
 - Floats only use the canonical quiet NaN (`0x7fc00000` / `0x7ff8000000000000`), see spec 2.6.
 - Fixed point: the default value of a fixed point attribute is **Overflow** (raw `2^N-1`) in
-  Rust and C++ (`fixedpoints_default`, `everything_default`). `fixedpoints_ties` contains
+  Rust, C++ and Dart (`fixedpoints_default`, `everything_default`). `fixedpoints_ties` contains
   values for which the encoder computes an exact tie `t = k + 0.5` with even `k`
   (round half away from zero gives `k + 1`, round half to even would give `k`);
   `fixedpoints_gnss` contains `fp2 = 0.49999999999999994`, which becomes the tie `1.5` in
@@ -100,12 +107,19 @@ in exact mode.
 
 ## Running
 
-All at once (Rust, C++ plain and with ASan/UBSan; Python and Dart are reported as SKIP):
+All at once (Rust, C++ plain and with ASan/UBSan, Dart on the VM and in Chrome with
+dart2js and dart2wasm; Python is reported as SKIP):
 
 ```
 golden/run_all.sh            # --no-asan to skip the sanitizer build
-# offline: CARGO_FLAGS=--offline FETCHCONTENT_SOURCE_DIR_GOOGLETEST=<googletest checkout> golden/run_all.sh
+# offline: CARGO_FLAGS=--offline DART_PUB_FLAGS=--offline \
+#          FETCHCONTENT_SOURCE_DIR_GOOGLETEST=<googletest checkout> golden/run_all.sh
 ```
+
+The Dart steps use `$DART`, else `dart` on PATH, else `/home/dheide/sdk/flutter/bin/dart`
+if it exists, and are reported as SKIP if no dart is found; the two Chrome steps are
+skipped if no Chrome is found (`CHROME_EXECUTABLE`, or `google-chrome` / `chromium` on
+PATH).
 
 Individually:
 
@@ -126,7 +140,30 @@ Individually:
   maturin project, then for every manifest record call `<MsgType>.deserialize(bytes)` /
   `serialize()` and compare as above (maturin is not available in the CI environment of
   0.11).
-- **Dart**: placeholder in run_all.sh, see below.
+- **Dart**: package `golden/dart/`:
+  ```
+  cd golden/dart
+  dart pub get
+  dart run tool/embed_manifest.dart --check   # test/manifest.g.dart == vectors/manifest.txt
+  dart analyze
+  dart test -p vm,chrome                      # VM and dart2js; CHROME_EXECUTABLE if needed
+  dart test -p chrome --compiler dart2wasm
+  ```
+  The tests import the generated code directly from `../gen/dart/golden.dart` (relative
+  import, works on all three platforms). The browser has no file I/O, so the manifest
+  reaches the tests as the string constant `goldenManifest` in `test/manifest.g.dart`,
+  written by `tool/embed_manifest.dart`; `test/manifest_up_to_date_test.dart` (VM only)
+  and `embed_manifest.dart --check` (run_all.sh) fail if it differs from
+  `vectors/manifest.txt`. Error kinds map by name: the manifest name is the
+  `BitisDecodeErrorKind` name with an upper case first letter (`unexpectedEnd` ->
+  `UnexpectedEnd`). `invalid` records accept only a `BitisDecodeException` of that kind
+  (any other exception fails). Besides the checks of the table above and the spot checks
+  of the Rust/C++ tests (Int64/BigInt limits, fixed point values and states incl. the
+  default Overflow, strings, enum/oneof variants, nested fields; encoder:
+  `fixedpoints_ties`, `fixedpoints_gnss`, `fixedpoints_underflow`, `ints_min`,
+  `texts_values`, defaults; out-of-range values throw `BitisEncodeException`
+  `valueOutOfRange`), every `valid` case is also decoded, converted with `toJson` to a
+  JSON string and back with `fromJson`, and must re-encode to the same bytes.
 
 ## Regeneration
 
@@ -136,30 +173,14 @@ After changing the schema, the compiler templates, or the runtime encoding:
 cargo build
 target/debug/bitis compile -l rust -i golden/schema/golden.bitis -o golden/gen/rust/golden.rs
 target/debug/bitis compile -l cpp  -i golden/schema/golden.bitis -o golden/gen/cpp/golden.h --prevent-write-bitis-header-lib
+target/debug/bitis compile -l dart -i golden/schema/golden.bitis -o golden/gen/dart/golden.dart
 cargo run --manifest-path golden/gen_rust/Cargo.toml      # rewrites vectors/manifest.txt
+(cd golden/dart && dart run tool/embed_manifest.dart)    # rewrites dart/test/manifest.g.dart
 ```
 
 Review the diff of `vectors/manifest.txt`: changed bytes of existing cases mean the wire
 format changed, which must not happen without a spec change. New cases are added in
 `gen_rust/src/main.rs` (`valid`, `noncanon`, `invalid*`, `truncations`).
-
-## Adding the Dart runtime (TODO, after the Dart codegen is merged)
-
-1. Generate `golden/gen/dart/golden.dart` with `bitis compile -l dart` (add the command
-   above and, like for Rust/C++, an up-to-date check).
-2. Add a Dart test package (e.g. `golden/dart/`, depending on `dart/bitis` by path) whose
-   test reads `../vectors/manifest.txt` (path relative to the package), splits lines on
-   `' '`, maps `<MsgType>` to the generated class (a `switch` over the 14 names) and
-   implements the checks of the table above with the Dart `tryDeserialize` /
-   `tryDeserializeExact` / `trySerialize` equivalents. Map the error names to the Dart
-   error enum by name.
-3. Port the spot checks of tests/golden.rs (decoded values: ints at the i64 limits as
-   `Int64`, `uint_64` as `BigInt`; fixed point values / Overflow / Underflow states;
-   strings; enum and oneof variants; encoder: `fixedpoints_ties`, `fixedpoints_gnss`).
-   Note: the default of a fixed point attribute must be Overflow as in Rust/C++
-   (`fixedpoints_default`), and Dart must reproduce the f64 arithmetic of spec 2.7 exactly
-   (also when compiled to JavaScript).
-4. Replace the placeholder `dart_tests` in `run_all.sh` (`dart pub get && dart test`).
 
 ## Older cross-language framework (test_cases/)
 

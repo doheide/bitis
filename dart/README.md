@@ -162,3 +162,13 @@ dart test -p chrome --compiler dart2wasm
 `test/rust_vectors.dart` holds byte vectors produced by the Rust reference
 runtime (valid values only). Regenerate with the program in
 `tool/rust_vectors/` (see its `Cargo.toml`).
+
+Cross-language golden vectors (`golden/dart`: the same manifest as the Rust
+and C++ runtimes, see [`golden/README.md`](../golden/README.md)):
+
+```sh
+cd golden/dart
+dart pub get
+dart test -p vm,chrome
+dart test -p chrome --compiler dart2wasm
+```
