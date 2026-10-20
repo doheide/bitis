@@ -35,6 +35,7 @@ Key Features
   * [Container Modifier](#container-modifier)
   * [OneOfs](#oneofs)
   * [Comments](#comments)
+  * [Names and validation](#names-and-validation)
   * [Example messages](#example-messages)
     * [Nested Messages](#nested-messages)
     * [Key Value Map](#key-value-map)
@@ -53,6 +54,7 @@ Key Features
     * [Python](#python-2)
       * [Important Notes](#important-notes)
 * [Bitis compiler](#bitis-compiler)
+  * [Schema stamp](#schema-stamp)
 <!-- TOC -->
 
 ## Example
@@ -67,18 +69,18 @@ msg ExampleMessage {
   bool is_active;
   uint_3 value_one;
   optional int_5 signed_value;
-  repeated_fixed_3 uint_3; 
+  repeated_fixed_3 uint_3 array;
 }
 ```
 This is compiled to the following rust code:
 ```
-#[derive(BiserdiMsg, Debug, Clone, PartialEq)]
+#[derive(BiserdiMsg, Debug, Clone, PartialEq, Default)]
 #[allow(nonstandard_style)]
 pub struct ExampleMessage {
-pub is_active: bool,
-pub value_one: VarWithGivenBitSize<u8, 3>,
-pub signed_value: Option<VarWithGivenBitSize<i8, 5>>,
-pub array: [VarWithGivenBitSize<u8, 3>;3],
+  pub is_active: bool,
+  pub value_one: IntWithGivenBitSize<u16, 3>,
+  pub signed_value: BitisOption<IntWithGivenBitSize<i16, 5>>,
+  pub array: FixedArray<IntWithGivenBitSize<u16, 3>,3>,
 }
 ```
 
@@ -120,7 +122,12 @@ msg MSG_NAME {
   {modifier} {type} ATTRIBUTE_N_NAME;
 }
 ```
-with MSG_NAME the name of the message, {modifier} and {type} as described in the next sections. The {type} can also be another message.
+with MSG_NAME the name of the message, {modifier} and {type} as described in the next sections. The {type} can also be another message
+or an enum (defined anywhere in the input files). Messages must not contain themselves, directly or indirectly (no recursion).
+The attributes are serialized in the given order without any padding.
+
+A message can name a parent (`msg CHILD : PARENT { ... }`). The parent must be a defined message; it is currently
+informational only, attributes are not inherited.
 
 An example can be found at the end of this section. 
 
@@ -129,12 +136,12 @@ An example can be found at the end of this section.
 | Title                 | Bitis Type | Example | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 |-----------------------|------------|---|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Boolean               |  bool      |            | A value that has the values true or false.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| Fixed Integer         | int_X<br>uint_X | uint_3 | An sigened (int_X) or unsigned (uint_X) integer value with a fixed number of bits given by a number after the underscore. Signed values need an additional bit that denotes whether the value is negative. <br>Example details: uint_3 allows unsigned integer values with three bits, e.g. values from 0 to including 7.                                                                                                                                                                                                                                                              |
-| Dynamic Integer       | int_XdY<br>uint_XdY | uint_8d3 | An sigened (int_XdY) or unsigned (uint_Xd>) integer value with a dynamic number of bits depending on the value. A value of zero requires one bit. Depending on the number of bits used in the value, packets of Y bits are serialized. For each packet an additional bit is required to mark wheter further packets are encoded.<br>Example details: a value of 10 for an uint_3d is encoded as follows:  bit0=1 (value bigger than zero), bit1-4=2 (lower three bits of the value), bit5=1 (futher bits are nonzero), bit6-9=1 (bit 3-6 of the value), bit10=0 (higher bits are zero) |
+| Fixed Integer         | int_X<br>uint_X | uint_3 | An signed (int_X) or unsigned (uint_X) integer value with a fixed number of bits X (1 ≤ X ≤ 64) given by a number after the underscore. Signed values need an additional bit that denotes whether the value is negative. <br>Example details: uint_3 allows unsigned integer values with three bits, e.g. values from 0 to including 7. |
+| Dynamic Integer       | int_XdY<br>uint_XdY | uint_8d3 | An signed (int_XdY) or unsigned (uint_XdY) integer value of at most X bits (1 ≤ Y ≤ X ≤ 64) with a dynamic number of bits depending on the value. A value of zero requires one bit (two bits for int_XdY). Depending on the number of bits used in the value, packets of Y bits are serialized. For each packet an additional bit is required to mark whether further packets are encoded.<br>Example details: a value of 10 for an uint_32d3 is encoded as follows: bit0=1 (value bigger than zero), bit1-3=2 (lower three bits of the value), bit4=1 (further bits are nonzero), bit5-7=1 (bits 3-5 of the value), bit8=0 (higher bits are zero) |
 | Floating point number | double<br>float | float   | A floating point variable with 64 bit (double) or 32 bit (float) with the number of bits for exponent and mantisse according to IEC-754 .                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| Fixed point number    | fp_X[Y,Z]  | fp_10[-2,3] | A number with X bits equally spaced on the closed interval [Y, Z]. There is an indication for over- or under-flow condition<br>The example denotes the values between -2 and 3 with an 10 bit number.                                                                                                                                                                                                                                                                                                                                                                                  | 
-| Binary                | binary     |  |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| String  | astr_dX | astr_d4 | Ascii string with a dynamic integer as string length with chunks of X bits.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| Fixed point number    | fp_X[Y,Z]  | fp_10[-2,3] | A number with X bits (2 ≤ X ≤ 53) equally spaced on the closed interval [Y, Z] with integers Y < Z. There is an indication for over- or under-flow condition<br>The example denotes the values between -2 and 3 with an 10 bit number. | 
+| Binary                | binary_dY  | binary_d4 | Binary data (bytes) with a dynamic integer as length with chunks of Y bits (1 ≤ Y ≤ 32). |
+| String  | astr_dY | astr_d4 | Ascii string with a dynamic integer as string length with chunks of Y bits (1 ≤ Y ≤ 32). |
  
 
 ## Enumerated type 
@@ -142,18 +149,20 @@ Enumerated types are defined on the top level of a bitis definition file. The fo
 ```
 enum ENUM_NAME(Y) {
   E1, *E2, ...
-};
+}
 ```
-where ENUM_NAME denotes the name of the enum type and E1, E2, ... the set of named elements. 
-The value is encoded as dynamic integer with u32 packed into chuncks of Y bits.
+where ENUM_NAME denotes the name of the enum type and E1, E2, ... the set of named elements separated by commas
+(a trailing comma is allowed).
+The value is the zero based index of the element, encoded as dynamic integer with u32 packed into chunks of Y bits (1 ≤ Y ≤ 32).
 The default element of an Enum must be marked with a star in front of the value.
-Enums can be used in messages like any other type.
+Enums can be used in messages like any other type. The generated code uses the element names in PascalCase
+(e.g. `PRESSURE_SENSOR` becomes `PressureSensor`), so element names must differ after this conversion.
 
 Example:
 ```
 enum SENSOR_SOURCE(3) {
   TEMPERATUR_SENSOR, MOVEMENT_SENSOR, *PRESSURE_SENSOR
-};
+}
 ```
 
 ## Container Modifier
@@ -163,8 +172,10 @@ To denote arrays and optional values, modifiers can be used.
 | Title           | Bitis Modifier | Example | Description |
 |-----------------|----------------|---|---|
 | Optional field | optional | optional uint_3 val; | If the keyword optional is added to an message, the value is optional. |
-| Fixed array | repeated_fixed_X | repeated_fixed_10 uint_3 val; | Fixed array with X elements. |
-| Dynamic array | repeated_dyn_X |  repeated_dyn_3 uint_3 val; | Variable sized array. It uses dynamic integer (see above) with an 32 bit that stores the size in chuncks of X bits. |
+| Fixed array | repeated_fixed_X | repeated_fixed_10 uint_3 val; | Fixed array with X elements (1 ≤ X ≤ 255). |
+| Dynamic array | repeated_dyn_X |  repeated_dyn_3 uint_3 val; | Variable sized array. It uses a dynamic integer (see above) with 32 bit that stores the size in chunks of X bits (1 ≤ X ≤ 32). The element type must not be a message without any bits (e.g. an empty message). |
+
+At most one modifier can be used per attribute. Modifiers can not be used for oneofs and inside oneofs.
 
 ## OneOfs
 Messages can contain fields that can hold one of a list of different types:
@@ -175,8 +186,11 @@ oneof ONEOF_NAME(X) {
   *{type_N} {oneof_N};
 }
 ```
-with ONEOF_NAME, the name of the field amd a list of alternatives with types {type_1} ... {type_N} and the respective oneof names {oneof_1}.
-The default oneof is marked by a leading star ('*').
+with ONEOF_NAME, the name of the field and a list of alternatives with types {type_1} ... {type_N} and the respective oneof names {oneof_1}.
+The default oneof is marked by a leading star ('*'). The index of the selected alternative is encoded as dynamic integer with
+chunks of X bits (1 ≤ X ≤ 32), followed by the value of the alternative.
+The generated type of the oneof is named `OO_{MessageName}_{OneofName}` (both parts in PascalCase); these names must be
+unique, e.g. a oneof `value` in the messages `DTS_Msg` and `DtsMsg` is an error.
 
 An example message could be
 ```
@@ -184,8 +198,8 @@ msg Command_Shutdown {
   uint_7 wait_time;
 }
 enum SENSOR_SOURCE(3) {
-  TEMPERATUR_SENSOR, MOVEMENT_SENSOR, PRESSURE_SENSOR
-};
+  *TEMPERATUR_SENSOR, MOVEMENT_SENSOR, PRESSURE_SENSOR
+}
 msg Command_StartMeasurement {
   SENSOR_SOURCE source;
 }
@@ -205,6 +219,29 @@ Comments are denoted by //
 ```
 // This is a comment
 ```
+Documentation comments are denoted by //| and are copied into the generated code (as `///` comments in Rust and
+C++, as doc string in Python). They can be placed before messages, enums, attributes, oneofs, oneof elements and enum
+values; several consecutive //| lines form one multi-line comment.
+```
+//| A sensor reading.
+//| The value is given in milli Kelvin.
+msg Reading {
+  //| Sensor value
+  uint_20 value;
+}
+```
+
+## Names and validation
+Names of messages, enums, attributes, oneofs and enum elements start with a letter followed by letters, digits and
+underscores (`[A-Za-z][A-Za-z0-9_]*`). The compiler rejects:
+* duplicate names: message and enum names (shared namespace), attribute names within a message, oneof elements,
+  enum elements, also if they only differ in the case conversion used by the generated code (e.g. `a_b` and `aB`),
+* names that are keywords in Rust, C++, Python or Dart (e.g. `type`, `class`, `from`, `new`, `int`), also after case
+  conversion, and attribute names that clash with generated members (e.g. `serialize`, `print`, `msg_attr`),
+* type names reserved by the generated code / runtime (e.g. `Binary`, `String`, `BITIS_VERSION`),
+* unknown types and parents, recursive messages, bit sizes outside the ranges given above.
+
+Errors are reported as `file:line:col: error: message`.
 
 ## Example messages
 
@@ -384,45 +421,74 @@ code.
 ```text
 Bitwise serialization of messages defined in a data description language with interfaces for rust, python and c++.
 
-Usage: bitis [OPTIONS] --input-file <FILE> <COMMAND>
+Usage: bitis [OPTIONS] <COMMAND>
 
 Commands:
-  compile  Test bitis data objects file Compile bitis data objects file
-  setup    Compare bitis data objects file Setup directory and file structures
+  compile  Compile bitis definition files to code
+  setup    Setup directory and file structures
   help     Print this message or the help of the given subcommand(s)
 
 Options:
-  -i, --input-file <FILE>  Sets a custom config file
-  -d, --debug...           Turn debugging information on
-  -h, --help               Print help
-  -V, --version            Print version
+  -d, --debug...  Turn debugging information on (can be given multiple times)
+  -h, --help      Print help
+  -V, --version   Print version
 ```
 
 The options for the compile command are:
 ```text
-Test bitis data objects file Compile bitis data objects file
+Compile bitis definition files to code
 
-Usage: bitis --input-file <FILE> compile [OPTIONS] --lang <LANG>
+Usage: bitis compile [OPTIONS] --input-files <FILE>... --lang <LANG>
 
 Options:
+  -i, --input-files <FILE>...
+          Input file(s) with extension .bitis; give the option once per file or list several files
+
+  -p, --input-base-path <INPUT_BASE_PATH>
+          Directory for the output file if no output file or path is given (rust and cpp)
+
   -l, --lang <LANG>
-          compile language
+          Language to generate code for
 
           Possible values:
-          - rust:   use rust code
-          - python
-          - cpp
+          - rust:   generate rust code
+          - python: generate python library (based on generated rust code and maturin)
+          - cpp:    generate c++ code
 
   -o, --output-file-or-path <OUTPUT_FILE_OR_PATH>
-          output file
+          Output file or directory. rust/cpp: file, or directory to write <input name>.rs/.h (messages.rs/.h for multiple input files) into; python: directory of the maturin project
 
       --bitis-header-lib-file-name <BITIS_HEADER_LIB_FILE_NAME>
-          
+          Name (path relative to the generated header) of the bitis header lib that is included by and written next to the generated header (cpp only, default: bitis_lib.h)
 
       --prevent-write-bitis-header-lib
-          
+          Do not write the bitis header lib (cpp only)
+
+      --prevent-update-bitis-lib-in-crate
+          Do not set the bitis dependency in Cargo.toml of the maturin project (python only)
 
   -h, --help
           Print help (see a summary with '-h')
 ```
 
+Examples:
+```bash
+# one rust file for several input files (written to rust/src/messages.rs)
+bitis compile -l rust -o rust/src -i messages_a.bitis -i messages_b.bitis
+# c++ header messages.h plus bitis_lib.h next to it
+bitis compile -l cpp -o messages.h -i messages.bitis
+```
+Errors are printed to stderr as `file:line:col: error: message` and the compiler exits with code 1.
+Additional output (e.g. the precision of fixed point attributes and the schema hash) is printed with `-d`.
+
+## Schema stamp
+The generated code contains the version of the compiler and a 64 bit hash of the schema (see "Schema hash" in
+docs/WIRE_FORMAT.md). The hash only changes if types, names, attributes or their order change, not for comments,
+formatting or a different split into input files.
+
+* Rust: `pub const BITIS_VERSION: &str` and `pub const BITIS_SCHEMA_HASH: u64` in the generated module.
+* C++: `constexpr const char* BITIS_VERSION` and `constexpr uint64_t BITIS_SCHEMA_HASH` in the namespace
+  `bitis_schema_<header file name>` (e.g. `bitis_schema_messages`). The same names are also defined at global
+  scope by the first generated header included in a translation unit (guarded by `BITIS_SCHEMA_STAMP_DEFINED`), so
+  use the namespace if several generated headers are included.
+* Python: module attributes `BITIS_VERSION` (str) and `BITIS_SCHEMA_HASH` (int).
