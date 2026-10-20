@@ -151,7 +151,8 @@ Individually:
 - **Manifest up to date**: `cargo run --manifest-path golden/gen_rust/Cargo.toml -- --check`
 - **Rust**: `cargo test --test golden` (also checks that golden/gen/ is the current
   compiler output and that the manifest belongs to the schema)
-- **C++**: target `bitis_golden` of cpp_lib/tests:
+- **C++**: target `bitis_golden` of cpp_lib/tests (`run_all.sh` builds all targets of
+  cpp_lib/tests and runs them with ctest, so the unit tests run as well):
   ```
   cmake -S cpp_lib -B build && cmake --build build --target bitis_golden && build/tests/bitis_golden
   cmake -S cpp_lib -B build-asan -DBITIS_SANITIZE=ON && cmake --build build-asan --target bitis_golden && build-asan/tests/bitis_golden

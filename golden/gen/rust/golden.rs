@@ -4,7 +4,7 @@ use bitis_lib::*;
 use strum_macros::AsRefStr;
 
 /// Version of the bitis compiler that generated this file.
-pub const BITIS_VERSION: &str = "0.10.5";
+pub const BITIS_VERSION: &str = "0.11.0";
 /// Schema hash: first 8 bytes of SHA-256 over the canonical schema (see bitis docs/WIRE_FORMAT.md).
 pub const BITIS_SCHEMA_HASH: u64 = 0xb637cfeeccc2d168;
 

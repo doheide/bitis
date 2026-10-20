@@ -57,7 +57,8 @@ rust_tests() {
     (cd "$ROOT" && cargo test -q $CARGO_FLAGS --test golden --test crc32)
 }
 
-# --- C++ runtime (gtest target bitis_golden in cpp_lib/tests)
+# --- C++ runtime: all targets of cpp_lib/tests (golden vectors in bitis_golden, unit tests,
+# header / BITIS_NO_PRINT checks), run with ctest
 cpp_tests() {
     local dir=$1; shift
     local args=(-S "$ROOT/cpp_lib" -B "$dir" "$@")
@@ -65,8 +66,9 @@ cpp_tests() {
         args+=("-DFETCHCONTENT_SOURCE_DIR_GOOGLETEST=$FETCHCONTENT_SOURCE_DIR_GOOGLETEST")
     fi
     cmake "${args[@]}" > "$dir.cmake.log" 2>&1 || { cat "$dir.cmake.log"; return 1; }
-    cmake --build "$dir" --target bitis_golden -j "$(nproc 2>/dev/null || echo 4)" || return 1
-    "$dir/tests/bitis_golden" --gtest_brief=1
+    cmake --build "$dir" -j "$(nproc 2>/dev/null || echo 4)" || return 1
+    ctest --test-dir "$dir" -j "$(nproc 2>/dev/null || echo 4)" --output-on-failure | tail -n 3
+    return "${PIPESTATUS[0]}"
 }
 
 # --- Python (bindings generated via maturin from the Rust code): module `golden` built by

@@ -4,7 +4,7 @@
 /// fixtures/rust_vectors.json (byte vectors produced by the Rust runtime).
 const rustVectorsJson = r'''
 {
-  "generator": "bitis 0.10.5 Rust runtime (dart/codegen_test/tool/rust_vectors)",
+  "generator": "bitis 0.11.0 Rust runtime (dart/codegen_test/tool/rust_vectors)",
   "schemas": {
     "cara": "d5335166ee94e131",
     "test_schema": "0071b70312e9fef8",
