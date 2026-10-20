@@ -51,14 +51,15 @@ struct Inner {
 
     //static const char *msg_attr[];
 
-    std::size_t serialize(BitisSerializer &ser) {
+    std::size_t serialize(BitisSerializer &ser) const {
         return message_helper::msg_serialize(this, ser);
     }
+    static constexpr std::size_t min_bits() { return message_helper::msg_min_bits<Inner>(); }
     static bitis_helper::BitiaDeserializerHelper<Inner> deserialize(BitisDeserializer &des) {
         return message_helper::msg_deserialize<Inner>(des);
     }
 
-    void print(int16_t indent=0) {
+    void print(int16_t indent=0) const {
         printf("Inner{ ");
         if (indent>=0) printf("\n");
         message_helper::msg_print(this, (indent>=0) ? (2 + indent) : indent, msg_attr);
@@ -82,18 +83,19 @@ struct Empty {
         
     > MsgT;
 
-    const char *msg_attr[0] = {};
+    const char *msg_attr[0 + 1] = {};
 
     //static const char *msg_attr[];
 
-    std::size_t serialize(BitisSerializer &ser) {
+    std::size_t serialize(BitisSerializer &ser) const {
         return message_helper::msg_serialize(this, ser);
     }
+    static constexpr std::size_t min_bits() { return message_helper::msg_min_bits<Empty>(); }
     static bitis_helper::BitiaDeserializerHelper<Empty> deserialize(BitisDeserializer &des) {
         return message_helper::msg_deserialize<Empty>(des);
     }
 
-    void print(int16_t indent=0) {
+    void print(int16_t indent=0) const {
         printf("Empty{ ");
         if (indent>=0) printf("\n");
         message_helper::msg_print(this, (indent>=0) ? (2 + indent) : indent, msg_attr);
@@ -102,7 +104,7 @@ struct Empty {
     }
 
     bool is_equal(const Empty &other) const {
-        return true;}
+        (void) other; return true;}
     bool operator==(const Empty &other) const { return is_equal(other); }
     bool operator!=(const Empty &other) const { return !is_equal(other); }
 };
@@ -148,7 +150,7 @@ struct OO_AllTypes_Choice  {
     OO_AllTypes_Choice set_oo(typename OOT::OOType v) {
         static_assert(oneof_helper::ContainsType<OOT, T_OOEnum::EnumCollector>::value);
         oo_selector.set_enum<OOT>();
-        oo_value.set(v);
+        oo_value.set(std::move(v));
         return *this;
 
         //delete [] oo_value_ptr;
@@ -172,14 +174,15 @@ struct OO_AllTypes_Choice  {
         return false;
     }
 
-    std::size_t serialize(BitisSerializer &ser) {
+    std::size_t serialize(BitisSerializer &ser) const {
         return oneof_helper::oneof_serialize(this, ser);
     }
+    static constexpr std::size_t min_bits() { return oneof_helper::oneof_min_bits<OO_AllTypes_Choice>(); }
     static bitis_helper::BitiaDeserializerHelper<OO_AllTypes_Choice> deserialize(BitisDeserializer &des) {
         return oneof_helper::oneof_deserialize<OO_AllTypes_Choice>(des);
     }
 
-    void print(const int16_t indent=0) {
+    void print(const int16_t indent=0) const {
         printf("Oneof = ");
         oneof_helper::oneof_print(this, (indent>=0) ? indent + 2 : indent);
     }
@@ -284,14 +287,15 @@ struct AllTypes {
 
     //static const char *msg_attr[];
 
-    std::size_t serialize(BitisSerializer &ser) {
+    std::size_t serialize(BitisSerializer &ser) const {
         return message_helper::msg_serialize(this, ser);
     }
+    static constexpr std::size_t min_bits() { return message_helper::msg_min_bits<AllTypes>(); }
     static bitis_helper::BitiaDeserializerHelper<AllTypes> deserialize(BitisDeserializer &des) {
         return message_helper::msg_deserialize<AllTypes>(des);
     }
 
-    void print(int16_t indent=0) {
+    void print(int16_t indent=0) const {
         printf("AllTypes{ ");
         if (indent>=0) printf("\n");
         message_helper::msg_print(this, (indent>=0) ? (2 + indent) : indent, msg_attr);

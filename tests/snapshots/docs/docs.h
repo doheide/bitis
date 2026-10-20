@@ -65,7 +65,7 @@ struct OO_Documented_Sel  {
     OO_Documented_Sel set_oo(typename OOT::OOType v) {
         static_assert(oneof_helper::ContainsType<OOT, T_OOEnum::EnumCollector>::value);
         oo_selector.set_enum<OOT>();
-        oo_value.set(v);
+        oo_value.set(std::move(v));
         return *this;
 
         //delete [] oo_value_ptr;
@@ -89,14 +89,15 @@ struct OO_Documented_Sel  {
         return false;
     }
 
-    std::size_t serialize(BitisSerializer &ser) {
+    std::size_t serialize(BitisSerializer &ser) const {
         return oneof_helper::oneof_serialize(this, ser);
     }
+    static constexpr std::size_t min_bits() { return oneof_helper::oneof_min_bits<OO_Documented_Sel>(); }
     static bitis_helper::BitiaDeserializerHelper<OO_Documented_Sel> deserialize(BitisDeserializer &des) {
         return oneof_helper::oneof_deserialize<OO_Documented_Sel>(des);
     }
 
-    void print(const int16_t indent=0) {
+    void print(const int16_t indent=0) const {
         printf("Oneof = ");
         oneof_helper::oneof_print(this, (indent>=0) ? indent + 2 : indent);
     }
@@ -140,14 +141,15 @@ struct Documented {
 
     //static const char *msg_attr[];
 
-    std::size_t serialize(BitisSerializer &ser) {
+    std::size_t serialize(BitisSerializer &ser) const {
         return message_helper::msg_serialize(this, ser);
     }
+    static constexpr std::size_t min_bits() { return message_helper::msg_min_bits<Documented>(); }
     static bitis_helper::BitiaDeserializerHelper<Documented> deserialize(BitisDeserializer &des) {
         return message_helper::msg_deserialize<Documented>(des);
     }
 
-    void print(int16_t indent=0) {
+    void print(int16_t indent=0) const {
         printf("Documented{ ");
         if (indent>=0) printf("\n");
         message_helper::msg_print(this, (indent>=0) ? (2 + indent) : indent, msg_attr);

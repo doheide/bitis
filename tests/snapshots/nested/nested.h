@@ -49,14 +49,15 @@ struct Leaf {
 
     //static const char *msg_attr[];
 
-    std::size_t serialize(BitisSerializer &ser) {
+    std::size_t serialize(BitisSerializer &ser) const {
         return message_helper::msg_serialize(this, ser);
     }
+    static constexpr std::size_t min_bits() { return message_helper::msg_min_bits<Leaf>(); }
     static bitis_helper::BitiaDeserializerHelper<Leaf> deserialize(BitisDeserializer &des) {
         return message_helper::msg_deserialize<Leaf>(des);
     }
 
-    void print(int16_t indent=0) {
+    void print(int16_t indent=0) const {
         printf("Leaf{ ");
         if (indent>=0) printf("\n");
         message_helper::msg_print(this, (indent>=0) ? (2 + indent) : indent, msg_attr);
@@ -90,14 +91,15 @@ struct Middle {
 
     //static const char *msg_attr[];
 
-    std::size_t serialize(BitisSerializer &ser) {
+    std::size_t serialize(BitisSerializer &ser) const {
         return message_helper::msg_serialize(this, ser);
     }
+    static constexpr std::size_t min_bits() { return message_helper::msg_min_bits<Middle>(); }
     static bitis_helper::BitiaDeserializerHelper<Middle> deserialize(BitisDeserializer &des) {
         return message_helper::msg_deserialize<Middle>(des);
     }
 
-    void print(int16_t indent=0) {
+    void print(int16_t indent=0) const {
         printf("Middle{ ");
         if (indent>=0) printf("\n");
         message_helper::msg_print(this, (indent>=0) ? (2 + indent) : indent, msg_attr);
@@ -140,7 +142,7 @@ struct OO_Outer_Inner  {
     OO_Outer_Inner set_oo(typename OOT::OOType v) {
         static_assert(oneof_helper::ContainsType<OOT, T_OOEnum::EnumCollector>::value);
         oo_selector.set_enum<OOT>();
-        oo_value.set(v);
+        oo_value.set(std::move(v));
         return *this;
 
         //delete [] oo_value_ptr;
@@ -164,14 +166,15 @@ struct OO_Outer_Inner  {
         return false;
     }
 
-    std::size_t serialize(BitisSerializer &ser) {
+    std::size_t serialize(BitisSerializer &ser) const {
         return oneof_helper::oneof_serialize(this, ser);
     }
+    static constexpr std::size_t min_bits() { return oneof_helper::oneof_min_bits<OO_Outer_Inner>(); }
     static bitis_helper::BitiaDeserializerHelper<OO_Outer_Inner> deserialize(BitisDeserializer &des) {
         return oneof_helper::oneof_deserialize<OO_Outer_Inner>(des);
     }
 
-    void print(const int16_t indent=0) {
+    void print(const int16_t indent=0) const {
         printf("Oneof = ");
         oneof_helper::oneof_print(this, (indent>=0) ? indent + 2 : indent);
     }
@@ -213,7 +216,7 @@ struct OO_Top_Outer  {
     OO_Top_Outer set_oo(typename OOT::OOType v) {
         static_assert(oneof_helper::ContainsType<OOT, T_OOEnum::EnumCollector>::value);
         oo_selector.set_enum<OOT>();
-        oo_value.set(v);
+        oo_value.set(std::move(v));
         return *this;
 
         //delete [] oo_value_ptr;
@@ -237,14 +240,15 @@ struct OO_Top_Outer  {
         return false;
     }
 
-    std::size_t serialize(BitisSerializer &ser) {
+    std::size_t serialize(BitisSerializer &ser) const {
         return oneof_helper::oneof_serialize(this, ser);
     }
+    static constexpr std::size_t min_bits() { return oneof_helper::oneof_min_bits<OO_Top_Outer>(); }
     static bitis_helper::BitiaDeserializerHelper<OO_Top_Outer> deserialize(BitisDeserializer &des) {
         return oneof_helper::oneof_deserialize<OO_Top_Outer>(des);
     }
 
-    void print(const int16_t indent=0) {
+    void print(const int16_t indent=0) const {
         printf("Oneof = ");
         oneof_helper::oneof_print(this, (indent>=0) ? indent + 2 : indent);
     }
@@ -277,14 +281,15 @@ struct Top {
 
     //static const char *msg_attr[];
 
-    std::size_t serialize(BitisSerializer &ser) {
+    std::size_t serialize(BitisSerializer &ser) const {
         return message_helper::msg_serialize(this, ser);
     }
+    static constexpr std::size_t min_bits() { return message_helper::msg_min_bits<Top>(); }
     static bitis_helper::BitiaDeserializerHelper<Top> deserialize(BitisDeserializer &des) {
         return message_helper::msg_deserialize<Top>(des);
     }
 
-    void print(int16_t indent=0) {
+    void print(int16_t indent=0) const {
         printf("Top{ ");
         if (indent>=0) printf("\n");
         message_helper::msg_print(this, (indent>=0) ? (2 + indent) : indent, msg_attr);

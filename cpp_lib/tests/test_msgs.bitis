@@ -31,7 +31,7 @@ msg AllTypes {
   astr_d4 name;
   repeated_dyn_2 Point points;
   oneof payload(2) {
-    *bool none;
+    *bool flag;
     astr_d3 text;
     double num;
     Point pt;

@@ -87,7 +87,7 @@ namespace bitis_test {
         m.points.values.push_back(Point());
         typedef OO_AllTypes_Payload PL;
         switch (variant % 5) {
-            case 0: m.payload.set_oo<PL::OO_None>(PL::OO_None::OOType(true)); break;
+            case 0: m.payload.set_oo<PL::OO_Flag>(PL::OO_Flag::OOType(true)); break;
             case 1: m.payload.set_oo<PL::OO_Text>(PL::OO_Text::OOType("payload text")); break;
             case 2: m.payload.set_oo<PL::OO_Num>(PL::OO_Num::OOType(0.125)); break;
             case 3: m.payload.set_oo<PL::OO_Pt>(p); break;
