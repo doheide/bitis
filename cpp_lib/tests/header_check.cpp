@@ -2,6 +2,7 @@
 // CMakeLists.txt): instantiates the whole runtime API and the generated test messages.
 #include "bitis_lib.h"
 #include "gen/test_msgs.h"
+#include "gen/test_bounds.h"
 #include "bitis_lib.h"
 
 template<typename T>
@@ -49,6 +50,12 @@ int main() {
     errors += roundtrip(OO_Xl_Val());
     errors += roundtrip(MsgKVMapOO());
     errors += roundtrip(MsgKVMapSimple());
+    errors += roundtrip(BoundedBinary<3, 4>({1, 2, 3, 4}));
+    errors += roundtrip(BoundedAString<4, 300>("abc"));
+    errors += roundtrip(BoundedDynArray<BoundedAString<4, 5>, 2, 3>({BoundedAString<4, 5>("ab")}));
+    errors += roundtrip(BoundedDynArray<BitisBool, 1, 65535>());
+    errors += roundtrip(Bounded());
+    static_assert(BoundedDynArray<BoundedBinary<2, 3>, 2, 4>::max_bits() == 7 + 4 * (4 + 24), "max_bits: dyn(4, 32, 2) = 7");
 
     AllTypes a;
     a.payload.set_oo<OO_AllTypes_Payload::OO_Text>(OO_AllTypes_Payload::OO_Text::OOType("text"));

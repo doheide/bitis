@@ -926,6 +926,382 @@ private:
 };
 
 // ***************************************************************
+// BEGIN bounded containers (spec 2.16, bitis 0.11)
+// astr_dY[M] -> BoundedAString<Y, M>, binary_dY[M] -> BoundedBinary<Y, M>,
+// repeated_dyn_Y[M] T -> BoundedDynArray<T, Y, M>.
+// Heap-free: std::array storage for M elements plus a length member of the smallest
+// unsigned type holding M (1 <= M <= 65535). The encoding is the same as without the
+// bound; decoding a count > M is InvalidValue (checked directly after the count, before
+// the count check of spec section 3). The containers can never hold more than M
+// elements: set()/append()/push_back()/resize() return false and leave the value
+// unchanged if the bound would be exceeded; the constructors truncate to M elements.
+// Note: these objects are as large as their capacity (also on the stack when decoding).
+#include <initializer_list>
+namespace bitis_helper {
+    template<std::size_t MAX_LEN>
+    using bounded_len_t = typename std::conditional<(MAX_LEN <= 0xFFu), uint8_t, uint16_t>::type;
+
+    // max_bits of a bounded container: dyn(M, 32, Y) + M * max_bits(element)
+    constexpr std::size_t bounded_max_bits(const uint8_t dyn_bits_y, const std::size_t max_len,
+                                           const std::size_t elem_max_bits) {
+        return max_bits_add(dyn_bits(max_len, 32, dyn_bits_y), max_bits_mul(elem_max_bits, max_len));
+    }
+
+    // Reads the count of a bounded container. count > max_len -> InvalidValue (spec 2.16),
+    // then the count check of spec section 3 (UnexpectedEnd). Returns false on any error.
+    template<uint8_t DYN_BITS>
+    inline bool read_bounded_count(BitisDeserializer &des, const std::size_t max_len,
+                                   const std::size_t elem_min_bits, std::size_t &count) {
+        count = 0;
+        const auto rv = DynInteger<uint32_t, 32, DYN_BITS>::deserialize(des);
+        if (des.has_error()) { return false; }
+        if (rv.data.value > max_len) { des.set_error(BitisError::InvalidValue); return false; }
+        if (!check_count(des, rv.data.value, elem_min_bits)) { return false; }
+        count = rv.data.value;
+        return true;
+    }
+}
+
+// ***************************************************************
+// binary_dY[M]: at most MAX_LEN bytes.
+template <uint8_t DYN_BITS, std::size_t MAX_LEN>
+struct BoundedBinary {
+    static_assert(MAX_LEN >= 1 && MAX_LEN <= 65535, "BoundedBinary: MAX_LEN has to be in 1..65535.");
+    typedef DynInteger<uint32_t, 32, DYN_BITS> SizeT;
+    typedef bitis_helper::bounded_len_t<MAX_LEN> LenT;
+    typedef uint8_t ValT;
+
+    BoundedBinary() : values(), len(0) {}
+    // truncates to MAX_LEN bytes
+    BoundedBinary(const uint8_t *data, const std::size_t size) : values(), len(0) { assign_truncated(data, size); }
+    BoundedBinary(std::initializer_list<uint8_t> v) : values(), len(0) { assign_truncated(v.begin(), v.size()); }
+    explicit BoundedBinary(const std::vector<uint8_t> &v) : values(), len(0) { assign_truncated(v.data(), v.size()); }
+
+    static constexpr std::size_t capacity() { return MAX_LEN; }
+    static constexpr std::size_t max_size() { return MAX_LEN; }
+    std::size_t size() const { return len; }
+    bool empty() const { return len == 0; }
+
+    const uint8_t *data() const { return values.data(); }
+    uint8_t *data() { return values.data(); }
+    const uint8_t &operator[](const std::size_t i) const { return values[i]; }
+    uint8_t &operator[](const std::size_t i) { return values[i]; }
+    const uint8_t *begin() const { return values.data(); }
+    const uint8_t *end() const { return values.data() + len; }
+    uint8_t *begin() { return values.data(); }
+    uint8_t *end() { return values.data() + len; }
+
+    void clear() { len = 0; }
+    // false (unchanged) if size > MAX_LEN
+    bool set(const uint8_t *src, const std::size_t size) {
+        if (size > MAX_LEN || (size > 0 && src == nullptr)) { return false; }
+        assign_truncated(src, size);
+        return true;
+    }
+    bool set(const std::vector<uint8_t> &v) { return set(v.data(), v.size()); }
+    bool append(const uint8_t *src, const std::size_t size) {
+        if (size > MAX_LEN - len || (size > 0 && src == nullptr)) { return false; }
+        if (size > 0) { std::memmove(values.data() + len, src, size); }
+        len = static_cast<LenT>(len + size);
+        return true;
+    }
+    bool push_back(const uint8_t b) {
+        if (len >= MAX_LEN) { return false; }
+        values[len] = b;
+        len = static_cast<LenT>(len + 1);
+        return true;
+    }
+    // new bytes are zero
+    bool resize(const std::size_t size) {
+        if (size > MAX_LEN) { return false; }
+        for (std::size_t i = len; i < size; i++) { values[i] = 0; }
+        len = static_cast<LenT>(size);
+        return true;
+    }
+
+    static constexpr std::size_t min_bits() { return 1; }
+    static constexpr std::size_t max_bits() { return bitis_helper::bounded_max_bits(DYN_BITS, MAX_LEN, 8); }
+
+    std::size_t serialize(BitisSerializer &ser) const {
+        std::size_t num_bits = SizeT(static_cast<uint32_t>(len)).serialize(ser);
+        for (std::size_t i = 0; i < len; i++) { ser.write_bits(values[i], 8); num_bits += 8; }
+        return num_bits;
+    }
+    static bitis_helper::BitiaDeserializerHelper<BoundedBinary> deserialize(BitisDeserializer &des) {
+        const std::size_t start_bits = des.consumed_bits();
+        BoundedBinary r;
+        std::size_t count = 0;
+        if (bitis_helper::read_bounded_count<DYN_BITS>(des, MAX_LEN, 8, count)) {
+            for (std::size_t i = 0; i < count; i++) { r.values[i] = static_cast<uint8_t>(des.read_bits(8)); }
+            if (!des.has_error()) { r.len = static_cast<LenT>(count); }
+        }
+        return bitis_helper::BitiaDeserializerHelper<BoundedBinary>{des.consumed_bits() - start_bits, r};
+    }
+
+#ifndef BITIS_NO_PRINT
+    void print(int16_t /*indent*/=0) const {
+        printf("[");
+        for (std::size_t i = 0; i < len; i++) { printf((i == 0) ? "%02X" : " %02X", values[i]); }
+        printf("] {binary_d%u[%zu]}", DYN_BITS, MAX_LEN);
+    }
+#else
+    void print(int16_t = 0) const {}
+#endif
+    bool is_equal(const BoundedBinary &other) const {
+        return len == other.len && std::equal(values.begin(), values.begin() + len, other.values.begin());
+    }
+    bool operator==(const BoundedBinary &other) const { return is_equal(other); }
+    bool operator!=(const BoundedBinary &other) const { return !is_equal(other); }
+
+private:
+    void assign_truncated(const uint8_t *src, std::size_t size) {
+        if (src == nullptr) { size = 0; }
+        if (size > MAX_LEN) { size = MAX_LEN; }
+        if (size > 0) { std::memmove(values.data(), src, size); }
+        len = static_cast<LenT>(size);
+    }
+
+    std::array<uint8_t, MAX_LEN> values;
+    LenT len;
+};
+
+// ***************************************************************
+// astr_dY[M]: ASCII string of at most MAX_LEN characters. The buffer always holds a
+// terminating NUL after the last character (not serialized), so c_str() / get() can be
+// used as a C string. Like BitisAString, bytes >= 0x80 can be stored, but encoding them
+// sets ValueOutOfRange (written masked to 7 bits); decoding them is InvalidValue.
+template <uint8_t DYN_BITS, std::size_t MAX_LEN>
+struct BoundedAString {
+    static_assert(MAX_LEN >= 1 && MAX_LEN <= 65535, "BoundedAString: MAX_LEN has to be in 1..65535.");
+    typedef DynInteger<uint32_t, 32, DYN_BITS> SizeT;
+    typedef bitis_helper::bounded_len_t<MAX_LEN> LenT;
+
+    BoundedAString() : chars(), len(0) {}
+    // truncates to MAX_LEN characters
+    explicit BoundedAString(const char *s) : chars(), len(0) { assign_truncated(s, (s != nullptr) ? strlen(s) : 0); }
+    BoundedAString(const char *s, const std::size_t size) : chars(), len(0) { assign_truncated(s, size); }
+
+    static constexpr std::size_t capacity() { return MAX_LEN; }
+    static constexpr std::size_t max_size() { return MAX_LEN; }
+    // number of characters (without the terminator)
+    std::size_t size() const { return len; }
+    std::size_t length() const { return len; }
+    bool empty() const { return len == 0; }
+
+    // NUL terminated
+    const char *c_str() const { return chars.data(); }
+    const char *get() const { return chars.data(); }
+    const char *data() const { return chars.data(); }
+    const char &operator[](const std::size_t i) const { return chars[i]; }
+    char &operator[](const std::size_t i) { return chars[i]; }
+    const char *begin() const { return chars.data(); }
+    const char *end() const { return chars.data() + len; }
+    char *begin() { return chars.data(); }
+    char *end() { return chars.data() + len; }
+
+    void clear() { len = 0; chars[0] = 0; }
+    // false (unchanged) if the string is longer than MAX_LEN
+    bool set(const char *s) { return set(s, (s != nullptr) ? strlen(s) : 0); }
+    bool set(const char *s, const std::size_t size) {
+        if (size > MAX_LEN || (size > 0 && s == nullptr)) { return false; }
+        assign_truncated(s, size);
+        return true;
+    }
+    bool append(const char *s) { return append(s, (s != nullptr) ? strlen(s) : 0); }
+    bool append(const char *s, const std::size_t size) {
+        if (size > MAX_LEN - len || (size > 0 && s == nullptr)) { return false; }
+        if (size > 0) { std::memmove(chars.data() + len, s, size); }
+        len = static_cast<LenT>(len + size);
+        chars[len] = 0;
+        return true;
+    }
+    bool push_back(const char c) {
+        if (len >= MAX_LEN) { return false; }
+        chars[len] = c;
+        len = static_cast<LenT>(len + 1);
+        chars[len] = 0;
+        return true;
+    }
+
+    static constexpr std::size_t min_bits() { return 1; }
+    static constexpr std::size_t max_bits() { return bitis_helper::bounded_max_bits(DYN_BITS, MAX_LEN, 8); }
+
+    std::size_t serialize(BitisSerializer &ser) const {
+        std::size_t num_bits = SizeT(static_cast<uint32_t>(len)).serialize(ser);
+        for (std::size_t i = 0; i < len; i++) {
+            uint8_t cv = static_cast<uint8_t>(chars[i]);
+            if (cv >= 0x80) { ser.set_error(BitisError::ValueOutOfRange); cv &= 0x7F; }
+            ser.write_bits(cv, 8);
+            num_bits += 8;
+        }
+        return num_bits;
+    }
+    static bitis_helper::BitiaDeserializerHelper<BoundedAString> deserialize(BitisDeserializer &des) {
+        const std::size_t start_bits = des.consumed_bits();
+        BoundedAString r;
+        std::size_t count = 0;
+        if (bitis_helper::read_bounded_count<DYN_BITS>(des, MAX_LEN, 8, count)) {
+            for (std::size_t i = 0; i < count && !des.has_error(); i++) {
+                const auto cv = static_cast<uint8_t>(des.read_bits(8));
+                if (cv >= 0x80) { des.set_error(BitisError::InvalidValue); }
+                r.chars[i] = static_cast<char>(cv);
+            }
+            if (!des.has_error()) { r.len = static_cast<LenT>(count); }
+            r.chars[r.len] = 0;
+        }
+        return bitis_helper::BitiaDeserializerHelper<BoundedAString>{des.consumed_bits() - start_bits, r};
+    }
+
+#ifndef BITIS_NO_PRINT
+    void print(int16_t /*indent*/=0) const {
+        printf("'%.*s' {d%u[%zu]}", static_cast<int>(len), chars.data(), DYN_BITS, MAX_LEN);
+    }
+#else
+    void print(int16_t = 0) const {}
+#endif
+    bool is_equal(const BoundedAString &other) const {
+        return len == other.len && std::equal(chars.begin(), chars.begin() + len, other.chars.begin());
+    }
+    bool operator==(const BoundedAString &other) const { return is_equal(other); }
+    bool operator!=(const BoundedAString &other) const { return !is_equal(other); }
+
+private:
+    void assign_truncated(const char *s, std::size_t size) {
+        if (s == nullptr) { size = 0; }
+        if (size > MAX_LEN) { size = MAX_LEN; }
+        if (size > 0) { std::memmove(chars.data(), s, size); }
+        len = static_cast<LenT>(size);
+        chars[len] = 0;
+    }
+
+    std::array<char, MAX_LEN + 1> chars;
+    LenT len;
+};
+
+// ***************************************************************
+// repeated_dyn_Y[M] T: at most MAX_LEN elements. Elements behind size() are kept
+// default constructed (they are reset when the container shrinks).
+template <typename T, uint8_t DYN_BITS, std::size_t MAX_LEN>
+struct BoundedDynArray {
+    static_assert(MAX_LEN >= 1 && MAX_LEN <= 65535, "BoundedDynArray: MAX_LEN has to be in 1..65535.");
+    typedef T ValT;
+    typedef DynInteger<uint32_t, 32, DYN_BITS> SizeT;
+    typedef bitis_helper::bounded_len_t<MAX_LEN> LenT;
+
+    BoundedDynArray() : values(), len(0) {}
+    // truncate to MAX_LEN elements
+    BoundedDynArray(std::initializer_list<T> v) : values(), len(0) { assign_truncated(v.begin(), v.size()); }
+    explicit BoundedDynArray(const std::vector<T> &v) : values(), len(0) { assign_truncated(v.data(), v.size()); }
+
+    static constexpr std::size_t capacity() { return MAX_LEN; }
+    static constexpr std::size_t max_size() { return MAX_LEN; }
+    std::size_t size() const { return len; }
+    bool empty() const { return len == 0; }
+
+    const T *data() const { return values.data(); }
+    T *data() { return values.data(); }
+    const T &operator[](const std::size_t i) const { return values[i]; }
+    T &operator[](const std::size_t i) { return values[i]; }
+    const T *begin() const { return values.data(); }
+    const T *end() const { return values.data() + len; }
+    T *begin() { return values.data(); }
+    T *end() { return values.data() + len; }
+    const T &front() const { return values[0]; }
+    T &front() { return values[0]; }
+    const T &back() const { return values[len - 1]; }
+    T &back() { return values[len - 1]; }
+
+    void clear() { shrink_to(0); }
+    bool push_back(const T &v) {
+        if (len >= MAX_LEN) { return false; }
+        values[len] = v;
+        len = static_cast<LenT>(len + 1);
+        return true;
+    }
+    bool push_back(T &&v) {
+        if (len >= MAX_LEN) { return false; }
+        values[len] = std::move(v);
+        len = static_cast<LenT>(len + 1);
+        return true;
+    }
+    void pop_back() { if (len > 0) { shrink_to(len - 1u); } }
+    // false (unchanged) if size > MAX_LEN; new elements are default constructed
+    bool resize(const std::size_t size) {
+        if (size > MAX_LEN) { return false; }
+        if (size < len) { shrink_to(size); } else { len = static_cast<LenT>(size); }
+        return true;
+    }
+    bool set(const T *src, const std::size_t size) {
+        if (size > MAX_LEN || (size > 0 && src == nullptr)) { return false; }
+        assign_truncated(src, size);
+        return true;
+    }
+    bool set(const std::vector<T> &v) { return set(v.data(), v.size()); }
+
+    static constexpr std::size_t min_bits() { return 1; }
+    static constexpr std::size_t max_bits() { return bitis_helper::bounded_max_bits(DYN_BITS, MAX_LEN, T::max_bits()); }
+
+    std::size_t serialize(BitisSerializer &ser) const {
+        std::size_t num_bits = SizeT(static_cast<uint32_t>(len)).serialize(ser);
+        for (std::size_t i = 0; i < len; i++) { num_bits += values[i].serialize(ser); }
+        return num_bits;
+    }
+    static bitis_helper::BitiaDeserializerHelper<BoundedDynArray> deserialize(BitisDeserializer &des) {
+        const std::size_t start_bits = des.consumed_bits();
+        BoundedDynArray r;
+        std::size_t count = 0;
+        if (bitis_helper::read_bounded_count<DYN_BITS>(des, MAX_LEN, bitis_min_bits<T>(), count)) {
+            for (std::size_t i = 0; i < count; i++) {
+                auto dr = T::deserialize(des);
+                if (des.has_error()) { break; }
+                r.values[i] = std::move(dr.data);
+                r.len = static_cast<LenT>(i + 1);
+            }
+        }
+        return bitis_helper::BitiaDeserializerHelper<BoundedDynArray>{des.consumed_bits() - start_bits, std::move(r)};
+    }
+
+#ifndef BITIS_NO_PRINT
+    void print(int16_t indent=0) const {
+        printf("[");
+        for (std::size_t i = 0; i < len; i++) {
+            values[i].print(indent);
+            if (i + 1 != len) { printf(", "); }
+        }
+        printf("]{dyn:%zu, max:%zu}", static_cast<std::size_t>(len), MAX_LEN);
+    }
+#else
+    void print(int16_t = 0) const {}
+#endif
+    bool is_equal(const BoundedDynArray &other) const {
+        if (len != other.len) { return false; }
+        for (std::size_t i = 0; i < len; i++) {
+            if (values[i] != other.values[i]) { return false; }
+        }
+        return true;
+    }
+    bool operator==(const BoundedDynArray &other) const { return is_equal(other); }
+    bool operator!=(const BoundedDynArray &other) const { return !is_equal(other); }
+
+private:
+    void shrink_to(const std::size_t size) {
+        for (std::size_t i = size; i < len; i++) { values[i] = T(); }
+        len = static_cast<LenT>(size);
+    }
+    void assign_truncated(const T *src, std::size_t size) {
+        if (src == nullptr) { size = 0; }
+        if (size > MAX_LEN) { size = MAX_LEN; }
+        for (std::size_t i = 0; i < size; i++) { values[i] = src[i]; }
+        for (std::size_t i = size; i < len; i++) { values[i] = T(); }
+        len = static_cast<LenT>(size);
+    }
+
+    std::array<T, MAX_LEN> values;
+    LenT len;
+};
+// END bounded containers
+
+// ***************************************************************
 enum FixPrecisionMinMaxEnum {Ok, Underflow, Overflow};
 
 // fp_N[min, max] (spec 2.7)
