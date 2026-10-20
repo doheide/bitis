@@ -171,6 +171,33 @@ fn dyn_bit_sizes() {
 }
 
 #[test]
+fn maximum_lengths() {
+    // range 1..=65535 (spec 2.16)
+    assert_error("msg Mm { astr_d4[0] s; }", "t.bitis:1:17: error: maximum length [M] of astr_dY must be in 1..=65535, got 0");
+    assert_error("msg Mm { astr_d4[65536] s; }", "t.bitis:1:17: error: maximum length [M] of astr_dY must be in 1..=65535, got 65536");
+    assert_error("msg Mm { binary_d4[-1] s; }", "t.bitis:1:19: error: maximum length [M] of binary_dY must be in 1..=65535, got -1");
+    assert_error("msg Mm { binary_d4[99999999999999999999999] s; }", "error: maximum length [M] of binary_dY must be in 1..=65535, got a too large value");
+    assert_error("msg Mm { repeated_dyn_2[0] bool b; }", "t.bitis:1:24: error: maximum length [M] of repeated_dyn_Y must be in 1..=65535, got 0");
+    assert_error("msg Mm { repeated_dyn_2[70000] bool b; }", "error: maximum length [M] of repeated_dyn_Y must be in 1..=65535, got 70000");
+    // [M] anywhere else
+    let only = "is only allowed directly after astr_dY, binary_dY or repeated_dyn_Y";
+    assert_error("msg Mm { uint_8[3] v; }", &format!("t.bitis:1:16: error: a maximum length '[3]' {only}"));
+    assert_error("msg Mm { repeated_fixed_2[3] bool v; }", &format!("t.bitis:1:26: error: a maximum length '[3]' {only}"));
+    assert_error("msg Mm { optional[3] bool v; }", &format!("t.bitis:1:18: error: a maximum length '[3]' {only}"));
+    assert_error("msg Mm { [3] bool v; }", &format!("t.bitis:1:10: error: a maximum length '[3]' {only}"));
+    assert_error("msg Mm { astr_d4[3][4] v; }", &format!("t.bitis:1:20: error: a maximum length '[4]' {only}"));
+    assert_error("msg Mm { astr_d4 v[3]; }", &format!("t.bitis:1:19: error: a maximum length '[3]' {only}"));
+    assert_error("msg Mm { bool v; }\nmsg Nn { Mm[2] m; }", &format!("t.bitis:2:12: error: a maximum length '[2]' {only}"));
+    assert_error("enum Ee(2)[3] { *A }", &format!("t.bitis:1:11: error: a maximum length '[3]' {only}"));
+    assert_error("msg Mm { repeated_dyn_2 [2] [3] bool v; }", &format!("t.bitis:1:29: error: a maximum length '[3]' {only}"));
+    assert_error("msg Mm { astr_d4[x] v; }", "t.bitis:1:17: error: unexpected text '['");
+    assert_error("msg Mm { astr_d4[", "t.bitis:1:17: error: unexpected text '['");
+    assert_ok("enum Ee(2) { *A }\nmsg Ii { bool b; }\n\
+               msg Mm { astr_d4[1] a; binary_d1[65535] b; repeated_dyn_2[8] astr_d4[16] c; optional astr_d4 [ 32 ] d;\n\
+               repeated_fixed_3 binary_d8[4] e; repeated_dyn_1[2] Ii f; repeated_dyn_32[65535] Ee g; oneof o(2) { *astr_d2[5] x; Ii y; } }");
+}
+
+#[test]
 fn fixed_point_parameters() {
     assert_error("msg Mm { fp_1[0,1] v; }", "t.bitis:1:10: error: bit size of fp_N must be in 2..=53, got 1");
     assert_error("msg Mm { fp_0[0,1] v; }", "error: bit size of fp_N must be in 2..=53, got 0");

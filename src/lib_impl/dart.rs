@@ -478,8 +478,8 @@ impl<'a> Ctx<'a> {
                 SimpleType::Float => Ty::Float,
                 SimpleType::Double => Ty::Double,
                 SimpleType::FixedPrecision(f) => Ty::Fp(*f, fp_const.to_string()),
-                SimpleType::AString(y) => Ty::AStr(*y),
-                SimpleType::Binary(y) => Ty::Binary(*y),
+                SimpleType::AString(y, _) => Ty::AStr(*y),
+                SimpleType::Binary(y, _) => Ty::Binary(*y),
             },
             AttributeDetails::AttributeEnumOrMsg(n) => {
                 if self.enums.contains_key(n.as_str()) { Ty::Enum(n.clone()) } else { Ty::Msg(n.clone()) }
