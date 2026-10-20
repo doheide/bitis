@@ -87,3 +87,52 @@ based traits, crate split) will be coordinated with the backend/firmware agents.
   staleness checked on the VM) so that the same tests run in the browser.
   Same checks and spot checks as Rust/C++, plus a JSON round trip of every
   valid case.
+
+## Release block (2026-10-20, ordered by the user)
+
+API policy for the rest of 0.11: still no wire format change. The C++ footprint
+work may change C++ *data members* (fixed point storage, name members);
+member functions keep their names and meaning. Everything else stays additive.
+
+### C++ footprint (cpp_lib/bitis_lib.h, templates/data_objects.cpp.jinja)
+- `BITIS_NO_PRINT`: if defined before including the generated header, every
+  `print()` stays callable but is an empty inline function, and no name strings
+  (attribute, enum value, type names) end up in the binary.
+- Attribute names: one `static constexpr` table per message type instead of
+  per-instance pointer members (0 bytes per object).
+- Thin templates over shared non-template core functions (fixed point
+  conversion, dyn integers, integers): the per-type code only passes constants.
+- Caller-provided buffer: `try_serialize(const T&, uint8_t *buf, std::size_t cap,
+  BitisSize* = nullptr)`; new `BitisError::BufferTooSmall` (C++ only).
+  `bitis_max_bits<T>()` / `bitis_max_bytes<T>()` (constexpr, `BITIS_UNBOUNDED`
+  if unbounded) to size such buffers at compile time.
+- Fixed point stores the raw value (smallest unsigned type holding N bits)
+  instead of `double` + state; `value()`, state accessors and `set()` compute it.
+  Equality on the raw value (spec 2.7). Default raw value = overflow.
+- Every bitis C++ type provides `static constexpr std::size_t min_bits()` and
+  `static constexpr std::size_t max_bits()` (spec section 4).
+- `print()` of all new types must be wrapped in `#ifndef BITIS_NO_PRINT`
+  (with an empty `#else` variant).
+
+### Maximum lengths `[M]` (spec 2.16)
+- Schema syntax `astr_dY[M]`, `binary_dY[M]`, `repeated_dyn_Y[M] T`,
+  `1 ≤ M ≤ 65535`; part of the canonical schema / hash.
+- All runtimes enforce the bound (decode `InvalidValue`, encode
+  `ValueOutOfRange`, legacy encode truncates to `M`).
+- C++: bounded fields use heap-free containers (`std::array` + size); unbounded
+  fields keep `std::vector`. Rust/Dart/Python keep their container types.
+- `max_bits` (spec section 4) in Rust (`Option<u64>`), C++ and Dart; golden
+  manifest gets `max_bits` lines.
+
+### Python (bindings generated via pyo3)
+- `.pyi` stub fixed (types of optionals/strings, `serialize()` result),
+  exception types `DecodeError` / `EncodeError` (subclasses of `ValueError`,
+  attribute `kind` = spec error name), wheel version = bitis version, abi3.
+- Python golden tests (maturin in a venv).
+
+### CRC-32 helper (requested by fe-agent and fw-agent)
+- CRC-32/ISO-HDLC (reflected poly 0xEDB88320, init and xorout 0xFFFFFFFF, same as
+  ESP32 ROM `esp_rom_crc32_le` with the usual pre/post inversion and zlib.crc32),
+  check value `crc32("123456789") = 0xCBF43926`.
+- API in every runtime: one-shot `crc32(bytes) -> u32` and an incremental
+  `Crc32` (update / finish). Not part of the wire format, no envelope message.

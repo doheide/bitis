@@ -91,13 +91,15 @@ JavaScript cannot preserve payloads. Test vectors only use the canonical NaN.
   large N (f64 rounding, e.g. `fp_53[-1e6, 1e6]`); equality of fixed-point
   values is defined on the raw value.
 
-### 2.8 `astr_dY` — ASCII string
+### 2.8 `astr_dY`, `astr_dY[M]` — ASCII string
 `U32D(Y)` byte count `n`, then `n` × `W(byte, 8)`.
 - Every byte must be < 0x80. Decoding a byte ≥ 0x80 is `InvalidValue`;
   encoders must not be able to produce it.
+- Optional maximum length `M` (bytes, see 2.16).
 
-### 2.9 `binary_dY`
+### 2.9 `binary_dY`, `binary_dY[M]`
 `U32D(Y)` byte count `n`, then `n` × `W(byte, 8)`.
+- Optional maximum length `M` (bytes, see 2.16).
 
 ### 2.10 `optional T`
 `W(present, 1)`, then `T` if present.
@@ -105,8 +107,9 @@ JavaScript cannot preserve payloads. Test vectors only use the canonical NaN.
 ### 2.11 `repeated_fixed_N T`
 `N` × `T`, no prefix.
 
-### 2.12 `repeated_dyn_Y T`
+### 2.12 `repeated_dyn_Y T`, `repeated_dyn_Y[M] T`
 `U32D(Y)` element count `n`, then `n` × `T`.
+- Optional maximum number of elements `M` (see 2.16).
 
 ### 2.13 `enum E(Y)`
 `U32D(Y)` of the zero-based variant index in declaration order.
@@ -119,6 +122,19 @@ variant's payload. An index ≥ number of variants is `InvalidDiscriminant`.
 ### 2.15 `msg`
 All attributes in declaration order, nothing else. An empty message encodes
 to 0 bits.
+
+### 2.16 Maximum length `[M]` (bitis 0.11)
+`astr_dY[M]`, `binary_dY[M]` and `repeated_dyn_Y[M] T` declare a maximum
+length `M` (bytes resp. elements), `1 ≤ M ≤ 65535`. The encoding is exactly the
+same as without the bound (the count is still `U32D(Y)`); the bound only
+restricts the valid values:
+- Decoding: a count `n > M` is `InvalidValue`. This check is done directly after
+  decoding the count, before the count check of section 3.
+- Encoding: a length `> M` is `ValueOutOfRange`. Legacy (truncating) encoders
+  write the first `M` bytes / elements instead.
+- Runtimes may use storage without heap allocation for bounded fields (C++).
+- The bound is part of the schema (and of the schema hash, section 5), not of
+  the message.
 
 ## 3. Decoding rules (all runtimes)
 
@@ -154,7 +170,7 @@ Encoding errors:
 |---|---|
 | `ValueOutOfRange` | an integer value does not fit its declared width / base type |
 
-## 4. min_bits
+## 4. min_bits, max_bits
 
 `min_bits(T)` is a lower bound of the encoded size of `T` (exact for fixed-size
 types) and is identical in all runtimes:
@@ -162,6 +178,25 @@ bool 1; `uint_X` X; `int_X` X+1; `uint_XdY` 1; `int_XdY` 2; float 32; double 64;
 `fp_N` N; astr/binary/repeated_dyn 1 (count zero); optional 1;
 `repeated_fixed_N T` N·min_bits(T); enum 1;
 oneof `1 + min over variants of min_bits(variant)`; msg Σ attributes.
+
+`max_bits(T)` is an upper bound of the size of the encoding *produced by an
+encoder* for any valid value of `T`, or *unbounded*, computed exactly by the
+rules below (it can exceed the real maximum by a few bits for signed dyn
+integers at the base type limit). It is identical in all runtimes (Rust:
+`Option<u64>` with `None` = unbounded; C++: `std::size_t` with
+`BITIS_UNBOUNDED`, saturating arithmetic). Decoders accept non-minimal dyn
+integers, so accepted inputs may be longer.
+- `dyn(v, X, Y)` = size of the `uint_XdY` encoding of `v` (section 2.4);
+  `dynmax(X, Y)` = `dyn(2^X − 1, X, Y)` = `1 + X + ceil(X / Y) − 1`.
+- bool 1; `uint_X` X; `int_X` X+1; `uint_XdY` `dynmax(X, Y)`;
+  `int_XdY` `1 + dynmax(X, Y)`; float 32; double 64; `fp_N` N;
+  `astr_dY[M]` / `binary_dY[M]` `dyn(M, 32, Y) + 8·M`;
+  `repeated_dyn_Y[M] T` `dyn(M, 32, Y) + M·max_bits(T)`;
+  astr/binary/repeated_dyn without `[M]` unbounded;
+  optional `1 + max_bits(T)`; `repeated_fixed_N T` N·max_bits(T);
+  enum with `k` values `dyn(k − 1, 32, Y)`;
+  oneof with `k` variants `dyn(k − 1, 32, Y) + max over variants of max_bits(variant)`;
+  msg Σ attributes. Anything containing an unbounded part is unbounded.
 
 ## 5. Schema hash
 
@@ -191,7 +226,10 @@ bitis-schema-v1\n
   order, the default element prefixed with `*` (nested oneofs recursively).
 - TYPE: `bool`, `uint_X`, `int_X`, `uint_XdY`, `int_XdY`, `float`, `double`,
   `fp_N[MIN,MAX]` (decimal integers, `-` for negative values, no `+`, no
-  leading zeros), `astr_dY`, `binary_dY`, or the name of a message / enum.
+  leading zeros), `astr_dY`, `binary_dY`, `astr_dY[M]`, `binary_dY[M]`, or the
+  name of a message / enum.
+- A bounded modifier is written `repeated_dyn_Y[M]`. Without a bound the text
+  (and therefore the hash of existing schemas) is unchanged.
 - Single spaces only where shown above; no other whitespace, no comments.
 
 Example: `enum E(2) { *A, B }` and `msg M { optional uint_3 x; oneof o(2) { *bool b; E e; } }`

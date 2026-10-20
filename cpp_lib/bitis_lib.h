@@ -79,6 +79,37 @@ inline const char *bitis_error_name(const BitisError e) {
     return "Unknown";
 }
 
+// ***************************************************************
+// max_bits (docs/WIRE_FORMAT.md section 4): upper bound of the encoded size in bits
+// or BITIS_UNBOUNDED. Every bitis type provides static constexpr std::size_t max_bits().
+constexpr std::size_t BITIS_UNBOUNDED = std::numeric_limits<std::size_t>::max();
+namespace bitis_helper {
+    // saturating arithmetic for max_bits (BITIS_UNBOUNDED absorbs)
+    constexpr std::size_t max_bits_add(const std::size_t a, const std::size_t b) {
+        return (a == BITIS_UNBOUNDED || b == BITIS_UNBOUNDED || a > BITIS_UNBOUNDED - b) ? BITIS_UNBOUNDED : a + b;
+    }
+    constexpr std::size_t max_bits_mul(const std::size_t a, const std::size_t n) {
+        if (a == 0 || n == 0) { return 0; }
+        return (a == BITIS_UNBOUNDED || n == BITIS_UNBOUNDED || a > BITIS_UNBOUNDED / n) ? BITIS_UNBOUNDED : a * n;
+    }
+    // size of the uint_XdY encoding of v (spec 2.4)
+    constexpr std::size_t dyn_bits(uint64_t v, const uint8_t max_bits, const uint8_t bit_packs) {
+        if (v == 0) { return 1; }
+        std::size_t bits = 1;
+        int remaining = max_bits;
+        while (true) {
+            const int c = (bit_packs < remaining) ? bit_packs : remaining;
+            bits += static_cast<std::size_t>(c);
+            v = (c >= 64) ? 0 : (v >> c);
+            remaining -= c;
+            if (remaining == 0) { break; }
+            bits += 1;
+            if (v == 0) { break; }
+        }
+        return bits;
+    }
+}
+
 struct BitisSize {
     std::size_t bits;
     std::size_t bytes;
