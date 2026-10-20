@@ -30,7 +30,7 @@ fn main() -> ExitCode {
     // ***
     let msg = MsgOOSimpleBase {
         id: 54.into(),
-        value: OO_MsgOoSimpleBase_Value::Int(3.into()),
+        value: OO_MsgOoSimpleBase_Value::IntVal(3.into()),
     };
     let fn_name = "val_oosimple_val2.rs.dat";
     error_counter += helper::write_or_test(fn_name, &msg, &args);
@@ -114,7 +114,7 @@ fn main() -> ExitCode {
     // let msg = MsgRepeatedDynOOBase{
     //     id: 65.into(),
     //     value: [OO_MsgRepeatedDynOoBase_Value::TrueFalse(true),
-    //         OO_MsgRepeatedDynOoBase_Value::Int(34.into()), ].into(),
+    //         OO_MsgRepeatedDynOoBase_Value::IntVal(34.into()), ].into(),
     // };
     // let fn_name = "val_repeateddynoo_val1.rs.dat";
     // error_counter += helper::write_or_test(fn_name, &msg, &args);

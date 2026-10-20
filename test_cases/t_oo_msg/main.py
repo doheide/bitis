@@ -25,7 +25,7 @@ def main():
 
     msg = py_msg.MsgOOSimpleBase.default()
     msg.id = 54
-    msg.value_int = 3
+    msg.value_int_val = 3
     error_counter += write_or_test("val_oosimple_val2.py.dat", msg, data_id_replacement)
 
     msg = py_msg.MsgOOSimpleBase(55, py_msg.OO_MsgOoSimpleBase_Value.new_true_false(True))
