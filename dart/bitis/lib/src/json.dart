@@ -212,6 +212,30 @@ abstract final class BitisJson {
     return (key, value);
   }
 
+  /// Parses an optional field: `null` (or a missing key) is `null`,
+  /// everything else is converted with [fromJson].
+  static T? optionalFromJson<T extends Object>(
+    Object? json,
+    T Function(Object? json) fromJson,
+  ) =>
+      json == null ? null : fromJson(json);
+
+  /// Parses a JSON array converting every element with [fromJson]; if
+  /// [length] is given the array must have exactly that many elements.
+  static List<T> listFromJsonWith<T>(
+    Object? json,
+    T Function(Object? json) fromJson, [
+    int? length,
+  ]) =>
+      [for (final e in listFromJson(json, length)) fromJson(e)];
+
+  /// JSON array of [values], every element converted with [toJson].
+  static List<Object?> listToJson<T>(
+    List<T> values,
+    Object? Function(T value) toJson,
+  ) =>
+      [for (final v in values) toJson(v)];
+
   /// Casts a JSON object (as produced by `jsonDecode`).
   static Map<String, Object?> objectFromJson(Object? json) {
     if (json is! Map) _bad('object', json);

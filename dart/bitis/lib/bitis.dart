@@ -8,7 +8,8 @@
 /// * [BitisMessage], [bitisEncode], [bitisDecode], [bitisDecodeExact],
 /// * [FixedPoint] / [FixedPointType] for `fp_N[min, max]`,
 /// * [BitisDecodeException] / [BitisEncodeException],
-/// * [MinBits] (spec section 4) and [BitisJson] (JSON mapping helpers).
+/// * [MinBits] (spec section 4) and [BitisJson] (JSON mapping helpers),
+/// * [BitisEq], [bitisKeep], [bitisKeepOr] (used by generated code).
 ///
 /// The wire format is specified in `docs/WIRE_FORMAT.md` of the bitis
 /// repository.
@@ -23,3 +24,4 @@ export 'src/errors.dart';
 export 'src/fixed_point.dart' show FixedPoint, FixedPointState, FixedPointType;
 export 'src/json.dart';
 export 'src/min_bits.dart';
+export 'src/support.dart';
