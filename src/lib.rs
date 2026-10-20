@@ -11,6 +11,7 @@ extern crate self as bitis_lib;
 
 pub use lib_impl::berde::*;
 pub use lib_impl::compiler::*;
+pub use lib_impl::crc32::{crc32, Crc32};
 pub use bitis_macros::{BiserdiMsg, BiserdiOneOf, BiserdiEnum};
 pub use std::result;
 
