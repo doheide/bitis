@@ -450,6 +450,51 @@ final description = switch (back.msgs.first.value) {
 };
 ```
 
+## CRC-32 helper
+
+Every runtime contains the same CRC-32 helper, e.g. to protect a bitis payload in a transport framing (the framing
+itself is not part of bitis, and the CRC is not part of the wire format). The CRC is **CRC-32/ISO-HDLC**: reflected
+polynomial `0xEDB88320`, init `0xFFFFFFFF`, xorout `0xFFFFFFFF`, reflected input and output -- the CRC of zlib /
+Python `zlib.crc32`, Ethernet, PNG and gzip. Check value `crc32("123456789") = 0xCBF43926`, `crc32("") = 0`. The
+input may be split arbitrarily between `update` calls; `finish()` / `value` does not change the state.
+
+| Runtime | One-shot | Incremental | Table |
+|---|---|---|---|
+| Rust | `bitis_lib::crc32(&[u8]) -> u32` | `bitis_lib::Crc32`: `new()`, `update(&[u8])`, `finish() -> u32`, `reset()` | 256 entries (1 KiB), `const fn` |
+| C++ | `bitis_crc32(const uint8_t*/const void*, size_t) -> uint32_t` (constexpr for `uint8_t*`) | `BitisCrc32`: `update(ptr, len)`, `finish()`, `reset()` | 16 entries (64 bytes); 256 with `BITIS_CRC32_TABLE256` |
+| Dart | `crc32(List<int>) -> int` | `Crc32`: `update(List<int>)`, `value` / `finish()`, `reset()` | 256 entries (`Uint32List`) |
+| Python | `crc32(bytes) -> int` | `Crc32`: `update(bytes)`, `value` / `finish()`, `reset()` | Rust implementation |
+
+- **C++**: header only `cpp_lib/bitis_crc32.h`, independent of `bitis_lib.h` and not written by the compiler (copy it
+  or add `cpp_lib/` to the include path). C++17, no heap, exceptions or RTTI. The default 16-entry nibble table costs
+  64 bytes of flash and two table lookups per byte; `#define BITIS_CRC32_TABLE256` before the include selects the
+  256-entry table (1 KiB, about twice as fast). The two variants are in different inline namespaces, so translation
+  units may choose differently. The names carry the `bitis_`/`Bitis` prefix of the C++ runtime (and do not collide
+  with zlib's global `crc32()`).
+- **Dart**: in `package:bitis`; results are unsigned (`0 .. 0xFFFFFFFF`) on the VM, dart2js and dart2wasm. Only the
+  low 8 bits of each element are used.
+- **Python**: `crc32` and `Crc32` are part of every module generated with `bitis compile -l python` (implemented by
+  the Rust runtime); they accept `bytes`, `bytearray`, `memoryview` or a sequence of ints. Python's own
+  `zlib.crc32(data)` (incrementally `zlib.crc32(data, previous)`) gives the same values. A message named `Crc32` in
+  the schema would shadow the class.
+- **ESP32 firmware**: the ROM function `esp_rom_crc32_le` (`esp_rom_crc.h`, also `esp_crc32_le` from `esp_crc.h`)
+  computes the same CRC when called with start value **0**; it inverts the register on entry and exit itself, so the
+  previous result is passed in to continue:
+
+  ```c
+  #include "esp_rom_crc.h"
+  uint32_t crc = esp_rom_crc32_le(0, buf, len);       // == crc32(buf) of all bitis runtimes
+  uint32_t c = 0;                                     // incremental, any split:
+  c = esp_rom_crc32_le(c, part1, len1);
+  c = esp_rom_crc32_le(c, part2, len2);               // c == crc32(part1 + part2)
+  ```
+
+  Do not pass `~0` / `0xFFFFFFFF` as start value and do not invert the result: `esp_rom_crc32_le(0xFFFFFFFF, ...)`
+  and `~esp_rom_crc32_le(~0, ...)` give different values (for `"123456789"`: `0xD202D277` and `0x2DFD2D88` instead of
+  `0xCBF43926`). On the device the ROM function is the natural choice; `bitis_crc32.h` is meant for host tools,
+  tests and as a portable fallback.
+- Shared test vectors: `golden/vectors/crc32.txt` (see [golden/README.md](golden/README.md)).
+
 # Tutorial
 ## Install 
 ...

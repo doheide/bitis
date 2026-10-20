@@ -136,3 +136,10 @@ member functions keep their names and meaning. Everything else stays additive.
   check value `crc32("123456789") = 0xCBF43926`.
 - API in every runtime: one-shot `crc32(bytes) -> u32` and an incremental
   `Crc32` (update / finish). Not part of the wire format, no envelope message.
+- Implemented: Rust `bitis_lib::crc32` / `Crc32` (256-entry const table), C++
+  `cpp_lib/bitis_crc32.h` with the runtime's prefix: `bitis_crc32()` / `BitisCrc32`
+  (avoids zlib's global `crc32`; 16-entry nibble table, 64 bytes, by default,
+  `BITIS_CRC32_TABLE256` for 1 KiB), Dart `crc32` / `Crc32` (`value` and `finish()`),
+  Python `crc32` / `Crc32` in every generated module. ESP32: `esp_rom_crc32_le(0, buf, len)`
+  gives the same value (it inverts on entry/exit itself; not `~esp_rom_crc32_le(~0, ...)`).
+  Vectors: `golden/vectors/crc32.txt` (generated with Python `zlib.crc32`).

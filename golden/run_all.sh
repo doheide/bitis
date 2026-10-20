@@ -51,7 +51,7 @@ check_manifest() {
 # --- Rust runtime
 rust_tests() {
     # shellcheck disable=SC2086
-    (cd "$ROOT" && cargo test -q $CARGO_FLAGS --test golden)
+    (cd "$ROOT" && cargo test -q $CARGO_FLAGS --test golden --test crc32)
 }
 
 # --- C++ runtime (gtest target bitis_golden in cpp_lib/tests)
