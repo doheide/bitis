@@ -78,5 +78,12 @@ based traits, crate split) will be coordinated with the backend/firmware agents.
   bytes (produced by Rust), plus invalid inputs with the expected error kind.
   Rust, C++ and Dart tests must all pass against the same files.
   Format, regeneration and how each runtime runs them: golden/README.md
-  (`golden/run_all.sh` runs the Rust and C++ tests; Dart is a placeholder until the
-  Dart codegen is merged).
+  (`golden/run_all.sh` runs the Rust tests, the C++ tests plain and with
+  ASan/UBSan, and the Dart tests on the VM and in Chrome with dart2js and
+  dart2wasm; Python is reported as SKIP).
+- Dart: package `golden/dart/` tests the runtime with the generated
+  `golden/gen/dart/golden.dart` (up-to-date check in tests/golden.rs); the
+  manifest is embedded as `test/manifest.g.dart` (`tool/embed_manifest.dart`,
+  staleness checked on the VM) so that the same tests run in the browser.
+  Same checks and spot checks as Rust/C++, plus a JSON round trip of every
+  valid case.

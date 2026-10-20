@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Runs the golden vector tests of all runtimes against golden/vectors/manifest.txt
-# (see golden/README.md).
+# Runs the golden vector tests of all runtimes (Rust, C++, Dart) against
+# golden/vectors/manifest.txt (see golden/README.md).
 #
 #   golden/run_all.sh [--no-asan]
 #
@@ -9,6 +9,13 @@
 #   FETCHCONTENT_SOURCE_DIR_GOOGLETEST local googletest checkout for offline C++ builds
 #   BITIS_GOLDEN_BUILD_DIR            C++ build directory (default: target/golden)
 #   CXX                               C++ compiler (cmake default otherwise)
+#   DART                              dart executable (default: dart on PATH, else
+#                                     /home/dheide/sdk/flutter/bin/dart if it exists;
+#                                     the Dart steps are skipped if none is found)
+#   DART_PUB_FLAGS                    extra flags for dart pub get, e.g. "--offline"
+#   CHROME_EXECUTABLE                 Chrome for the web runs (default: google-chrome,
+#                                     chromium or chromium-browser on PATH; the web runs
+#                                     are skipped if none is found)
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
@@ -66,13 +73,49 @@ python_tests() {
     return 77
 }
 
-# --- Dart runtime
+# --- Dart runtime (dart/bitis) and generated code (golden/gen/dart): package golden/dart,
+# on the VM, in Chrome compiled with dart2js and in Chrome compiled with dart2wasm
+DART_BIN=
+DART_READY=0
+find_dart() {
+    if [[ -n "${DART:-}" ]]; then
+        DART_BIN=$(command -v "$DART" 2>/dev/null) || { echo "DART=$DART is not executable"; return 1; }
+    elif command -v dart > /dev/null 2>&1; then
+        DART_BIN=$(command -v dart)
+    elif [[ -x /home/dheide/sdk/flutter/bin/dart ]]; then
+        DART_BIN=/home/dheide/sdk/flutter/bin/dart
+    else
+        echo "SKIP: dart not found (set DART or put dart on PATH)"
+        return 77
+    fi
+}
+dart_setup() {
+    find_dart || return $?
+    echo "using $DART_BIN: $("$DART_BIN" --version 2>&1)"
+    # shellcheck disable=SC2086
+    (cd "$ROOT/golden/dart" \
+        && "$DART_BIN" pub get ${DART_PUB_FLAGS:-} \
+        && "$DART_BIN" run tool/embed_manifest.dart --check \
+        && "$DART_BIN" analyze --fatal-infos) || return 1
+    DART_READY=1
+}
+have_chrome() {
+    if [[ -n "${CHROME_EXECUTABLE:-}" ]]; then return 0; fi
+    local c
+    for c in google-chrome chromium chromium-browser; do
+        if command -v "$c" > /dev/null 2>&1; then return 0; fi
+    done
+    return 1
+}
 dart_tests() {
-    # PLACEHOLDER: enable once the Dart code generator (bitis compile -l dart) is merged, e.g.
-    #   bitis compile -l dart -i golden/schema/golden.bitis -o golden/gen/dart/golden.dart
-    #   (cd golden/dart && dart pub get && dart test)
-    echo "SKIP: Dart golden test not implemented yet (see golden/README.md)"
-    return 77
+    if [[ $DART_READY != 1 ]]; then echo "SKIP: dart not available or setup failed"; return 77; fi
+    if [[ $1 == chrome ]] && ! have_chrome; then
+        echo "SKIP: no Chrome found (set CHROME_EXECUTABLE)"
+        return 77
+    fi
+    local args=(-p "$1")
+    if [[ -n "${2:-}" ]]; then args+=(--compiler "$2"); fi
+    (cd "$ROOT/golden/dart" && "$DART_BIN" test "${args[@]}" -r failures-only)
 }
 
 mkdir -p "$BUILD"
@@ -83,7 +126,10 @@ if [[ $ASAN == 1 ]]; then
     run_step "c++ asan/ubsan" cpp_tests "$BUILD/cpp-asan" -DBITIS_SANITIZE=ON
 fi
 run_step "python" python_tests
-run_step "dart" dart_tests
+run_step "dart setup (pub get, manifest embedded, analyze)" dart_setup
+run_step "dart vm" dart_tests vm
+run_step "dart chrome/dart2js" dart_tests chrome dart2js
+run_step "dart chrome/dart2wasm" dart_tests chrome dart2wasm
 
 echo
 echo "=== summary"
