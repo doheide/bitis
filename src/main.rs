@@ -7,7 +7,7 @@ use std::process::{Command, Stdio};
 use bitis_lib::*;
 
 use clap::{crate_version, Parser, Subcommand, ValueEnum};
-use toml_edit::{value, DocumentMut};
+use bitis_lib::lib_impl::python::{update_python_cargo_toml, PYO3_VERSION};
 use utils::*;
 
 
@@ -207,22 +207,20 @@ fn main() {
 
                     // *************************************
                     let toml_file = output_path.join("Cargo.toml");
-                    if prevent_update_bitis_lib_in_crate {
-                        if cli.debug > 0 { println!("- Not updating the bitis dependency in Cargo.toml"); }
-                    }
-                    else if toml_file.exists() {
-                        if cli.debug > 0 { println!("- Found toml file and setting bitis-dependency"); }
-
+                    if toml_file.exists() {
+                        if cli.debug > 0 {
+                            println!("- Setting version, pyo3 ({PYO3_VERSION}, abi3) and strum_macros in Cargo.toml");
+                            if prevent_update_bitis_lib_in_crate { println!("- Not updating the bitis dependency in Cargo.toml"); }
+                        }
                         let cct_content = match fs::read_to_string(&toml_file) {
                             Ok(content) => content,
                             Err(e) => print_error(format!("could not read '{}': {}", toml_file.display(), e)),
                         };
-                        let mut toml_doc = match cct_content.parse::<DocumentMut>() {
+                        let updated = match update_python_cargo_toml(&cct_content, !prevent_update_bitis_lib_in_crate) {
                             Ok(v) => v,
-                            Err(e) => print_error(format!("could not parse toml file '{}': {}", toml_file.display(), e)),
+                            Err(e) => print_error(format!("could not update toml file '{}': {}", toml_file.display(), e)),
                         };
-                        toml_doc["dependencies"]["bitis"] = value(crate_version!());
-                        write_output(&toml_file, &toml_doc.to_string());
+                        if updated != cct_content { write_output(&toml_file, &updated); }
                     }
                     else { print_warn("There was no Cargo.toml found in the output directory.".into()) }
 

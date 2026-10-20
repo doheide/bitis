@@ -620,6 +620,9 @@ pub const RESERVED_TYPE_NAMES: &[&str] = &[
     "bitis_helper", "std",
     // Python bindings (pyo3)
     "Py", "PyResult", "PyObject", "PyBytes", "PyErr", "PyException", "Python", "messages",
+    "Bound", "PyClass", "BitisPyCheck", "bitis_py_errors",
+    // Python stub (.pyi): builtins used in the annotations
+    "str", "bytes", "list", "tuple", "object", "ValueError", "staticmethod", "property", "_typing",
     // Dart: generated top level names, names used by the generated code, built-in identifiers
     "bitisVersion", "bitisSchemaHash", "bitisSchemaHashHex", "bitisEncode", "bitisDecode", "bitisDecodeExact",
     "bitisKeep", "bitisKeepOr", "identical", "override", "BitWriter", "BitReader", "BitisMessage", "BitisJson",
@@ -631,7 +634,8 @@ pub const RESERVED_TYPE_NAMES: &[&str] = &[
 /// Members generated into every C++ message struct (besides the attributes).
 const CPP_MSG_MEMBERS: &[&str] = &["MsgT", "msg_attr", "serialize", "deserialize", "print", "is_equal"];
 /// Methods generated into every Python (pyo3) message class (besides the attributes).
-const PY_MSG_MEMBERS: &[&str] = &["default", "serialize", "deserialize", "to_rust", "from_rust_obj"];
+const PY_MSG_MEMBERS: &[&str] = &["default", "serialize", "deserialize", "to_rust", "from_rust_obj",
+    "try_serialize", "try_deserialize", "try_deserialize_exact", "min_bits", "max_bits"];
 /// Members of every Dart message class (and members of `Object`), compared with the Dart field names
 /// (lowerCamelCase of the attribute names).
 const DART_MSG_MEMBERS: &[&str] = &[
@@ -1216,6 +1220,40 @@ pub struct AttributeEx {
     pub is_oo: bool,
     pub add_val: bool,
 }
+impl AttributeEx {
+    /// Python type of one element (without optional / repeated), as used in the `.pyi` stub.
+    pub fn py_elem_type(&self) -> String {
+        match &self.base.specific_details {
+            AttributeDetails::AttributeSimple(t) => match t {
+                SimpleType::Bool => "bool",
+                SimpleType::UIntFixed(_) | SimpleType::IntFixed(_) | SimpleType::UIntDyn(_) | SimpleType::IntDyn(_) => "int",
+                SimpleType::Float | SimpleType::Double | SimpleType::FixedPrecision(_) => "float",
+                SimpleType::Binary(_) => "bytes",
+                SimpleType::AString(_) => "str",
+            }.to_string(),
+            AttributeDetails::AttributeEnumOrMsg(name) => name.clone(),
+            AttributeDetails::AttributeOneOf(oo) => oo.name.clone(),
+        }
+    }
+    /// Python type of the attribute (`list[T]` for repeated, `T | None` for optional).
+    pub fn py_type(&self) -> String {
+        let mut t = self.py_elem_type();
+        if self.base.is_repeated_and_size.is_some() { t = format!("list[{t}]"); }
+        if self.base.is_optional { t = format!("{t} | None"); }
+        t
+    }
+    /// Comment for the `.pyi` stub: the schema type and, for fixed point, how Overflow / Underflow are read back.
+    pub fn py_comment(&self) -> String {
+        let mut s = String::new();
+        canonical_attribute(&self.base, &mut s);
+        let mut s = s.strip_suffix(&format!(" {}", self.base.name)).unwrap_or(&s).to_string();
+        if let AttributeDetails::AttributeSimple(SimpleType::FixedPrecision(f)) = &self.base.specific_details {
+            let _ = write!(s, "; above {}: Overflow, read back as {}.0; below {} or NaN: Underflow, read back as {}.0",
+                           f.max_val, f.max_val as i128 + 1, f.min_val, f.min_val as i128 - 1);
+        }
+        s
+    }
+}
 #[derive(Debug, Clone)]
 pub struct MessageR {
     pub name: String,
@@ -1353,6 +1391,8 @@ pub struct RustDataObjects {
 #[template(path = "pyclasses.py.rs.jinja", escape = "none")]
 pub struct RustPyDataObjects {
     pub d: JinjaData,
+    /// Python module name (used as `__module__` of the exception types).
+    pub lib_name: String,
 }
 #[derive(Template, Clone, Debug)]
 #[template(path = "pylib.py.rs.jinja", escape = "none")]
@@ -1420,7 +1460,7 @@ pub fn render_python(p: &BitisProcessed, lib_name: &str) -> Result<PythonOutput,
     let d = JinjaData::for_rust(p);
     Ok(PythonOutput {
         messages_rs: render_rust(p)?,
-        pyrust_rs: RustPyDataObjects { d: d.clone() }.render().map_err(render_err)?,
+        pyrust_rs: RustPyDataObjects { d: d.clone(), lib_name: lib_name.to_string() }.render().map_err(render_err)?,
         lib_rs: RustPyLib { d: d.clone(), lib_name: lib_name.to_string() }.render().map_err(render_err)?,
         pyi: PyTypeHints { d, bitis_version: BITIS_COMPILER_VERSION.to_string(), schema_hash: schema_hash_hex(p) }
             .render().map_err(render_err)?,
@@ -1486,12 +1526,6 @@ mod filters {
     }
     pub fn pascal_case<T: Display>(s: T, _: &dyn askama::Values) -> askama::Result<String> {
         Ok(stringcase::pascal_case(s.to_string().as_str()))
-    }
-    pub fn to_py_type<T: Display>(s: T, _: &dyn askama::Values) -> askama::Result<String> {
-        let s = s.to_string();
-        if ["u8", "u16", "u32", "u64", "i8", "i16", "i32", "i64"].contains(&s.as_str()) { Ok("int".to_string()) }
-        else if ["f32", "f64"].contains(&s.as_str()) { Ok("float".to_string()) }
-        else { Ok(s) }
     }
 }
 
