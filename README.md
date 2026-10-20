@@ -22,8 +22,10 @@ Key Features
     * c++
     * rust
     * python
+    * dart (pure Dart, also for Flutter and the web)
   * Python code uses Maturin and PyO3 to interface and compile python to rust code for given messages.
   * C++ code uses a header only library.
+  * Dart code uses the pure-Dart runtime package in `dart/bitis`.
 
 <!-- TOC -->
 * [bitis](#bitis)
@@ -43,6 +45,7 @@ Key Features
   * [Rust](#rust)
   * [C++](#c)
   * [Python](#python)
+  * [Dart](#dart)
 * [Tutorial](#tutorial)
   * [Install](#install-)
     * [Rust](#rust-1)
@@ -190,7 +193,8 @@ with ONEOF_NAME, the name of the field and a list of alternatives with types {ty
 The default oneof is marked by a leading star ('*'). The index of the selected alternative is encoded as dynamic integer with
 chunks of X bits (1 ≤ X ≤ 32), followed by the value of the alternative.
 The generated type of the oneof is named `OO_{MessageName}_{OneofName}` (both parts in PascalCase); these names must be
-unique, e.g. a oneof `value` in the messages `DTS_Msg` and `DtsMsg` is an error.
+unique, e.g. a oneof `value` in the messages `DTS_Msg` and `DtsMsg` is an error. In Dart the oneof is a sealed class
+with this name and one subclass `OO_{MessageName}_{OneofName}_{ElementName}` (element name in PascalCase) per element.
 
 An example message could be
 ```
@@ -219,8 +223,8 @@ Comments are denoted by //
 ```
 // This is a comment
 ```
-Documentation comments are denoted by //| and are copied into the generated code (as `///` comments in Rust and
-C++, as doc string in Python). They can be placed before messages, enums, attributes, oneofs, oneof elements and enum
+Documentation comments are denoted by //| and are copied into the generated code (as `///` comments in Rust,
+C++ and Dart, as doc string in Python). They can be placed before messages, enums, attributes, oneofs, oneof elements and enum
 values; several consecutive //| lines form one multi-line comment.
 ```
 //| A sensor reading.
@@ -237,8 +241,13 @@ underscores (`[A-Za-z][A-Za-z0-9_]*`). The compiler rejects:
 * duplicate names: message and enum names (shared namespace), attribute names within a message, oneof elements,
   enum elements, also if they only differ in the case conversion used by the generated code (e.g. `a_b` and `aB`),
 * names that are keywords in Rust, C++, Python or Dart (e.g. `type`, `class`, `from`, `new`, `int`), also after case
-  conversion, and attribute names that clash with generated members (e.g. `serialize`, `print`, `msg_attr`),
-* type names reserved by the generated code / runtime (e.g. `Binary`, `String`, `BITIS_VERSION`),
+  conversion, and attribute names that clash with generated members (e.g. `serialize`, `print`, `msg_attr`, and in
+  Dart `to_json`, `copy_with`, `hash_code`, or `x_fp_type` next to a fixed point attribute `x`),
+* enum values whose Dart name (lowerCamelCase) is a member of the generated Dart enum (e.g. `values`, `name`, `index`,
+  `default_value`, `bitis_name`), attribute names whose Dart name equals a message or enum name,
+* type names reserved by the generated code / runtime (e.g. `Binary`, `String`, `BITIS_VERSION`, and for Dart
+  `List`, `Map`, `Object`, `Int64`, `BigInt`, `FixedPoint`, `BitisMessage`, `bitisVersion`, built-in identifiers
+  like `dynamic` or `get`),
 * unknown types and parents, recursive messages, bit sizes outside the ranges given above.
 
 Errors are reported as `file:line:col: error: message`.
@@ -387,6 +396,60 @@ can be setup with
 bitis setup -s maturin py_msg/
 ```
 
+## Dart
+
+`bitis compile -l dart -o lib/messages.dart -i a.bitis -i b.bitis` writes ONE Dart library for all input files. It
+only imports the pure-Dart runtime package `bitis` (`dart/bitis/` in this repository, see
+[dart/README.md](dart/README.md) for how to depend on it) and `dart:typed_data`; it runs on the Dart VM, Flutter and
+the web (dart2js and dart2wasm). Generating code does not need a Dart toolchain.
+
+* Message: `final class Name implements BitisMessage` with `final` fields (lowerCamelCase of the attribute names),
+  a constructor with named, optional parameters (omitted attributes get the default value, the constructor is
+  `const` if all defaults are constants), `bitisWrite` / `static bitisRead`, `toBytes()`, `static fromBytes(data)`
+  (trailing bytes are ignored), `static fromBytesExact(data)`, `toJson()` / `factory fromJson(json)`, `copyWith`
+  (pass `null` to clear an optional attribute), `==` / `hashCode` (element-wise for lists and `Uint8List`, fixed
+  point values compared on their wire value), `toString`, `static const bitisMinBits` and one
+  `static const FixedPointType <attribute>FpType` per fixed point attribute.
+* Enum: Dart `enum` with the values in lowerCamelCase in declaration order (wire index = `index`),
+  `bitisName` (the name as written in the schema, used in JSON), `static defaultValue`.
+* Oneof: `sealed class OO_{Msg}_{Oneof}` with one `final class OO_{Msg}_{Oneof}_{Element}` per element holding the
+  `value`; switch over the subclasses is exhaustive. `static defaultValue` is the `*` element with its default value.
+* Types: `bool`; `int` for integers up to 32 bits; `Int64` (package `fixnum`, exported by `bitis`) for signed
+  integers with more than 32 bits and unsigned integers with 33..63 bits; `BigInt` for `uint_64` / `uint_64dY`;
+  `double` for `float`/`double`; `FixedPoint` for `fp_N` (value, underflow or overflow); `String` (ASCII) for
+  `astr`; `Uint8List` for `binary`; `T?` for `optional`; `List<T>` for `repeated_fixed`/`repeated_dyn`.
+  Value ranges, string encodings and fixed array lengths are checked when encoding (`BitisEncodeException`), decoding
+  throws `BitisDecodeException`.
+* Default values are those of the Rust `Default`: 0, `false`, empty string / list / binary, `null` for optional,
+  the `*` enum value / oneof element, and **overflow** for fixed point attributes.
+* JSON: keys are the attribute names as written in the schema; optional attributes are omitted when absent (missing
+  or `null` is absent when parsing); enums are the value name as written; oneofs `{"element": value}`; fixed point
+  values are numbers in physical units or `{"state": "underflow"|"overflow"}`; integers beyond ±(2^53−1) are decimal
+  strings; binary is base64; float NaN/±infinity are `"NaN"`, `"Infinity"`, `"-Infinity"`.
+* Class names are the schema names as written (e.g. `DTS_Msg`); the file disables the corresponding naming lints.
+  The code is laid out like `dart format` (Dart >= 3.7, page width 80) and contains `// dart format off`, so it is
+  not reformatted by projects with other formatter settings.
+
+```dart
+import 'dart:convert';
+
+import 'package:my_app/messages.dart';
+
+final msg = DTS_Msg(
+  msgs: [
+    DTS_MsgWrapper(value: OO_DtsMsgWrapper_Value_Acknowledge(DTS_Msg_Acknowledge(params: true))),
+  ],
+  nonce: 3,
+);
+final bytes = msg.toBytes();
+final back = DTS_Msg.fromBytesExact(bytes);
+final text = jsonEncode(back.toJson());
+final description = switch (back.msgs.first.value) {
+  OO_DtsMsgWrapper_Value_Acknowledge(:final value) => 'ack ${value.params}',
+  _ => 'other',
+};
+```
+
 # Tutorial
 ## Install 
 ...
@@ -413,8 +476,9 @@ bitis setup -s maturin py_msg/
 The bitis compiler compiles bitis messages to 
 
 * rust
-* python or
-* c++
+* python
+* c++ or
+* dart
  
 code. 
 
@@ -445,7 +509,7 @@ Options:
           Input file(s) with extension .bitis; give the option once per file or list several files
 
   -p, --input-base-path <INPUT_BASE_PATH>
-          Directory for the output file if no output file or path is given (rust and cpp)
+          Directory for the output file if no output file or path is given (rust, cpp and dart)
 
   -l, --lang <LANG>
           Language to generate code for
@@ -454,9 +518,10 @@ Options:
           - rust:   generate rust code
           - python: generate python library (based on generated rust code and maturin)
           - cpp:    generate c++ code
+          - dart:   generate one dart library (uses the dart package `bitis`)
 
   -o, --output-file-or-path <OUTPUT_FILE_OR_PATH>
-          Output file or directory. rust/cpp: file, or directory to write <input name>.rs/.h (messages.rs/.h for multiple input files) into; python: directory of the maturin project
+          Output file or directory. rust/cpp/dart: file, or directory to write <input name>.rs/.h/.dart (messages.rs/.h/.dart for multiple input files) into; python: directory of the maturin project
 
       --bitis-header-lib-file-name <BITIS_HEADER_LIB_FILE_NAME>
           Name (path relative to the generated header) of the bitis header lib that is included by and written next to the generated header (cpp only, default: bitis_lib.h)
@@ -477,6 +542,8 @@ Examples:
 bitis compile -l rust -o rust/src -i messages_a.bitis -i messages_b.bitis
 # c++ header messages.h plus bitis_lib.h next to it
 bitis compile -l cpp -o messages.h -i messages.bitis
+# one dart library for several input files
+bitis compile -l dart -o lib/messages.dart -i messages_a.bitis -i messages_b.bitis
 ```
 Errors are printed to stderr as `file:line:col: error: message` and the compiler exits with code 1.
 Additional output (e.g. the precision of fixed point attributes and the schema hash) is printed with `-d`.
@@ -492,3 +559,6 @@ formatting or a different split into input files.
   scope by the first generated header included in a translation unit (guarded by `BITIS_SCHEMA_STAMP_DEFINED`), so
   use the namespace if several generated headers are included.
 * Python: module attributes `BITIS_VERSION` (str) and `BITIS_SCHEMA_HASH` (int).
+* Dart: top level `const String bitisVersion`, `const String bitisSchemaHashHex` (16 hex digits) and
+  `final Int64 bitisSchemaHash` (the 64 bit pattern; import the libraries with a prefix if several generated
+  libraries are used in one file).

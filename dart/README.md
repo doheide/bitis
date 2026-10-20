@@ -58,7 +58,31 @@ Then `import 'package:bitis/bitis.dart';`.
 `int_X` uses the base type range rule of the spec (2.3): `int_16` is
 `-32767..32767`, `int_32` is `±(2^31 - 1)`, `int_64` excludes `Int64.MIN_VALUE`.
 
-## Usage
+## Generated code
+
+`bitis compile -l dart -o lib/messages.dart -i a.bitis -i b.bitis` generates
+one library with a class per message, a Dart enum per enum and a sealed class
+hierarchy per oneof (see "Dart" in the [top level README](../README.md)):
+
+```dart
+import 'package:bitis/bitis.dart';
+import 'messages.dart';
+
+final bytes = const DTS_Msg_Ping(dummy: 2).toBytes();
+final ping = DTS_Msg_Ping.fromBytesExact(bytes);
+final json = ping.toJson(); // {'dummy': 2}
+```
+
+Besides `BitWriter`/`BitReader`, generated code uses `BitisJson`, `BitisEq`
+(equality / hash of lists and fixed point values) and `bitisKeep` /
+`bitisKeepOr` (`copyWith` of optional attributes).
+
+`dart/codegen_test/` tests the generated code (VM, dart2js, dart2wasm) for
+`test.bitis`, the carachang protocol schemas and further fixtures, including
+a cross-check against bytes produced by the Rust runtime; `tool/regen.sh`
+there regenerates the code (`--vectors`: also the Rust vectors).
+
+## Usage (hand-written messages)
 
 ```dart
 import 'package:bitis/bitis.dart';
@@ -112,12 +136,26 @@ produces identical bytes.
 
 ## Development
 
+Runtime:
+
 ```sh
 cd dart/bitis
 dart pub get
 dart analyze
 dart format .
 dart test -p vm,chrome                    # CHROME_EXECUTABLE=/path/to/chrome if needed
+dart test -p chrome --compiler dart2wasm
+```
+
+Generated code (`dart/codegen_test`):
+
+```sh
+cd dart/codegen_test
+dart pub get
+tool/regen.sh            # regenerate lib/*.dart from fixtures/schemas (needs cargo)
+tool/regen.sh --vectors  # also fixtures/rust_vectors.json via tool/rust_vectors
+dart analyze
+dart test -p vm,chrome
 dart test -p chrome --compiler dart2wasm
 ```
 
