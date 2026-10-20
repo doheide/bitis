@@ -143,8 +143,21 @@ An example can be found at the end of this section.
 | Dynamic Integer       | int_XdY<br>uint_XdY | uint_8d3 | An signed (int_XdY) or unsigned (uint_XdY) integer value of at most X bits (1 ≤ Y ≤ X ≤ 64) with a dynamic number of bits depending on the value. A value of zero requires one bit (two bits for int_XdY). Depending on the number of bits used in the value, packets of Y bits are serialized. For each packet an additional bit is required to mark whether further packets are encoded.<br>Example details: a value of 10 for an uint_32d3 is encoded as follows: bit0=1 (value bigger than zero), bit1-3=2 (lower three bits of the value), bit4=1 (further bits are nonzero), bit5-7=1 (bits 3-5 of the value), bit8=0 (higher bits are zero) |
 | Floating point number | double<br>float | float   | A floating point variable with 64 bit (double) or 32 bit (float) with the number of bits for exponent and mantisse according to IEC-754 .                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | Fixed point number    | fp_X[Y,Z]  | fp_10[-2,3] | A number with X bits (2 ≤ X ≤ 53) equally spaced on the closed interval [Y, Z] with integers Y < Z. There is an indication for over- or under-flow condition<br>The example denotes the values between -2 and 3 with an 10 bit number. | 
-| Binary                | binary_dY  | binary_d4 | Binary data (bytes) with a dynamic integer as length with chunks of Y bits (1 ≤ Y ≤ 32). |
-| String  | astr_dY | astr_d4 | Ascii string with a dynamic integer as string length with chunks of Y bits (1 ≤ Y ≤ 32). |
+| Binary                | binary_dY<br>binary_dY[M]  | binary_d4<br>binary_d4[64] | Binary data (bytes) with a dynamic integer as length with chunks of Y bits (1 ≤ Y ≤ 32). Optional maximum length M in bytes (see below). |
+| String  | astr_dY<br>astr_dY[M] | astr_d4<br>astr_d4[32] | Ascii string with a dynamic integer as string length with chunks of Y bits (1 ≤ Y ≤ 32). Optional maximum length M in characters (see below). |
+
+### Maximum lengths `[M]`
+
+`astr_dY[M]`, `binary_dY[M]` and `repeated_dyn_Y[M] T` (see the modifiers below) limit the length to at most M
+bytes, characters or elements (1 ≤ M ≤ 65535, no space between the type and `[M]` is required). The encoding is
+the same as without the bound, but decoders reject a longer length (`InvalidValue`) and the checked encoders
+(`try_serialize`, Dart `toBytes`) reject longer values (`ValueOutOfRange`); the legacy `serialize` writes only the
+first M elements. Bounded fields have a known maximum size (`max_bits`), and the C++ runtime stores them without
+heap allocation (`BoundedAString<Y, M>`, `BoundedBinary<Y, M>`, `BoundedDynArray<T, Y, M>`: `std::array` plus a
+length). Rust uses `BoundedAString<Y, M>`, `BoundedBinary<Y, M>` and `BoundedDynArray<T, Y, M>` (`try_new` /
+`TryFrom` check the bound), Python raises `ValueError` when a too long value is assigned, and Dart keeps
+`String` / `Uint8List` / `List`. The bound is part of the schema hash. `[M]` is not allowed anywhere else.
+Example: `repeated_dyn_2[8] astr_d4[16] tags;` (at most 8 tags with at most 16 characters each).
  
 
 ## Enumerated type 
@@ -176,7 +189,7 @@ To denote arrays and optional values, modifiers can be used.
 |-----------------|----------------|---|---|
 | Optional field | optional | optional uint_3 val; | If the keyword optional is added to an message, the value is optional. |
 | Fixed array | repeated_fixed_X | repeated_fixed_10 uint_3 val; | Fixed array with X elements (1 ≤ X ≤ 255). |
-| Dynamic array | repeated_dyn_X |  repeated_dyn_3 uint_3 val; | Variable sized array. It uses a dynamic integer (see above) with 32 bit that stores the size in chunks of X bits (1 ≤ X ≤ 32). The element type must not be a message without any bits (e.g. an empty message). |
+| Dynamic array | repeated_dyn_X<br>repeated_dyn_X[M] |  repeated_dyn_3 uint_3 val;<br>repeated_dyn_3[10] uint_3 val; | Variable sized array. It uses a dynamic integer (see above) with 32 bit that stores the size in chunks of X bits (1 ≤ X ≤ 32). Optional maximum number of elements M (see "Maximum lengths" above). The element type must not be a message without any bits (e.g. an empty message). |
 
 At most one modifier can be used per attribute. Modifiers can not be used for oneofs and inside oneofs.
 

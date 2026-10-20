@@ -123,6 +123,12 @@ member functions keep their names and meaning. Everything else stays additive.
   fields keep `std::vector`. Rust/Dart/Python keep their container types.
 - `max_bits` (spec section 4) in Rust (`Option<u64>`), C++ and Dart; golden
   manifest gets `max_bits` lines.
+- Status (branch wt/bounds): done. Rust `BoundedAString<Y, M>`, `BoundedBinary<Y, M>`,
+  `BoundedDynArray<T, Y, M>` and `max_bits()` for all types (derive macros for messages,
+  enums, oneofs); C++ `BoundedAString/BoundedBinary/BoundedDynArray` (one block in
+  bitis_lib.h); Dart `maxLength` parameters, `MaxBits`, generated `bitisMaxBits`; Python
+  checked setters (`ValueError`). Golden messages `BoundsItem`/`Bounds` and `max_bits`
+  lines; the C++ golden test skips `max_bits` until every C++ type has `max_bits()`.
 
 ### Python (bindings generated via pyo3)
 - `.pyi` stub fixed (types of optionals/strings, `serialize()` result),
