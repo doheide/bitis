@@ -132,7 +132,8 @@ member functions keep their names and meaning. Everything else stays additive.
 
 ### CRC-32 helper (requested by fe-agent and fw-agent)
 - CRC-32/ISO-HDLC (reflected poly 0xEDB88320, init and xorout 0xFFFFFFFF, same as
-  ESP32 ROM `esp_rom_crc32_le` with the usual pre/post inversion and zlib.crc32),
+  zlib.crc32 and the ESP32 ROM call `esp_rom_crc32_le(0, buf, len)` — the ROM
+  function inverts on entry and exit itself; continue with `esp_rom_crc32_le(c, ...)`),
   check value `crc32("123456789") = 0xCBF43926`.
 - API in every runtime: one-shot `crc32(bytes) -> u32` and an incremental
   `Crc32` (update / finish). Not part of the wire format, no envelope message.
