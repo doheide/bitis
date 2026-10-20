@@ -429,6 +429,59 @@ can be setup with
 ```bash
 bitis setup -s maturin py_msg/
 ```
+This runs `maturin init -b pyo3` in `py_msg/` and creates the package directory `py_msg/py_msg/` (`__init__.py`,
+`py.typed`). `bitis compile -l python -o py_msg -i messages.bitis` then writes `src/messages.rs`, `src/pyrust.rs`,
+`src/lib.rs` and the type stub `py_msg/py_msg.pyi`, updates `py_msg/Cargo.toml` and runs `maturin develop` (builds
+and installs the module into the active venv). `maturin build --release` builds the wheel.
+
+Cargo.toml of the maturin project (set on every compile, so a fresh project builds without manual edits):
+* `package.version` = version of the bitis compiler, i.e. the wheel is `py_msg-<bitis version>-cp38-abi3-<platform>.whl`.
+* `pyo3 = { version = "0.29", features = ["abi3-py38"] }`: the generated code is written for pyo3 0.29 (an older or
+  newer pyo3 version is replaced). Other pyo3 features are kept; an existing `abi3*` feature (e.g. `abi3-py310`) is
+  kept instead of `abi3-py38`. With abi3 one wheel works for CPython 3.8 and newer.
+* `strum_macros = "0.27"` is added if missing (used by `messages.rs`).
+* `bitis` = version of the compiler, unless `--prevent-update-bitis-lib-in-crate` is given (e.g. for a path dependency).
+
+Generated module (types in the `.pyi` stub, checked with `mypy --strict` and `mypy.stubtest` in the golden tests):
+* Message: class with the attributes as properties (names as written in the schema) and a constructor taking all
+  attributes (positional or by keyword). Methods:
+  * `default()` (static): default values.
+  * `serialize() -> (bytes, total_bits, total_bytes)`: legacy encoder, integers outside their declared range are
+    truncated, a non-ASCII string is encoded as empty string, a too long bounded value is truncated.
+  * `try_serialize() -> (bytes, total_bits, total_bytes)`: raises `EncodeError` (kind `ValueOutOfRange`) instead.
+  * `deserialize(data: bytes)` (static): decodes from the start of `data`, trailing bytes are ignored; raises
+    `DecodeError`.
+  * `try_deserialize(data: bytes) -> (message, total_bits, total_bytes)` (static): like `deserialize`, also returns
+    the consumed size.
+  * `try_deserialize_exact(data: bytes)` (static): raises `DecodeError` (kind `TrailingData`) if `data` is longer
+    than the message.
+  * `min_bits()` / `max_bits()` (static): size bounds in bits (spec section 4), `max_bits()` is `None` if unbounded.
+* Exceptions `DecodeError` and `EncodeError`, both subclasses of `ValueError` (so `except ValueError` and
+  `except Exception` keep working); attribute `kind` is the error name of the spec (docs/WIRE_FORMAT.md section 3):
+  `UnexpectedEnd`, `InvalidValue`, `InvalidDiscriminant`, `TrailingData` (decode) and `ValueOutOfRange` (encode).
+  The message is `"<kind>: <description>"`. Setting a bounded attribute (`[M]`) to a longer value raises
+  `EncodeError` already in the constructor / setter.
+* Types: `int` for integers (values that do not fit the Rust field type raise `OverflowError` when set, values
+  outside the declared bit width are detected by `try_serialize`), `float` for float/double and fixed point (Overflow
+  reads back as `max + 1`, Underflow as `min - 1`; setting a value above max gives Overflow, below min or NaN gives
+  Underflow), `str` (ASCII) for astr, `bytes` for binary, `T | None` for optional, `list[T]` for repeated.
+* Enum: class with the values in PascalCase as class attributes (`Color.Red`), comparable (`==`, also with `int`),
+  hashable, `int(v)` is the index.
+* Oneof `oneof value` of message `Msg`: the constructor takes an `OO_Msg_Value` (created with
+  `OO_Msg_Value.new_<element>(v)`); the message has the properties `value_oo` (the selected element as
+  `OO_Msg_ValueEnum`) and `value_<element>` (the value or `None`; setting it selects the element).
+* Module attributes `BITIS_VERSION`, `BITIS_SCHEMA_HASH` (see "Schema stamp") and the CRC-32 helper `crc32` / `Crc32`.
+
+```python
+import py_msg as m
+
+msg = m.STS_Msg(17, [m.STS_MsgWrapper(value=m.OO_StsMsgWrapper_Value.new_geo_pos_ready(m.STS_Msg_GeoPosReady(5)))])
+data, bits, nbytes = msg.try_serialize()
+try:
+    back = m.STS_Msg.try_deserialize_exact(data)
+except m.DecodeError as e:
+    print("invalid message:", e.kind)
+```
 
 ## Dart
 

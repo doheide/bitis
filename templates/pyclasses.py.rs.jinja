@@ -3,8 +3,8 @@
 use bitis_lib::*;
 
 use pyo3::prelude::*;
-use pyo3::exceptions::{PyException, PyValueError};
-use pyo3::types::{PyBytes};
+use pyo3::types::PyBytes;
+use pyo3::PyClass;
 
 use super::messages;
 
@@ -16,16 +16,63 @@ fn do_val_from<T: ValFromInto<U>, U>(v: &U) -> T {
 fn check_bounds<T: BiserdiTrait + ValFromInto<U>, U>(v: &U, name: &str) -> PyResult<()> {
     match try_serialize(&T::val_from(v)) {
         Ok(_) => Ok(()),
-        Err(e) => Err(PyErr::new::<PyValueError, _>(format!("{name}: {e} (longer than its maximum length or out of range)"))),
+        Err(e) => Err(encode_error(&format!("{:?}", e), &format!("{name}: {e} (longer than its maximum length or out of range)"))),
     }
+}
+
+// *****************************************************************
+// *****************************************************************
+// Exceptions (docs/WIRE_FORMAT.md section 3); `kind` is the spec error name
+pub mod bitis_py_errors {
+  pyo3::create_exception!({{ lib_name }}, DecodeError, pyo3::exceptions::PyValueError,
+    "Decoding failed. Attribute `kind`: UnexpectedEnd, InvalidValue, InvalidDiscriminant or TrailingData.");
+  pyo3::create_exception!({{ lib_name }}, EncodeError, pyo3::exceptions::PyValueError,
+    "Encoding failed (try_serialize). Attribute `kind`: ValueOutOfRange.");
+}
+/// DecodeError with attribute `kind` (spec error name, e.g. "InvalidValue"); message "<kind>: <detail>".
+pub fn decode_error(kind: &str, detail: &str) -> PyErr {
+  let err = bitis_py_errors::DecodeError::new_err(format!("{kind}: {detail}"));
+  Python::attach(|py| { let _ = err.value(py).setattr("kind", kind); });
+  err
+}
+/// EncodeError with attribute `kind` (spec error name, e.g. "ValueOutOfRange"); message "<kind>: <detail>".
+pub fn encode_error(kind: &str, detail: &str) -> PyErr {
+  let err = bitis_py_errors::EncodeError::new_err(format!("{kind}: {detail}"));
+  Python::attach(|py| { let _ = err.value(py).setattr("kind", kind); });
+  err
+}
+fn decode_err(e: DecodeError) -> PyErr { decode_error(&format!("{:?}", e), &e.to_string()) }
+fn encode_err(e: EncodeError) -> PyErr { encode_error(&format!("{:?}", e), &e.to_string()) }
+
+// *****************************************************************
+// *****************************************************************
+// Checks values that the conversion to the Rust types would silently change
+// (non-ASCII astr becomes the empty string); used by try_serialize.
+trait BitisPyCheck { fn bitis_ok(&self, py: Python<'_>) -> bool; }
+impl BitisPyCheck for String { fn bitis_ok(&self, _py: Python<'_>) -> bool { self.is_ascii() } }
+macro_rules! bitis_py_check_always_ok {
+  ($($t:ty),*) => { $(impl BitisPyCheck for $t { fn bitis_ok(&self, _py: Python<'_>) -> bool { true } })* }
+}
+bitis_py_check_always_ok!(bool, u8, u16, u32, u64, i8, i16, i32, i64, f32, f64);
+impl<T: BitisPyCheck> BitisPyCheck for Option<T> {
+  fn bitis_ok(&self, py: Python<'_>) -> bool { self.as_ref().map_or(true, |v| v.bitis_ok(py)) }
+}
+impl<T: BitisPyCheck> BitisPyCheck for Vec<T> {
+  fn bitis_ok(&self, py: Python<'_>) -> bool { self.iter().all(|v| v.bitis_ok(py)) }
+}
+impl<T: BitisPyCheck, const N: usize> BitisPyCheck for [T; N] {
+  fn bitis_ok(&self, py: Python<'_>) -> bool { self.iter().all(|v| v.bitis_ok(py)) }
+}
+impl<T: BitisPyCheck + PyClass> BitisPyCheck for Py<T> {
+  fn bitis_ok(&self, py: Python<'_>) -> bool { self.bind(py).borrow().bitis_ok(py) }
 }
 
 // *****************************************************************
 // *****************************************************************
 // Enums
 {%+ for ce in d.enums %}
-{% if let Some(c) = ce.comment %}{{ c|rs_doc("") }}{% endif %}#[pyclass]
-#[derive(Debug, Clone)]
+{% if let Some(c) = ce.comment %}{{ c|rs_doc("") }}{% endif %}#[pyclass(eq, eq_int, hash, frozen, from_py_object)]
+#[derive(Debug, Clone, PartialEq, Hash)]
 pub enum {{ ce.name }} {
 {%- for cv in ce.values +%}
 {% if let Some(c) = ce.value_comment(loop.index0) %}{{ c|rs_doc("  ") }}{% endif %}  {{ cv|pascal_case }},
@@ -39,6 +86,7 @@ impl std::fmt::Display for {{ ce.name }} {
     }
 } }
 
+impl BitisPyCheck for {{ ce.name }} { fn bitis_ok(&self, _py: Python<'_>) -> bool { true } }
 impl ValFromInto<{{ ce.name }}> for messages::{{ ce.name }} {
   fn val_into(&self) -> {{ ce.name }} {
     match self.clone() {
@@ -68,8 +116,8 @@ pub enum {{ coo.name }} {
 {%- endfor %}
 }
 
-#[pyclass(eq, eq_int)]
-#[derive(Debug, PartialEq)]
+#[pyclass(eq, eq_int, hash, frozen)]
+#[derive(Debug, PartialEq, Hash)]
 pub enum {{ coo.name }}Enum {
 {%- for ca in coo.attributes +%}
   {{ca.base.name|pascal_case}},
@@ -80,19 +128,27 @@ pub enum {{ coo.name }}Enum {
 impl {{ coo.name }} {
 {%- for ca in coo.attributes +%}
   #[staticmethod]
-  fn new_{{ca.base.name|snake_case}}({{ca.base.name|snake_case}}: {%+ if ca.is_msg || ca.is_oo +%}Py<{%- endif -%}
+  fn new_{{ca.base.name|snake_case}}(py: Python<'_>, {{ca.base.name|snake_case}}: {%+ if ca.is_msg || ca.is_oo +%}Py<{%- endif -%}
       {{ ca.base_type_str }}{%- if ca.is_msg || ca.is_oo -%}>{% endif %}) -> PyResult<Py<Self>> {
 {%- if ca.is_bounded +%}
     check_bounds::<{{ ca.rust_attr_type }}, _>(&{{ca.base.name|snake_case}}, "{{ coo.name }}.{{ca.base.name}}")?;
 {%- endif +%}
-    Ok(Python::with_gil(|_py| { Py::new(_py, Self::{{ca.base.name|pascal_case}}({{ca.base.name|snake_case}})) })?)
+    Py::new(py, Self::{{ca.base.name|pascal_case}}({{ca.base.name|snake_case}}))
   }
 {%- endfor %}
   fn __repr__(&self) -> String { format!("{}", self) }
 }
+impl BitisPyCheck for {{ coo.name }} {
+  fn bitis_ok(&self, py: Python<'_>) -> bool {
+    match self { {%- for ca in coo.attributes +%}
+      Self::{{ca.base.name|pascal_case}}(v) => v.bitis_ok(py),
+{%- endfor +%}
+    }
+  }
+}
 impl {{ coo.name }} {
   pub fn to_rust(&self) -> messages::{{ coo.name }} {
-    Python::with_gil(|_py| {
+    Python::attach(|_py| {
       match self { {%- for ca in coo.attributes -%}
         Self::{{ca.base.name|pascal_case}}(v) => messages::{{ coo.name }}::{{ca.base.name|pascal_case}}(do_val_from(v)),
 {%+ endfor %}
@@ -100,7 +156,7 @@ impl {{ coo.name }} {
     })
   }
   pub fn from_rust_obj(d: &messages::{{ coo.name }}) -> PyResult<Self> {
-    let r = Python::with_gil(|_py| {
+    let r = Python::attach(|_py| {
       match d { {%- for ca in coo.attributes -%}
         messages::{{ coo.name }}::{{ca.base.name|pascal_case}}(v) => Self::{{ca.base.name|pascal_case}}(v.val_into()),
 {% endfor %}
@@ -113,9 +169,11 @@ impl std::fmt::Display for {{ coo.name }} {
   fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
     match self { {%- for ca in coo.attributes -%}{%- if ca.is_msg || ca.is_oo +%}
       {{ coo.name }}::{{ca.base.name|pascal_case}}(v) => {
-        Python::with_gil(|py| {
+        Python::attach(|py| {
           write!(f, "{{ coo.name }}({{ca.base.name|pascal_case}}({})", v.borrow(py).__repr__()) }
         )},
+{%- else if ca.base_type_str == "Vec<u8>" +%}
+      {{ coo.name }}::{{ca.base.name|pascal_case}}(v) => { write!(f, "{{ coo.name }}({{ca.base.name|pascal_case}}({:?}))", v) },
 {%- else +%}
       {{ coo.name }}::{{ca.base.name|pascal_case}}(v) => { write!(f, "{{ coo.name }}({{ca.base.name|pascal_case}}({}))", v) },
 {%- endif -%}{%- endfor %}
@@ -125,10 +183,10 @@ impl std::fmt::Display for {{ coo.name }} {
 
 impl ValFromInto<Py<{{coo.name}}>> for messages::{{coo.name}} {
   fn val_into(self: &Self) -> Py<{{coo.name}}> {
-    Python::with_gil(|_py| { Py::new(_py, {{coo.name}}::from_rust_obj(self).unwrap()).unwrap() })
+    Python::attach(|_py| { Py::new(_py, {{coo.name}}::from_rust_obj(self).unwrap()).unwrap() })
   }
   fn val_from(val: &Py<{{coo.name}}>) -> Self {
-    Python::with_gil(|_py| { val.borrow(_py).to_rust() })
+    Python::attach(|_py| { val.borrow(_py).to_rust() })
   }
 }
 {% endfor +%}
@@ -160,19 +218,43 @@ impl {{cm.name}} {
   #[staticmethod]
   pub fn default() -> PyResult<Self> { Self::from_rust_obj(&Default::default()) }
 
-  pub fn serialize(&self, py: Python) -> (PyObject, u64, u64) {
+  /// Legacy: values outside their declared range are truncated, a non-ASCII astr becomes empty.
+  /// Returns (data, total_bits, total_bytes).
+  pub fn serialize<'py>(&self, py: Python<'py>) -> (Bound<'py, PyBytes>, u64, u64) {
     let msg = self.to_rust();
     let r = serialize(&msg);
-    (PyBytes::new(py, &r.0).into(), r.1.total_bits, r.1.total_bytes)
+    (PyBytes::new(py, &r.0), r.1.total_bits, r.1.total_bytes)
   }
+  /// Like serialize, but raises EncodeError (kind ValueOutOfRange) instead of truncating.
+  pub fn try_serialize<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyBytes>, u64, u64)> {
+    if !self.bitis_ok(py) { return Err(encode_err(EncodeError::ValueOutOfRange)); }
+    let r = try_serialize(&self.to_rust()).map_err(|e| encode_err(e))?;
+    Ok((PyBytes::new(py, &r.0), r.1.total_bits, r.1.total_bytes))
+  }
+  /// Decodes from the start of data (trailing bytes are ignored); raises DecodeError.
   #[staticmethod]
-  pub fn deserialize(_py: Python, data: Bound<'_, PyBytes>) -> PyResult<Self> {
-    let dv: Vec<u8> = data.extract()?;
-    let v = match deserialize::<messages::{{cm.name}}>(&dv) {
-      Some(v) => v, None => return Err(PyErr::new::<PyException, _>("Error when deserializing {{cm.name}}"))
-    };
+  pub fn deserialize(data: Bound<'_, PyBytes>) -> PyResult<Self> {
+    let v = try_deserialize::<messages::{{cm.name}}>(data.as_bytes()).map_err(|e| decode_err(e))?;
     Self::from_rust_obj(&v.0)
   }
+  /// Like deserialize, but returns (value, total_bits, total_bytes) with the consumed size.
+  #[staticmethod]
+  pub fn try_deserialize(data: Bound<'_, PyBytes>) -> PyResult<(Self, u64, u64)> {
+    let v = try_deserialize::<messages::{{cm.name}}>(data.as_bytes()).map_err(|e| decode_err(e))?;
+    Ok((Self::from_rust_obj(&v.0)?, v.1.total_bits, v.1.total_bytes))
+  }
+  /// Like deserialize, but raises DecodeError (kind TrailingData) if data is longer than the message.
+  #[staticmethod]
+  pub fn try_deserialize_exact(data: Bound<'_, PyBytes>) -> PyResult<Self> {
+    let v = try_deserialize_exact::<messages::{{cm.name}}>(data.as_bytes()).map_err(|e| decode_err(e))?;
+    Self::from_rust_obj(&v)
+  }
+  /// Lower bound of the encoded size in bits (spec section 4).
+  #[staticmethod]
+  pub fn min_bits() -> u64 { <messages::{{cm.name}} as BiserdiTrait>::min_bits() }
+  /// Upper bound of the encoded size in bits, None if unbounded (spec section 4).
+  #[staticmethod]
+  pub fn max_bits() -> Option<u64> { <messages::{{cm.name}} as BiserdiTrait>::max_bits() }
   pub fn __repr__(&self) -> String {
     format!("{}", self)
   }
@@ -202,7 +284,7 @@ impl {{cm.name}} {
   #[setter({{ca.base.name|snake_case}}_{{caa.base.name|snake_case}})]
   fn {{ca.base.name|snake_case}}_set_{{caa.base.name|snake_case}}(&mut self, v: {%- if caa.is_msg || caa.is_oo -%}
     Py<{%endif%}{{caa.base_type_str}}{%- if caa.is_msg || caa.is_oo -%}>{%endif%}) -> PyResult<()> {
-    Python::with_gil(|py| {
+    Python::attach(|py| {
 {%- if caa.is_bounded +%}
       check_bounds::<{{ caa.rust_attr_type }}, _>(&v, "{{ca.rust_type_str}}.{{caa.base.name}}")?;
 {%- endif +%}
@@ -212,20 +294,25 @@ impl {{cm.name}} {
   }
 {%- endfor -%}{%+ endif -%}{%+ endif -%}{%- endfor %}
 }
+impl BitisPyCheck for {{cm.name}} {
+  fn bitis_ok(&self, _py: Python<'_>) -> bool {
+    true{%- for ca in cm.attributes %} && self.{{ca.base.name}}.bitis_ok(_py){%- endfor %}
+  }
+}
 impl {{cm.name}} {
   pub fn to_rust(&self) -> messages::{{cm.name}} {
-    Python::with_gil(|_py| {
+    Python::attach(|_py| {
       messages::{{cm.name}}{ {%- for ca in cm.attributes +%} {{ca.base.name}}: do_val_from(&self.{{ca.base.name}}), {%- endfor -%}}
     })
   }
   pub fn from_rust_obj(_d: &messages::{{cm.name}}) -> PyResult<Self> {
-    let r = Python::with_gil(|_py| { Self{ {%- for ca in cm.attributes +%} {{ca.base.name}}: _d.{{ca.base.name}}.val_into(), {%- endfor -%}} });
+    let r = Python::attach(|_py| { Self{ {%- for ca in cm.attributes +%} {{ca.base.name}}: _d.{{ca.base.name}}.val_into(), {%- endfor -%}} });
     Ok(r)
   }
 }
 impl std::fmt::Display for {{cm.name}} {
   fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-    Python::with_gil(|_py| {
+    Python::attach(|_py| {
       let t = self.to_rust();
       write!(f, "{}", t)
     })
@@ -233,10 +320,10 @@ impl std::fmt::Display for {{cm.name}} {
 }
 impl ValFromInto<Py<{{cm.name}}>> for messages::{{cm.name}} {
   fn val_into(self: &Self) -> Py<{{cm.name}}> {
-    Python::with_gil(|_py| { Py::new(_py, {{cm.name}}::from_rust_obj(self).unwrap()).unwrap() })
+    Python::attach(|_py| { Py::new(_py, {{cm.name}}::from_rust_obj(self).unwrap()).unwrap() })
   }
   fn val_from(val: &Py<{{cm.name}}>) -> Self {
-    Python::with_gil(|_py| { val.borrow(_py).to_rust() })
+    Python::attach(|_py| { val.borrow(_py).to_rust() })
   }
 }
 

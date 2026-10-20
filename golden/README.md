@@ -27,6 +27,10 @@ golden/
     test/manifest.dart        parser, dispatch over the 16 message types
     test/golden_test.dart     the per-record checks + JSON round trip
     test/spot_checks_test.dart decoded values and encoder spot checks
+  python/                   Python tests (pytest) of the module generated from the schema
+    build.sh                  builds the module `golden` into a venv (not committed, in target/golden/python)
+    test_golden.py            the per-record checks, spot checks, exceptions, .pyi stub (mypy)
+    test_crc32.py             CRC-32 helper
   run_all.sh                runs all golden tests
 tests/golden.rs             Rust test (cargo test --test golden)
 ```
@@ -120,13 +124,21 @@ in exact mode; maximum lengths (at `M`, `M + 1`, `M + 1` with missing data, trun
 
 ## Running
 
-All at once (Rust, C++ plain and with ASan/UBSan, Dart on the VM and in Chrome with
-dart2js and dart2wasm; Python is reported as SKIP):
+All at once (Rust, C++ plain and with ASan/UBSan, Python, Dart on the VM and in Chrome with
+dart2js and dart2wasm):
 
 ```
 golden/run_all.sh            # --no-asan to skip the sanitizer build
 # offline: CARGO_FLAGS=--offline DART_PUB_FLAGS=--offline \
 #          FETCHCONTENT_SOURCE_DIR_GOOGLETEST=<googletest checkout> golden/run_all.sh
+```
+
+The Python step uses the venv `$BITIS_PYTHON_VENV`, else the active venv (`$VIRTUAL_ENV`) if
+it contains maturin, and is reported as SKIP otherwise. Setting up such a venv once:
+
+```
+python3 -m venv ~/.venvs/bitis && ~/.venvs/bitis/bin/pip install maturin pytest mypy
+BITIS_PYTHON_VENV=~/.venvs/bitis golden/run_all.sh
 ```
 
 The Dart steps use `$DART`, else `dart` on PATH, else `/home/dheide/sdk/flutter/bin/dart`
@@ -147,12 +159,31 @@ Individually:
   The manifest path is compiled in (`BITIS_GOLDEN_MANIFEST`). With ASan in some
   environments `ASAN_OPTIONS=verify_asan_link_order=0` is needed, also during the build
   (gtest_discover_tests runs the binary).
-- **Python**: not covered. The Python bindings are generated Rust code built with maturin
-  (`bitis compile -l python`), i.e. they use the Rust runtime that is tested here; a
-  Python test would only exercise the pyo3 glue. To add one: build the golden schema as a
-  maturin project, then for every manifest record call `<MsgType>.deserialize(bytes)` /
-  `serialize()` and compare as above (maturin is not available in the CI environment of
-  0.11).
+- **Python**: directory `golden/python/`:
+  ```
+  BITIS_PYTHON_VENV=<venv> golden/python/build.sh          # --no-snapshots: only the module
+  BITIS_PY_MODULE=golden <venv>/bin/python -m pytest golden/python
+  ```
+  `build.sh` builds the compiler, writes the maturin project `target/golden/python/golden`
+  (Cargo.toml with a path dependency on this repository, pyproject.toml, package dir
+  `golden/`), runs `bitis compile -l python` (generates the code, sets version / pyo3 /
+  strum_macros in Cargo.toml, runs `maturin develop`, which installs the module into the
+  venv) and then `cargo check`s the Python bindings of every codegen snapshot
+  (`tests/snapshots/<name>/py_*.rs`) as crates in `target/golden/python/snapshot_<name>`,
+  so that the committed snapshots are known to compile with pyo3. `test_golden.py`
+  (module from `BITIS_PY_MODULE`, default `golden`) runs the checks of the table above
+  with `try_deserialize` (default decoder, returns `(msg, total_bits, total_bytes)`),
+  `try_deserialize_exact` and the legacy `deserialize` (`invalid` records: `DecodeError`
+  with `kind` = the manifest error and a message starting with `"<kind>: "`), re-encodes
+  with `try_serialize` and the legacy `serialize`, checks `min_bits()` / `max_bits()`
+  (`unbounded` = `None`); unknown record types are ignored. Spot checks: decoded integers,
+  floats, fixed point values (Overflow reads back as `max + 1`, Underflow as `min - 1`),
+  strings, binaries, containers, enums, oneofs, nesting, bounds; encoder: `fixedpoints_ties`,
+  `fixedpoints_gnss`, `fixedpoints_underflow`, `ints_min`, `texts_values`, out-of-range
+  values and non-ASCII strings (`EncodeError` kind `ValueOutOfRange` from `try_serialize`,
+  no exception from `serialize`), too long bounded values (`EncodeError` when set). The
+  `.pyi` stub is checked with a usage script under `mypy --strict` and with
+  `python -m mypy.stubtest golden` (skipped if mypy is not installed).
 - **Dart**: package `golden/dart/`:
   ```
   cd golden/dart
@@ -203,7 +234,7 @@ the end and every position of inputs up to 64 bytes, three pieces with empty upd
 | Rust | `tests/crc32.rs` (`cargo test --test crc32`) | rust step |
 | C++ | `cpp_lib/tests/test_crc32.cpp`, compiled into `bitis_golden` twice (nibble table and `BITIS_CRC32_TABLE256`); path compiled in as `BITIS_GOLDEN_CRC32`. Building `bitis_golden` also builds `bitis_crc32_check_{nibble16,table256}` (header compiled with `-Wall -Wextra -Wpedantic -Werror -fno-exceptions -fno-rtti`, constexpr check value) | c++ steps (also ASan/UBSan) |
 | Dart | `dart/test/crc32_test.dart` (vectors embedded as `dart/test/crc32_vectors.g.dart`, also written by `crc32_gen.py`; `crc32_vectors_up_to_date_test.dart` checks it on the VM); unit tests of the runtime in `dart/bitis/test/crc32_test.dart` | dart vm, chrome/dart2js, chrome/dart2wasm |
-| Python | `python/test_crc32.py` (pytest, module named by `BITIS_PY_MODULE`, default `golden`; also compares with `zlib.crc32`; skipped if the module is not importable) | no (needs a maturin build) |
+| Python | `python/test_crc32.py` (pytest, module named by `BITIS_PY_MODULE`, default `golden`; also compares with `zlib.crc32`; skipped if the module is not importable) | python step |
 
 After changing `crc32_gen.py`: `python3 golden/vectors/crc32_gen.py` (`--check` only compares).
 

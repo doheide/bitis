@@ -10,7 +10,7 @@
 // the unqualified names refer to the first generated header included in a translation unit.
 namespace bitis_schema_all_types {
     constexpr const char* BITIS_VERSION = "{BITIS_VERSION}";
-    constexpr uint64_t BITIS_SCHEMA_HASH = 0x75e29d4c3b290c0eULL;
+    constexpr uint64_t BITIS_SCHEMA_HASH = 0xc10a57d77c346314ULL;
 }
 #ifndef BITIS_SCHEMA_STAMP_DEFINED
 #define BITIS_SCHEMA_STAMP_DEFINED
@@ -127,6 +127,8 @@ struct OO_AllTypes_Choice  {
         BITIS_NAME("Text") typedef BitisAString<3> OOType; };
     struct OO_Nothing {
         BITIS_NAME("Nothing") typedef Empty OOType; };
+    struct OO_Raw {
+        BITIS_NAME("Raw") typedef Binary<4> OOType; };
 
     typedef BitisEnum<bitis_helper::Collector<
         OO_Flag, 
@@ -134,12 +136,13 @@ struct OO_AllTypes_Choice  {
         OO_InnerVal, 
         OO_ColorVal, 
         OO_Text, 
-        OO_Nothing
+        OO_Nothing, 
+        OO_Raw
     >, OO_Flag, 3> T_OOEnum;
     T_OOEnum oo_selector;
 
     typedef oneof_helper::UnionT<  // UnionDynSizeT
-        OO_Flag::OOType, OO_Number::OOType, OO_InnerVal::OOType, OO_ColorVal::OOType, OO_Text::OOType, OO_Nothing::OOType
+        OO_Flag::OOType, OO_Number::OOType, OO_InnerVal::OOType, OO_ColorVal::OOType, OO_Text::OOType, OO_Nothing::OOType, OO_Raw::OOType
     > T_OOValue;
     T_OOValue oo_value;
 

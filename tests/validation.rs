@@ -117,7 +117,7 @@ fn generated_member_collisions() {
     assert_error("msg Mm { bool msg_attr; }", "t.bitis:1:15: error: attribute name 'msg_attr' clashes");
     assert_error("msg Mm { bool serialize; }", "t.bitis:1:15: error: attribute name 'serialize' clashes");
     assert_error("msg Mm { bool to_rust; }", "t.bitis:1:15: error: attribute name 'to_rust' clashes with a generated method of the Python message class");
-    assert_error("msg Mm { bool max_bits; }", "t.bitis:1:15: error: attribute name 'max_bits' clashes with a generated member of the C++ message struct");
+    assert_error("msg Mm { bool max_bits; }", "t.bitis:1:15: error: attribute name 'max_bits' clashes");
     assert_error("msg Mm { bool min_bits; }", "t.bitis:1:15: error: attribute name 'min_bits' clashes");
     // the C++ name members str_<attr> do not exist any more (static name table since 0.11)
     assert_ok("msg Mm { bool x; bool str_x; }");

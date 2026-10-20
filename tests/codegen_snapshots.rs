@@ -191,3 +191,32 @@ fn min_bits_per_spec() {
     let outer = p.msgs.iter().find(|m| m.name == "Outer").unwrap();
     assert_eq!(min_bits_message(outer, &p.msgs), 12 + 1 + 9 + 1 + 1 + 2 + 32 + (1 + 1));
 }
+
+#[test]
+fn python_output() {
+    let p = compile_file(&snapshot_dir().join("all_types.bitis"));
+    let py = render_python(&p, "all_types").unwrap();
+    // pyo3 0.29 API only (the compiler sets pyo3 = PYO3_VERSION in the Cargo.toml of the maturin project)
+    for s in ["Python::with_gil", "PyObject", "PyException"] {
+        assert!(!py.pyrust_rs.contains(s), "{s} in\n{}", py.pyrust_rs);
+    }
+    for s in ["pyo3::create_exception!(all_types, DecodeError, pyo3::exceptions::PyValueError,",
+              "pub fn encode_error(kind: &str, detail: &str) -> PyErr {",
+              "#[pyclass(eq, eq_int, hash, frozen, from_py_object)]",
+              // a binary element of a oneof is printed with {:?} (Vec<u8> has no Display)
+              "OO_AllTypes_Choice::Raw(v) => { write!(f, \"OO_AllTypes_Choice(Raw({:?}))\", v) },"] {
+        assert!(py.pyrust_rs.contains(s), "missing {s:?} in\n{}", py.pyrust_rs);
+    }
+    assert!(py.lib_rs.contains("m.add(\"DecodeError\", m.py().get_type::<bitis_py_errors::DecodeError>())?;"), "{}", py.lib_rs);
+    // stub: real attribute names and Python types
+    for s in ["  u64v: int\n", "  s: str\n", "  data: bytes\n", "  opt_u: int | None\n", "  opt_inner: Inner | None\n",
+              "  rf_inner: list[Inner]\n", "  rd_color: list[Color]\n", "  BlueLight: _typing.ClassVar[Color]\n",
+              "  def serialize(self) -> tuple[bytes, int, int]:", "  def try_deserialize(data: bytes) -> tuple[AllTypes, int, int]:",
+              "  def choice_raw(self) -> bytes | None: ...", "  def choice_oo(self) -> OO_AllTypes_ChoiceEnum:",
+              "class DecodeError(ValueError):", "  # fp_10[-2,3]; above 3: Overflow, read back as 4.0; below -2 or NaN: Underflow, read back as -3.0\n"] {
+        assert!(py.pyi.contains(s), "missing {s:?} in\n{}", py.pyi);
+    }
+    for s in ["String", "Vec<", "u64_v"] {
+        assert!(!py.pyi.contains(s), "{s} in\n{}", py.pyi);
+    }
+}
