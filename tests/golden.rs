@@ -8,7 +8,7 @@
 //! - `invalid`: decoding fails with the given error kind,
 //! - `min_bits`: `min_bits()` of every message type,
 //! - spot checks of decoded field values and of the encoder for a few cases,
-//! - the generated code in golden/gen/ is up to date with the compiler.
+//! - the generated code in golden/gen/ (Rust, C++, Dart) is up to date with the compiler.
 
 #[path = "../golden/gen/rust/golden.rs"]
 #[allow(unused_imports)]
@@ -202,7 +202,7 @@ fn golden_manifest_matches_schema() {
     assert!(text.contains(&stamp), "manifest was generated for another schema (expected '{stamp}')");
 }
 
-/// golden/gen/{rust,cpp} must be the current compiler output for golden/schema/golden.bitis.
+/// golden/gen/{rust,cpp,dart} must be the current compiler output for golden/schema/golden.bitis.
 #[test]
 fn golden_generated_code_is_up_to_date() {
     let schema = golden_dir().join("schema").join("golden.bitis");
@@ -211,6 +211,7 @@ fn golden_generated_code_is_up_to_date() {
     let expected = [
         ("gen/rust/golden.rs", render_rust(&p).unwrap()),
         ("gen/cpp/golden.h", render_cpp(&p, "bitis_lib.h", &stamp_name_from("golden")).unwrap()),
+        ("gen/dart/golden.dart", render_dart(&p).unwrap()),
     ];
     for (path, content) in expected {
         let committed = fs::read_to_string(golden_dir().join(path)).unwrap();
