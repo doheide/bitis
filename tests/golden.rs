@@ -6,7 +6,7 @@
 //!   decoder fails with `TrailingData`,
 //! - `noncanon`: decoding succeeds with `total_bits`, re-encoding gives the canonical bytes,
 //! - `invalid`: decoding fails with the given error kind,
-//! - `min_bits`: `min_bits()` of every message type,
+//! - `min_bits` / `max_bits`: `min_bits()` / `max_bits()` of every message type,
 //! - spot checks of decoded field values and of the encoder for a few cases,
 //! - the generated code in golden/gen/ (Rust, C++, Dart) is up to date with the compiler.
 
@@ -31,6 +31,8 @@ enum Record {
     NonCanon { case: String, ty: String, bits: u64, data: Vec<u8>, canonical: Vec<u8> },
     Invalid { case: String, ty: String, error: DecodeError, exact: bool, data: Vec<u8> },
     MinBits { ty: String, bits: u64 },
+    /// `None` = unbounded
+    MaxBits { ty: String, bits: Option<u64> },
 }
 
 fn unhex(s: &str) -> Vec<u8> {
@@ -70,6 +72,8 @@ fn manifest() -> Vec<Record> {
                 data: unhex(f[5]) }),
             "min_bits" if f.len() == 3 => recs.push(Record::MinBits { ty: f[1].into(),
                 bits: f[2].parse().unwrap_or_else(|_| malformed(n, line)) }),
+            "max_bits" if f.len() == 3 => recs.push(Record::MaxBits { ty: f[1].into(),
+                bits: if f[2] == "unbounded" { None } else { Some(f[2].parse().unwrap_or_else(|_| malformed(n, line))) } }),
             _ => malformed(n, line),
         }
     }
@@ -102,14 +106,21 @@ fn decode_by_name(ty: &str, data: &[u8], exact: bool) -> Result<(Vec<u8>, u64), 
         match ty { $(stringify!($t) => roundtrip::<$t>(data, exact),)* _ => panic!("unknown message type '{ty}'") }
     } }
     dispatch!(Empty, Ints, DynInts, Floats, FixedPoints, Texts, Leaf, Mid, Nested, Containers, Enums, IntList,
-        Choice, Everything)
+        Choice, Everything, BoundsItem, Bounds)
 }
 fn min_bits_by_name(ty: &str) -> u64 {
     macro_rules! dispatch { ($($t:ident),*) => {
         match ty { $(stringify!($t) => <$t as BiserdiTrait>::min_bits(),)* _ => panic!("unknown message type '{ty}'") }
     } }
     dispatch!(Empty, Ints, DynInts, Floats, FixedPoints, Texts, Leaf, Mid, Nested, Containers, Enums, IntList,
-        Choice, Everything)
+        Choice, Everything, BoundsItem, Bounds)
+}
+fn max_bits_by_name(ty: &str) -> Option<u64> {
+    macro_rules! dispatch { ($($t:ident),*) => {
+        match ty { $(stringify!($t) => <$t as BiserdiTrait>::max_bits(),)* _ => panic!("unknown message type '{ty}'") }
+    } }
+    dispatch!(Empty, Ints, DynInts, Floats, FixedPoints, Texts, Leaf, Mid, Nested, Containers, Enums, IntList,
+        Choice, Everything, BoundsItem, Bounds)
 }
 fn decode<T: BiserdiTrait>(case: &str) -> T {
     try_deserialize_exact::<T>(&case_bytes(case)).unwrap_or_else(|e| panic!("{case}: {e}"))
@@ -192,6 +203,23 @@ fn golden_min_bits() {
         let Record::MinBits { ty, bits } = r else { unreachable!() };
         let b = min_bits_by_name(ty);
         if b == *bits { Ok(()) } else { Err(format!("min_bits({ty}) = {b}, expected {bits}")) }
+    });
+}
+
+#[test]
+fn golden_max_bits() {
+    check_all(|r| matches!(r, Record::MaxBits { .. }), |r| {
+        let Record::MaxBits { ty, bits } = r else { unreachable!() };
+        let b = max_bits_by_name(ty);
+        if b == *bits { Ok(()) } else { Err(format!("max_bits({ty}) = {b:?}, expected {bits:?}")) }
+    });
+    // every valid encoding is within max_bits
+    check_all(|r| matches!(r, Record::Valid { .. }), |r| {
+        let Record::Valid { case, ty, bits, .. } = r else { unreachable!() };
+        match max_bits_by_name(ty) {
+            Some(m) if *bits > m => Err(format!("{case}: {bits} bits > max_bits {m}")),
+            _ => Ok(()),
+        }
     });
 }
 
@@ -310,6 +338,13 @@ fn golden_spot_check_decoded_values() {
     assert_eq!(m.mid.extra.val.as_ref().map(|l| l.tag.get_string()), Some("extra".to_string()));
     assert!(m.after);
 
+    let m: Bounds = decode("bounds_max");
+    assert_eq!((m.name.as_str(), m.blob.as_slice(), m.tags.len(), m.tags[2].as_str()), ("12345678", &[0x00, 0x80, 0xff, 0x7f][..], 3, "ef"));
+    assert_eq!((m.note.val.as_ref().map(|n| n.as_str()), m.items.len(), m.items[1].val.val), (Some("note!"), 2, 9));
+    assert_eq!(m.items[0].label.val.as_ref().map(|l| l.as_str()), Some("xyz"));
+    let m: Bounds = decode("bounds_mixed");
+    assert_eq!((m.name.as_str(), m.tags.len(), m.note.val.is_none(), m.items.len()), ("x", 1, true, 1));
+
     let m: Everything = decode("everything_full");
     assert_eq!((m.tail.val, m.ints.val_i64.val, m.nested.mid.leaf.val.val), (5, i64::MAX, -42));
 }
@@ -349,4 +384,29 @@ fn golden_spot_check_encoder() {
     assert_eq!(try_serialize(&bad).err(), Some(EncodeError::ValueOutOfRange));
     let bad = Ints { val_u7: 128.into(), ..Default::default() };
     assert_eq!(try_serialize(&bad).err(), Some(EncodeError::ValueOutOfRange));
+
+    // maximum lengths: values at M encode to the vector, longer values are rejected by the checked
+    // constructors / encoder and truncated to M by the legacy encoder
+    let m = Bounds {
+        name: "12345678".try_into().unwrap(), blob: vec![0x00, 0x80, 0xff, 0x7f].try_into().unwrap(),
+        tags: vec!["ab".try_into().unwrap(), "cd".try_into().unwrap(), "ef".try_into().unwrap()].try_into().unwrap(),
+        note: Some(BoundedAString::try_new("note!").unwrap()).into(),
+        items: vec![BoundsItem { val: 15.into(), label: Some(BoundedAString::try_new("xyz").unwrap()).into() },
+                    BoundsItem { val: 9.into(), label: Some(BoundedAString::try_new("~~~").unwrap()).into() }].try_into().unwrap(),
+    };
+    assert_eq!(enc(&m), case_bytes("bounds_max"));
+    assert_eq!(BoundedAString::<4, 8>::try_new("123456789").err(), Some(EncodeError::ValueOutOfRange));
+    assert_eq!(BoundedBinary::<3, 4>::try_new(vec![0; 5]).err(), Some(EncodeError::ValueOutOfRange));
+    let mut too_long = m.clone();
+    too_long.name = BoundedAString::from_ascii(ascii::AsciiString::from_ascii("12345678+").unwrap());
+    assert_eq!(try_serialize(&too_long).err(), Some(EncodeError::ValueOutOfRange));
+    assert_eq!(serialize(&too_long).0, case_bytes("bounds_max"));
+    let mut too_long = m.clone();
+    too_long.items.val.push(BoundsItem::default());
+    assert_eq!(try_serialize(&too_long).err(), Some(EncodeError::ValueOutOfRange));
+    assert_eq!(serialize(&too_long).0, case_bytes("bounds_max"));
+    let mut too_long = m.clone();
+    too_long.tags[0] = ValFromInto::val_from(&"abc".to_string());
+    assert_eq!(try_serialize(&too_long).err(), Some(EncodeError::ValueOutOfRange));
+    assert_eq!(serialize(&too_long).0, case_bytes("bounds_max"));
 }

@@ -12,6 +12,13 @@ use super::messages;
 fn do_val_from<T: ValFromInto<U>, U>(v: &U) -> T {
     T::val_from(v)
 }
+// Attributes with a maximum length [M]: the value is accepted if its Rust value encodes without error
+fn check_bounds<T: BiserdiTrait + ValFromInto<U>, U>(v: &U, name: &str) -> PyResult<()> {
+    match try_serialize(&T::val_from(v)) {
+        Ok(_) => Ok(()),
+        Err(e) => Err(encode_error(&format!("{:?}", e), &format!("{name}: {e} (longer than its maximum length or out of range)"))),
+    }
+}
 
 // *****************************************************************
 // *****************************************************************

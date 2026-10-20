@@ -63,6 +63,31 @@ pub(crate) const fn max_magnitude_for_bits(num_bits: u64, type_bits: u32, signed
 }
 
 // ***
+/// Size in bits of the `uint_XdY` encoding of `v` (spec 2.4) with `X = max_bits`, `Y = bit_packs`
+/// (`dyn(v, X, Y)` of spec section 4).
+pub const fn dyn_bits(v: u64, max_bits: u8, bit_packs: u8) -> u64 {
+    if v == 0 { return 1; }
+    let mut v = v;
+    let mut bits: u64 = 1;
+    let mut remaining = max_bits;
+    loop {
+        let c = if bit_packs < remaining { bit_packs } else { remaining };
+        bits += c as u64;
+        v = if c >= 64 { 0 } else { v >> c };
+        remaining -= c;
+        if remaining == 0 { break; }
+        bits += 1;
+        if v == 0 { break; }
+    }
+    bits
+}
+/// `dynmax(X, Y) = dyn(2^X - 1, X, Y) = 1 + X + ceil(X / Y) - 1` (spec section 4): `max_bits` of `uint_XdY`.
+pub const fn dyn_max_bits(max_bits: u8, bit_packs: u8) -> u64 {
+    let v = if max_bits >= 64 { u64::MAX } else { (1_u64 << max_bits) - 1 };
+    dyn_bits(v, max_bits, bit_packs)
+}
+
+// ***
 pub trait IntegerBaseFunctions {
     const IS_SIGNED: bool;
     fn get_absolute_uint(self: &Self) -> u64;
@@ -182,8 +207,9 @@ pub trait BiserdiTrait: Sized {
     fn bit_deserialize(version_id: u16, bides: &mut Bides) -> Option<(Self, u64)>;
     /// Lower bound of the encoded size in bits (spec section 4).
     fn min_bits() -> u64;
-    /// `Some(n)` if the encoding always has exactly `n` bits (fixed-size types and
-    /// messages consisting only of them), `None` otherwise.
+    /// Upper bound of the size in bits of the encoding produced by the encoder for any valid
+    /// value (spec section 4; exact for fixed-size types), `None` if unbounded (a dynamic
+    /// container without maximum length `[M]`, or an overflow of `u64`).
     fn max_bits() -> Option<u64> { None }
 }
 
@@ -694,6 +720,8 @@ impl<T: Display + Sized + Copy + BiserdiTraitVarBitSize + AddAssign + Shl<Output
         Some((Self{val: vv}, bit_size))
     }
     fn min_bits() -> u64 { if T::IS_SIGNED { 2 } else { 1 } }
+    /// `dynmax(X, Y)` (+1 sign bit for signed types), spec section 4.
+    fn max_bits() -> Option<u64> { Some(dyn_max_bits(MAX_BITS, BIT_PACKS) + if T::IS_SIGNED { 1 } else { 0 }) }
 }
 impl<T: Display + Sized + Copy + BiserdiTraitVarBitSize + AddAssign + Shl<Output = T> + Shr + Ord + PartialEq + TryFrom<u64>
 + IntegerBaseFunctions + Default, const MAX_BITS: u8, const BIT_PACKS: u8> Display for DynInteger<T, MAX_BITS, BIT_PACKS> {
@@ -995,6 +1023,308 @@ impl<const DYNSIZEBITS: u8> ValFromInto<String> for BitisAString<DYNSIZEBITS> {
     }
 }
 
+// ****************************************************************************
+// Bounded containers: `binary_dY[M]`, `astr_dY[M]`, `repeated_dyn_Y[M] T` (spec 2.16)
+//
+// Same encoding as `Binary` / `BitisAString` / `DynArray`, but the length is limited to
+// `MAX_LEN` (1..=65535). Decoding a count above `MAX_LEN` fails with `InvalidValue` (checked
+// directly after the count, before the count check of spec section 3). The value types keep
+// the style of the other wrappers: `new` / `ValFromInto::val_from` do not check the length,
+// `try_new` / `TryFrom` do. Serializing a too long value records `EncodeError::ValueOutOfRange`
+// (`try_serialize` fails) and the legacy `serialize` writes only the first `MAX_LEN` elements.
+
+/// Number of elements to serialize for a bounded container (records `ValueOutOfRange` and
+/// truncates if `len > max_len`).
+fn bounded_serialize_len(len: usize, max_len: usize, biseri: &mut Biseri) -> usize {
+    if len > max_len { biseri.set_error(EncodeError::ValueOutOfRange); max_len } else { len }
+}
+/// Decodes the count of a bounded container: `> max_len` is `InvalidValue` (spec 2.16), then the
+/// count check of spec section 3. Returns (count, bits of the count).
+fn bounded_deserialize_count<const DYNSIZEBITS: u8>(version_id: u16, bides: &mut Bides, max_len: usize,
+                                                    elem_min_bits: u64) -> Option<(u64, u64)> {
+    let (v, cs) = DynInteger::<u32, 32, DYNSIZEBITS>::bit_deserialize(version_id, bides)?;
+    let n = v.val as u64;
+    if n > max_len as u64 { return bides.fail(DecodeError::InvalidValue); }
+    bides.check_count(n, elem_min_bits)?;
+    Some((n, cs))
+}
+/// `max_bits` of a bounded container: `dyn(M, 32, Y) + M * elem_max_bits` (spec section 4).
+fn bounded_max_bits(dyn_size_bits: u8, max_len: usize, elem_max_bits: Option<u64>) -> Option<u64> {
+    dyn_bits(max_len as u64, 32, dyn_size_bits).checked_add(elem_max_bits?.checked_mul(max_len as u64)?)
+}
+macro_rules! bounded_check_params {
+    () => {
+        const CHECK_PARAMS: () = assert!(MAX_LEN >= 1 && MAX_LEN <= 65535 && DYNSIZEBITS >= 1 && DYNSIZEBITS <= 32,
+            "bounded containers: MAX_LEN must be in 1..=65535 and DYNSIZEBITS in 1..=32");
+    };
+}
+
+/// `binary_dY[M]` (spec 2.9, 2.16): at most `MAX_LEN` bytes.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct BoundedBinary<const DYNSIZEBITS: u8, const MAX_LEN: usize> {
+    pub val: Vec<u8>
+}
+impl<const DYNSIZEBITS: u8, const MAX_LEN: usize> BoundedBinary<DYNSIZEBITS, MAX_LEN> {
+    /// Maximum number of bytes.
+    pub const MAX_LEN: usize = MAX_LEN;
+    bounded_check_params!();
+
+    /// Unchecked construction (a too long value is truncated when serialized, see the module notes).
+    pub fn new(data: Vec<u8>) -> Self { Self{ val: data } }
+    /// Checked construction: fails with `ValueOutOfRange` if `data` has more than `MAX_LEN` bytes.
+    pub fn try_new(data: Vec<u8>) -> Result<Self, EncodeError> {
+        let () = Self::CHECK_PARAMS;
+        if data.len() <= MAX_LEN { Ok(Self{ val: data }) } else { Err(EncodeError::ValueOutOfRange) }
+    }
+    pub fn empty() -> Self { Self{ val: Vec::new() } }
+    /// `true` if the length is within the bound.
+    pub fn is_valid(&self) -> bool { self.val.len() <= MAX_LEN }
+    /// Appends a byte; fails with `ValueOutOfRange` (and leaves the value unchanged) if it is full.
+    pub fn push(&mut self, b: u8) -> Result<(), EncodeError> {
+        if self.val.len() >= MAX_LEN { return Err(EncodeError::ValueOutOfRange); }
+        self.val.push(b);
+        Ok(())
+    }
+    /// Appends bytes; fails with `ValueOutOfRange` (and leaves the value unchanged) if the result would be too long.
+    pub fn extend_from_slice(&mut self, data: &[u8]) -> Result<(), EncodeError> {
+        if self.val.len() + data.len() > MAX_LEN { return Err(EncodeError::ValueOutOfRange); }
+        self.val.extend_from_slice(data);
+        Ok(())
+    }
+    pub fn clear(&mut self) { self.val.clear() }
+    pub fn as_slice(&self) -> &[u8] { &self.val }
+}
+impl<const DYNSIZEBITS: u8, const MAX_LEN: usize> BiserdiTrait for BoundedBinary<DYNSIZEBITS, MAX_LEN> {
+    fn bit_serialize(self: &Self, biseri: &mut Biseri) -> Option<u64> {
+        let () = Self::CHECK_PARAMS;
+        let len = bounded_serialize_len(self.val.len(), MAX_LEN, biseri);
+        let (mut s, n) = serialize_count::<DYNSIZEBITS>(len, biseri)?;
+        for d in self.val[..n].iter() { biseri.add_bits(*d as u64, 8); s += 8; };
+        Some(s)
+    }
+    fn bit_deserialize(version_id: u16, bides: &mut Bides) -> Option<(Self, u64)> {
+        let () = Self::CHECK_PARAMS;
+        let (n, cs) = bounded_deserialize_count::<DYNSIZEBITS>(version_id, bides, MAX_LEN, 8)?;
+        let data = bides.decode_data(n * 8, 0)?;
+        Some((Self{ val: data }, n * 8 + cs))
+    }
+    fn min_bits() -> u64 { 1 }
+    fn max_bits() -> Option<u64> { bounded_max_bits(DYNSIZEBITS, MAX_LEN, Some(8)) }
+}
+impl<const DYNSIZEBITS: u8, const MAX_LEN: usize> std::ops::Deref for BoundedBinary<DYNSIZEBITS, MAX_LEN> {
+    type Target = [u8];
+    fn deref(&self) -> &[u8] { &self.val }
+}
+impl<const DYNSIZEBITS: u8, const MAX_LEN: usize> std::ops::DerefMut for BoundedBinary<DYNSIZEBITS, MAX_LEN> {
+    fn deref_mut(&mut self) -> &mut [u8] { &mut self.val }
+}
+impl<const DYNSIZEBITS: u8, const MAX_LEN: usize> AsRef<[u8]> for BoundedBinary<DYNSIZEBITS, MAX_LEN> {
+    fn as_ref(&self) -> &[u8] { &self.val }
+}
+impl<const DYNSIZEBITS: u8, const MAX_LEN: usize> std::fmt::Display for BoundedBinary<DYNSIZEBITS, MAX_LEN> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let hex = self.val.iter().map(|b| format!("{:02x}", b)).collect::<Vec<String>>().join(" ");
+        write!(f, "{:x?} |dynbits:{} max:{}", hex, DYNSIZEBITS, MAX_LEN)
+    }
+}
+impl<const DYNSIZEBITS: u8, const MAX_LEN: usize> TryFrom<Vec<u8>> for BoundedBinary<DYNSIZEBITS, MAX_LEN> {
+    type Error = EncodeError;
+    fn try_from(v: Vec<u8>) -> Result<Self, Self::Error> { Self::try_new(v) }
+}
+impl<const DYNSIZEBITS: u8, const MAX_LEN: usize> TryFrom<&[u8]> for BoundedBinary<DYNSIZEBITS, MAX_LEN> {
+    type Error = EncodeError;
+    fn try_from(v: &[u8]) -> Result<Self, Self::Error> { Self::try_new(v.to_vec()) }
+}
+impl<const DYNSIZEBITS: u8, const MAX_LEN: usize> From<BoundedBinary<DYNSIZEBITS, MAX_LEN>> for Vec<u8> {
+    fn from(v: BoundedBinary<DYNSIZEBITS, MAX_LEN>) -> Self { v.val }
+}
+/// `val_from` does not check the length (see the module notes).
+impl<const DYNSIZEBITS: u8, const MAX_LEN: usize> ValFromInto<Vec<u8>> for BoundedBinary<DYNSIZEBITS, MAX_LEN> {
+    fn val_into(&self) -> Vec<u8> { self.val.clone() }
+    fn val_from(val: &Vec<u8>) -> Self { Self{ val: val.clone() } }
+}
+
+/// `astr_dY[M]` (spec 2.8, 2.16): ASCII string with at most `MAX_LEN` characters. The value is
+/// always ASCII (all constructors check it); decoding rejects bytes >= 0x80 (`InvalidValue`).
+#[derive(Clone, PartialEq, Eq, Default)]
+pub struct BoundedAString<const DYNSIZEBITS: u8, const MAX_LEN: usize> {
+    val: String
+}
+impl<const DYNSIZEBITS: u8, const MAX_LEN: usize> BoundedAString<DYNSIZEBITS, MAX_LEN> {
+    /// Maximum number of characters.
+    pub const MAX_LEN: usize = MAX_LEN;
+    bounded_check_params!();
+
+    /// Construction without length check (a too long value is truncated when serialized).
+    pub fn from_ascii(data: AsciiString) -> Self { Self{ val: data.to_string() } }
+    /// Checked construction; fails with `ValueOutOfRange` if `data` is not ASCII or longer than `MAX_LEN`.
+    pub fn try_new(data: &str) -> Result<Self, EncodeError> {
+        let () = Self::CHECK_PARAMS;
+        if !data.is_ascii() || data.len() > MAX_LEN { return Err(EncodeError::ValueOutOfRange); }
+        Ok(Self{ val: data.to_string() })
+    }
+    pub fn empty() -> Self { Self{ val: String::new() } }
+    /// `true` if the length is within the bound.
+    pub fn is_valid(&self) -> bool { self.val.len() <= MAX_LEN }
+    /// Replaces the value; fails with `ValueOutOfRange` (and leaves the value unchanged) if `data`
+    /// is not ASCII or too long.
+    pub fn set(&mut self, data: &str) -> Result<(), EncodeError> {
+        *self = Self::try_new(data)?;
+        Ok(())
+    }
+    /// Appends a string; fails with `ValueOutOfRange` (and leaves the value unchanged) if it is
+    /// not ASCII or the result would be too long.
+    pub fn push_str(&mut self, data: &str) -> Result<(), EncodeError> {
+        if !data.is_ascii() || self.val.len() + data.len() > MAX_LEN { return Err(EncodeError::ValueOutOfRange); }
+        self.val.push_str(data);
+        Ok(())
+    }
+    pub fn clear(&mut self) { self.val.clear() }
+    pub fn as_str(&self) -> &str { &self.val }
+    pub fn get_string(&self) -> String { self.val.clone() }
+}
+impl<const DYNSIZEBITS: u8, const MAX_LEN: usize> BiserdiTrait for BoundedAString<DYNSIZEBITS, MAX_LEN> {
+    fn bit_serialize(self: &Self, biseri: &mut Biseri) -> Option<u64> {
+        let () = Self::CHECK_PARAMS;
+        let bytes = self.val.as_bytes();
+        let len = bounded_serialize_len(bytes.len(), MAX_LEN, biseri);
+        let (mut s, n) = serialize_count::<DYNSIZEBITS>(len, biseri)?;
+        for d in bytes[..n].iter() { biseri.add_bits(*d as u64, 8); s += 8; };
+        Some(s)
+    }
+    fn bit_deserialize(version_id: u16, bides: &mut Bides) -> Option<(Self, u64)> {
+        let () = Self::CHECK_PARAMS;
+        let (n, cs) = bounded_deserialize_count::<DYNSIZEBITS>(version_id, bides, MAX_LEN, 8)?;
+        let data = bides.decode_data(n * 8, 0)?;
+        if !data.is_ascii() { return bides.fail(DecodeError::InvalidValue); }
+        match String::from_utf8(data) {
+            Ok(val) => Some((Self{ val }, n * 8 + cs)),
+            Err(_) => bides.fail(DecodeError::InvalidValue),
+        }
+    }
+    fn min_bits() -> u64 { 1 }
+    fn max_bits() -> Option<u64> { bounded_max_bits(DYNSIZEBITS, MAX_LEN, Some(8)) }
+}
+impl<const DYNSIZEBITS: u8, const MAX_LEN: usize> std::ops::Deref for BoundedAString<DYNSIZEBITS, MAX_LEN> {
+    type Target = str;
+    fn deref(&self) -> &str { &self.val }
+}
+impl<const DYNSIZEBITS: u8, const MAX_LEN: usize> AsRef<str> for BoundedAString<DYNSIZEBITS, MAX_LEN> {
+    fn as_ref(&self) -> &str { &self.val }
+}
+impl<const DYNSIZEBITS: u8, const MAX_LEN: usize> std::fmt::Display for BoundedAString<DYNSIZEBITS, MAX_LEN> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "'{}' |string:{} max:{}", self.val, DYNSIZEBITS, MAX_LEN)
+    }
+}
+impl<const DYNSIZEBITS: u8, const MAX_LEN: usize> Debug for BoundedAString<DYNSIZEBITS, MAX_LEN> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "'{}'", self.val)
+    }
+}
+impl<const DYNSIZEBITS: u8, const MAX_LEN: usize> TryFrom<&str> for BoundedAString<DYNSIZEBITS, MAX_LEN> {
+    type Error = EncodeError;
+    fn try_from(v: &str) -> Result<Self, Self::Error> { Self::try_new(v) }
+}
+impl<const DYNSIZEBITS: u8, const MAX_LEN: usize> TryFrom<String> for BoundedAString<DYNSIZEBITS, MAX_LEN> {
+    type Error = EncodeError;
+    fn try_from(v: String) -> Result<Self, Self::Error> { Self::try_new(&v) }
+}
+impl<const DYNSIZEBITS: u8, const MAX_LEN: usize> From<BoundedAString<DYNSIZEBITS, MAX_LEN>> for String {
+    fn from(v: BoundedAString<DYNSIZEBITS, MAX_LEN>) -> Self { v.val }
+}
+/// `val_from`: legacy conversion like `BitisAString` (a non-ASCII string becomes the EMPTY
+/// string); the length is not checked (see the module notes).
+impl<const DYNSIZEBITS: u8, const MAX_LEN: usize> ValFromInto<String> for BoundedAString<DYNSIZEBITS, MAX_LEN> {
+    fn val_into(&self) -> String { self.val.clone() }
+    fn val_from(val: &String) -> Self {
+        if val.is_ascii() { Self{ val: val.clone() } } else { Self::empty() }
+    }
+}
+
+/// `repeated_dyn_Y[M] T` (spec 2.12, 2.16): at most `MAX_LEN` elements.
+#[derive(Debug, Clone, PartialEq)]
+pub struct BoundedDynArray<T, const DYNSIZEBITS: u8, const MAX_LEN: usize> where T: BiserdiTrait + Default { pub val: Vec<T> }
+impl<T, const DYNSIZEBITS: u8, const MAX_LEN: usize> BoundedDynArray<T, DYNSIZEBITS, MAX_LEN> where T: BiserdiTrait + Default {
+    /// Maximum number of elements.
+    pub const MAX_LEN: usize = MAX_LEN;
+    bounded_check_params!();
+
+    /// Unchecked construction (a too long value is truncated when serialized, see the module notes).
+    pub fn new(val: Vec<T>) -> Self { Self{ val } }
+    /// Checked construction: fails with `ValueOutOfRange` if `val` has more than `MAX_LEN` elements.
+    pub fn try_new(val: Vec<T>) -> Result<Self, EncodeError> {
+        let () = Self::CHECK_PARAMS;
+        if val.len() <= MAX_LEN { Ok(Self{ val }) } else { Err(EncodeError::ValueOutOfRange) }
+    }
+    pub fn empty() -> Self { Self{ val: Vec::new() } }
+    /// `true` if the length is within the bound.
+    pub fn is_valid(&self) -> bool { self.val.len() <= MAX_LEN }
+    /// Appends an element; fails with `ValueOutOfRange` (and leaves the value unchanged) if it is full.
+    pub fn push(&mut self, v: T) -> Result<(), EncodeError> {
+        if self.val.len() >= MAX_LEN { return Err(EncodeError::ValueOutOfRange); }
+        self.val.push(v);
+        Ok(())
+    }
+    pub fn clear(&mut self) { self.val.clear() }
+    pub fn as_slice(&self) -> &[T] { &self.val }
+}
+impl<T, const DYNSIZEBITS: u8, const MAX_LEN: usize> BiserdiTrait for BoundedDynArray<T, DYNSIZEBITS, MAX_LEN>
+    where T: BiserdiTrait + Default {
+    fn bit_serialize(self: &Self, biseri: &mut Biseri) -> Option<u64> {
+        let () = Self::CHECK_PARAMS;
+        let len = bounded_serialize_len(self.val.len(), MAX_LEN, biseri);
+        let (mut s, n) = serialize_count::<DYNSIZEBITS>(len, biseri)?;
+        for d in self.val[..n].iter() { s += d.bit_serialize(biseri)?; };
+        Some(s)
+    }
+    fn bit_deserialize(version_id: u16, bides: &mut Bides) -> Option<(Self, u64)> {
+        let () = Self::CHECK_PARAMS;
+        let (n, mut s) = bounded_deserialize_count::<DYNSIZEBITS>(version_id, bides, MAX_LEN, T::min_bits())?;
+        let mut data = Vec::with_capacity(n as usize);
+        for _ in 0..n {
+            let (vi, si) = T::bit_deserialize(version_id, bides)?;
+            s += si;
+            data.push(vi);
+        }
+        Some((Self{ val: data }, s))
+    }
+    fn min_bits() -> u64 { 1 }
+    fn max_bits() -> Option<u64> { bounded_max_bits(DYNSIZEBITS, MAX_LEN, T::max_bits()) }
+}
+impl<T, const DYNSIZEBITS: u8, const MAX_LEN: usize> Default for BoundedDynArray<T, DYNSIZEBITS, MAX_LEN> where T: BiserdiTrait + Default {
+    fn default() -> Self { Self{ val: Vec::new() } }
+}
+impl<T, const DYNSIZEBITS: u8, const MAX_LEN: usize> std::ops::Deref for BoundedDynArray<T, DYNSIZEBITS, MAX_LEN> where T: BiserdiTrait + Default {
+    type Target = [T];
+    fn deref(&self) -> &[T] { &self.val }
+}
+impl<T, const DYNSIZEBITS: u8, const MAX_LEN: usize> std::ops::DerefMut for BoundedDynArray<T, DYNSIZEBITS, MAX_LEN> where T: BiserdiTrait + Default {
+    fn deref_mut(&mut self) -> &mut [T] { &mut self.val }
+}
+impl<T: BiserdiTrait + Default + Display, const DYNSIZEBITS: u8, const MAX_LEN: usize> std::fmt::Display for BoundedDynArray<T, DYNSIZEBITS, MAX_LEN> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let das: Vec<String> = self.val.iter().map(|v| v.to_string()).collect();
+        write!(f, "[{} |dynbits:{} max:{}]", das.join(", "), DYNSIZEBITS, MAX_LEN)
+    } }
+impl<T, const DYNSIZEBITS: u8, const MAX_LEN: usize> TryFrom<Vec<T>> for BoundedDynArray<T, DYNSIZEBITS, MAX_LEN> where T: BiserdiTrait + Default {
+    type Error = EncodeError;
+    fn try_from(v: Vec<T>) -> Result<Self, Self::Error> { Self::try_new(v) }
+}
+impl<T, const DYNSIZEBITS: u8, const MAX_LEN: usize, const N: usize> TryFrom<[T; N]> for BoundedDynArray<T, DYNSIZEBITS, MAX_LEN> where T: BiserdiTrait + Default {
+    type Error = EncodeError;
+    fn try_from(v: [T; N]) -> Result<Self, Self::Error> { Self::try_new(Vec::from(v)) }
+}
+impl<T, const DYNSIZEBITS: u8, const MAX_LEN: usize> From<BoundedDynArray<T, DYNSIZEBITS, MAX_LEN>> for Vec<T> where T: BiserdiTrait + Default {
+    fn from(v: BoundedDynArray<T, DYNSIZEBITS, MAX_LEN>) -> Self { v.val }
+}
+/// `val_from` does not check the length (see the module notes).
+impl<T: BiserdiTrait + Default + ValFromInto<U>, const DYNSIZEBITS: u8, const MAX_LEN: usize, U> ValFromInto<Vec<U>> for BoundedDynArray<T, DYNSIZEBITS, MAX_LEN> {
+    fn val_into(&self) -> Vec<U> { self.val.iter().map(|v| v.val_into()).collect() }
+    fn val_from(val: &Vec<U>) -> Self { Self { val: val.iter().map(|v| T::val_from(v)).collect() } }
+}
+
+
 
 // ****************************************************************************
 // Option
@@ -1032,6 +1362,7 @@ impl<T> BiserdiTrait for BitisOption<T> where T: BiserdiTrait + Default {
         Some((BitisOption{val: v}, size))
     }
     fn min_bits() -> u64 { 1 }
+    fn max_bits() -> Option<u64> { T::max_bits()?.checked_add(1) }
 }
 impl<T, TT> From<Option<TT>> for BitisOption<T> where T: BiserdiTrait + Default, TT: Into<T> {
     fn from(value: Option<TT>) -> Self {

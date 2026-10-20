@@ -121,6 +121,20 @@ msg Choice {
   bool tail;
 }
 
+// ***** maximum lengths [M] (spec 2.16); kept out of Everything so that the
+// vectors of the other messages did not change when bounds were added (0.11)
+msg BoundsItem {
+  uint_4 val;
+  optional astr_d2[3] label;
+}
+msg Bounds {
+  astr_d4[8] name;
+  binary_d3[4] blob;
+  repeated_dyn_2[3] astr_d2[2] tags;
+  optional astr_d4[5] note;
+  repeated_dyn_3[2] BoundsItem items;
+}
+
 // ***** everything at once
 msg Everything {
   Ints ints;

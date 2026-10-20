@@ -104,17 +104,25 @@ fn decode_by_name(ty: &str, data: &[u8], exact: bool) -> Result<(Vec<u8>, u64), 
         match ty { $(stringify!($t) => roundtrip::<$t>(data, exact),)* _ => panic!("unknown message type '{ty}'") }
     } }
     dispatch!(Empty, Ints, DynInts, Floats, FixedPoints, Texts, Leaf, Mid, Nested, Containers, Enums, IntList,
-        Choice, Everything)
+        Choice, Everything, BoundsItem, Bounds)
 }
 
 const TYPES: &[&str] = &["Empty", "Ints", "DynInts", "Floats", "FixedPoints", "Texts", "Leaf", "Mid", "Nested",
-    "Containers", "Enums", "IntList", "Choice", "Everything"];
+    "Containers", "Enums", "IntList", "Choice", "Everything", "BoundsItem", "Bounds"];
 fn min_bits_by_name(ty: &str) -> u64 {
     macro_rules! dispatch { ($($t:ident),*) => {
         match ty { $(stringify!($t) => <$t as BiserdiTrait>::min_bits(),)* _ => panic!("unknown message type '{ty}'") }
     } }
     dispatch!(Empty, Ints, DynInts, Floats, FixedPoints, Texts, Leaf, Mid, Nested, Containers, Enums, IntList,
-        Choice, Everything)
+        Choice, Everything, BoundsItem, Bounds)
+}
+
+fn max_bits_by_name(ty: &str) -> Option<u64> {
+    macro_rules! dispatch { ($($t:ident),*) => {
+        match ty { $(stringify!($t) => <$t as BiserdiTrait>::max_bits(),)* _ => panic!("unknown message type '{ty}'") }
+    } }
+    dispatch!(Empty, Ints, DynInts, Floats, FixedPoints, Texts, Leaf, Mid, Nested, Containers, Enums, IntList,
+        Choice, Everything, BoundsItem, Bounds)
 }
 
 fn hex(d: &[u8]) -> String {
@@ -203,6 +211,10 @@ impl Gen {
         }
     }
     fn valid_bytes(&self, case: &str) -> Vec<u8> { self.valid[case].1.clone() }
+    /// Asserts that the input decodes (no record is written).
+    fn noncanon_or_valid_check(&self, ty: &str, input: &Bits) {
+        decode_by_name(ty, &input.to_bytes(), false).unwrap_or_else(|e| panic!("{ty}: expected to decode: {e}"));
+    }
 }
 
 // ****************************************************************************
@@ -260,6 +272,17 @@ fn nested_deep() -> Nested {
     Nested { mid: Mid { id: 99.into(), leaf: leaf(-42, "level3"), extra: some(leaf(42, "extra")) }, after: true }
 }
 fn choice(v: OO_Choice_Value, tail: bool) -> Choice { Choice { value: v, tail } }
+fn bastr<const Y: u8, const M: usize>(s: &str) -> BoundedAString<Y, M> { BoundedAString::try_new(s).expect("ASCII, bound") }
+fn bounds_max() -> Bounds {
+    Bounds {
+        name: bastr("12345678"), blob: BoundedBinary::try_new(vec![0x00, 0x80, 0xff, 0x7f]).unwrap(),
+        tags: BoundedDynArray::try_new(vec![bastr("ab"), bastr("cd"), bastr("ef")]).unwrap(),
+        note: some(bastr("note!")),
+        items: BoundedDynArray::try_new(vec![
+            BoundsItem { val: 15.into(), label: some(bastr("xyz")) },
+            BoundsItem { val: 9.into(), label: some(bastr("~~~")) }]).unwrap(),
+    }
+}
 
 // ****************************************************************************
 fn build() -> Gen {
@@ -269,6 +292,11 @@ fn build() -> Gen {
     // ************************************************************ min_bits
     g.section("min_bits of every message type (spec section 4)");
     for ty in TYPES { g.lines.push(format!("min_bits {ty} {}", min_bits_by_name(ty))); }
+    g.section("max_bits of every message type (spec section 4), 'unbounded' if there is no upper bound");
+    for ty in TYPES {
+        let m = max_bits_by_name(ty).map(|m| m.to_string()).unwrap_or_else(|| "unbounded".to_string());
+        g.lines.push(format!("max_bits {ty} {m}"));
+    }
 
     // ************************************************************ valid
     g.section("valid: fixed size integers (spec 2.1-2.3)");
@@ -362,6 +390,14 @@ fn build() -> Gen {
     g.valid("choice_list_empty", "Choice", &choice(OO_Choice_Value::List(IntList::default()), true));
     g.valid("choice_nothing", "Choice", &choice(OO_Choice_Value::Nothing(Empty {}), true));
     g.valid("choice_big", "Choice", &choice(OO_Choice_Value::Big((-i32::MAX).into()), true));
+
+    g.section("valid: maximum lengths (spec 2.16), every bounded field at exactly M in bounds_max");
+    g.valid("bounds_default", "Bounds", &Bounds::default());
+    g.valid("bounds_max", "Bounds", &bounds_max());
+    assert_eq!(Some(g.valid["bounds_max"].2), Bounds::max_bits(), "bounds_max must reach max_bits");
+    g.valid("bounds_mixed", "Bounds", &Bounds { name: bastr("x"), tags: BoundedDynArray::try_new(vec![bastr("")]).unwrap(),
+        items: BoundedDynArray::try_new(vec![BoundsItem::default()]).unwrap(), ..Default::default() });
+    g.valid("bounds_item_max", "BoundsItem", &bounds_max().items[0]);
 
     g.section("valid: nesting, empty message, everything");
     g.valid("nested_default", "Nested", &Nested::default());
@@ -517,6 +553,44 @@ fn build() -> Gen {
         &containers_prefix_to_dyn_texts().dyn_u(2, 32, 2).dyn_u(1, 32, 4).u(0x41, 8).dyn_u(1, 32, 4).u(0x9f, 8)
             .dyn_u(0, 32, 2));
 
+    g.section("invalid: maximum lengths (spec 2.16): count > M is InvalidValue, checked before the count check");
+    // field encoders of Bounds: name astr_d4[8], blob binary_d3[4], tags repeated_dyn_2[3] astr_d2[2],
+    // note optional astr_d4[5], items repeated_dyn_3[2] BoundsItem
+    let text = |b: Bits, n: u64, y: u32, c: u8| (0..n).fold(b.dyn_u(n, 32, y), |b, _| b.u(c as u64, 8));
+    let empty_rest_after_name = |b: Bits| b.dyn_u(0, 32, 3).dyn_u(0, 32, 2).b(false).dyn_u(0, 32, 3);
+    g.invalid_bits("bounds_name_count_9", "Bounds", InvalidValue, &empty_rest_after_name(text(Bits::new(), 9, 4, b'a')));
+    // count > M and the input too short for the count: InvalidValue (not UnexpectedEnd) proves the order
+    g.invalid_bits("bounds_name_count_9_short", "Bounds", InvalidValue, &Bits::new().dyn_u(9, 32, 4));
+    g.invalid_bits("bounds_name_count_max_short", "Bounds", InvalidValue, &Bits::new().dyn_u(u32::MAX as u64, 32, 4));
+    // count = M but the input too short: the bound is fine, the count check fails
+    g.invalid_bits("bounds_name_count_8_short", "Bounds", UnexpectedEnd, &(0..7).fold(Bits::new().dyn_u(8, 32, 4), |b, _| b.u(b'a' as u64, 8)));
+    let name_ok = || text(Bits::new(), 8, 4, b'n');
+    g.invalid_bits("bounds_blob_count_5", "Bounds", InvalidValue,
+        &(0..5).fold(name_ok().dyn_u(5, 32, 3), |b, i| b.u(i, 8)).dyn_u(0, 32, 2).b(false).dyn_u(0, 32, 3));
+    g.invalid_bits("bounds_blob_count_5_short", "Bounds", InvalidValue, &name_ok().dyn_u(5, 32, 3));
+    let blob_ok = || name_ok().dyn_u(0, 32, 3);
+    g.invalid_bits("bounds_tags_count_4", "Bounds", InvalidValue,
+        &(0..4).fold(blob_ok().dyn_u(4, 32, 2), |b, _| b.dyn_u(0, 32, 2)).b(false).dyn_u(0, 32, 3));
+    g.invalid_bits("bounds_tags_count_4_short", "Bounds", InvalidValue, &blob_ok().dyn_u(4, 32, 2));
+    // an element of the bounded list exceeds its own bound astr_d2[2]
+    g.invalid_bits("bounds_tag_count_3", "Bounds", InvalidValue,
+        &text(blob_ok().dyn_u(1, 32, 2), 3, 2, b't').b(false).dyn_u(0, 32, 3));
+    g.invalid_bits("bounds_tag_count_3_short", "Bounds", InvalidValue, &blob_ok().dyn_u(1, 32, 2).dyn_u(3, 32, 2));
+    let tags_ok = || blob_ok().dyn_u(0, 32, 2);
+    g.invalid_bits("bounds_note_count_6", "Bounds", InvalidValue, &text(tags_ok().b(true), 6, 4, b'o').dyn_u(0, 32, 3));
+    g.invalid_bits("bounds_note_count_6_short", "Bounds", InvalidValue, &tags_ok().b(true).dyn_u(6, 32, 4));
+    let note_ok = || tags_ok().b(false);
+    g.invalid_bits("bounds_items_count_3", "Bounds", InvalidValue,
+        &(0..3).fold(note_ok().dyn_u(3, 32, 3), |b, _| b.u(1, 4).b(false)));
+    g.invalid_bits("bounds_items_count_3_short", "Bounds", InvalidValue, &note_ok().dyn_u(3, 32, 3));
+    g.invalid_bits("bounds_item_label_count_4", "Bounds", InvalidValue,
+        &text(note_ok().dyn_u(1, 32, 3).u(1, 4).b(true), 4, 2, b'l'));
+    g.invalid_bits("bounds_item_label_count_4_top", "BoundsItem", InvalidValue, &Bits::new().u(3, 4).b(true).dyn_u(4, 32, 2));
+    // the same counts are fine for the unbounded types (only the bound makes them invalid)
+    let texts_9 = text(Bits::new(), 9, 4, b'a').dyn_u(0, 32, 4);
+    g.noncanon_or_valid_check("Texts", &texts_9);
+    g.truncations("bounds_max", &[0, 1, 5, 12]);
+
     g.section("invalid: trailing data in exact mode (TrailingData); default mode accepts it");
     let b = g.valid_bytes("ints_default");
     g.invalid("trailing_ints_default", "Ints", TrailingData, true, &[b.as_slice(), &[0]].concat());
@@ -555,6 +629,7 @@ fn render(g: &Gen) -> String {
     let _ = writeln!(s, "# noncanon <case> <MsgType> <total_bits> <input_hex> <canonical_hex>");
     let _ = writeln!(s, "# invalid  <case> <MsgType> <error> <default|exact> <hex>");
     let _ = writeln!(s, "# min_bits <MsgType> <min_bits>");
+    let _ = writeln!(s, "# max_bits <MsgType> <max_bits|unbounded>");
     let _ = writeln!(s, "# hex: lower-case, '-' = empty input");
     for l in &g.lines { let _ = writeln!(s, "{l}"); }
     s
@@ -572,11 +647,11 @@ fn main() {
                 cargo run --manifest-path golden/gen_rust/Cargo.toml");
             std::process::exit(1);
         }
-        println!("manifest up to date ({} valid, {} noncanon, {} invalid, {} min_bits)", n("valid "), n("noncanon "),
-            n("invalid "), n("min_bits "));
+        println!("manifest up to date ({} valid, {} noncanon, {} invalid, {} min_bits, {} max_bits)", n("valid "),
+            n("noncanon "), n("invalid "), n("min_bits "), n("max_bits "));
     } else {
         std::fs::write(MANIFEST_PATH, content).expect("write manifest");
-        println!("wrote {} ({} valid, {} noncanon, {} invalid, {} min_bits)", MANIFEST_PATH, n("valid "),
-            n("noncanon "), n("invalid "), n("min_bits "));
+        println!("wrote {} ({} valid, {} noncanon, {} invalid, {} min_bits, {} max_bits)", MANIFEST_PATH, n("valid "),
+            n("noncanon "), n("invalid "), n("min_bits "), n("max_bits "));
     }
 }

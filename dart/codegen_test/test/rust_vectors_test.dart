@@ -79,6 +79,9 @@ void main() {
       expect(hex(enc.bytes), expectedHex, reason: 'encoding of $msg');
       expect(enc.totalBits, expectedBits);
       expect(enc.totalBits, greaterThanOrEqualTo(ops.minBits));
+      if (ops.maxBits case final max?) {
+        expect(enc.totalBits, lessThanOrEqualTo(max));
+      }
 
       // decode the Rust bytes
       final bytes = unhex(expectedHex);

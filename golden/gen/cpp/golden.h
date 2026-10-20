@@ -10,7 +10,7 @@
 // the unqualified names refer to the first generated header included in a translation unit.
 namespace bitis_schema_golden {
     constexpr const char* BITIS_VERSION = "0.10.5";
-    constexpr uint64_t BITIS_SCHEMA_HASH = 0xcd80ce13857000bfULL;
+    constexpr uint64_t BITIS_SCHEMA_HASH = 0xb637cfeeccc2d168ULL;
 }
 #ifndef BITIS_SCHEMA_STAMP_DEFINED
 #define BITIS_SCHEMA_STAMP_DEFINED
@@ -765,6 +765,99 @@ struct Choice {
     bool operator!=(const Choice &other) const { return !is_equal(other); }
 };
 //const char *Choice::msg_attr[] = {"value", "tail"};
+
+// ****** BoundsItem *****
+
+
+struct BoundsItem {
+    typedef IntgralWithGivenBitSize<uint16_t, 4> Val_T;
+    typedef BitisOptional<BoundedAString<2, 3>> Label_T;
+
+    typedef message_helper::MessageT<
+        Val_T, Label_T
+    > MsgT;
+
+    Val_T val;
+    Label_T label;
+    const char * str_val = "val";
+    const char * str_label = "label";
+    const char *msg_attr[2] = {str_val, str_label};
+
+    //static const char *msg_attr[];
+
+    std::size_t serialize(BitisSerializer &ser) const {
+        return message_helper::msg_serialize(this, ser);
+    }
+    static constexpr std::size_t min_bits() { return message_helper::msg_min_bits<BoundsItem>(); }
+    static bitis_helper::BitiaDeserializerHelper<BoundsItem> deserialize(BitisDeserializer &des) {
+        return message_helper::msg_deserialize<BoundsItem>(des);
+    }
+
+    void print(int16_t indent=0) const {
+        printf("BoundsItem{ ");
+        if (indent>=0) printf("\n");
+        message_helper::msg_print(this, (indent>=0) ? (2 + indent) : indent, msg_attr);
+        print_indent(indent); printf("}");
+        // if (indent>=0) printf("\n");
+    }
+
+    bool is_equal(const BoundsItem &other) const {
+        return val==other.val && label==other.label;}
+    bool operator==(const BoundsItem &other) const { return is_equal(other); }
+    bool operator!=(const BoundsItem &other) const { return !is_equal(other); }
+};
+//const char *BoundsItem::msg_attr[] = {"val", "label"};
+
+// ****** Bounds *****
+
+
+struct Bounds {
+    typedef BoundedAString<4, 8> Name_T;
+    typedef BoundedBinary<3, 4> Blob_T;
+    typedef BoundedDynArray<BoundedAString<2, 2>,2,3> Tags_T;
+    typedef BitisOptional<BoundedAString<4, 5>> Note_T;
+    typedef BoundedDynArray<BoundsItem,3,2> Items_T;
+
+    typedef message_helper::MessageT<
+        Name_T, Blob_T, Tags_T, Note_T, Items_T
+    > MsgT;
+
+    Name_T name;
+    Blob_T blob;
+    Tags_T tags;
+    Note_T note;
+    Items_T items;
+    const char * str_name = "name";
+    const char * str_blob = "blob";
+    const char * str_tags = "tags";
+    const char * str_note = "note";
+    const char * str_items = "items";
+    const char *msg_attr[5] = {str_name, str_blob, str_tags, str_note, str_items};
+
+    //static const char *msg_attr[];
+
+    std::size_t serialize(BitisSerializer &ser) const {
+        return message_helper::msg_serialize(this, ser);
+    }
+    static constexpr std::size_t min_bits() { return message_helper::msg_min_bits<Bounds>(); }
+    static bitis_helper::BitiaDeserializerHelper<Bounds> deserialize(BitisDeserializer &des) {
+        return message_helper::msg_deserialize<Bounds>(des);
+    }
+
+    void print(int16_t indent=0) const {
+        printf("Bounds{ ");
+        if (indent>=0) printf("\n");
+        message_helper::msg_print(this, (indent>=0) ? (2 + indent) : indent, msg_attr);
+        print_indent(indent); printf("}");
+        // if (indent>=0) printf("\n");
+    }
+
+    bool is_equal(const Bounds &other) const {
+        return name==other.name && blob==other.blob && tags==other.tags && note==other.note && items==other.items;}
+    bool operator==(const Bounds &other) const { return is_equal(other); }
+    bool operator!=(const Bounds &other) const { return !is_equal(other); }
+};
+//const char *Bounds::msg_attr[] = {"name", "blob", "tags", "note", "items"};
 
 // ****** Everything *****
 

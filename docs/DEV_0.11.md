@@ -123,6 +123,12 @@ member functions keep their names and meaning. Everything else stays additive.
   fields keep `std::vector`. Rust/Dart/Python keep their container types.
 - `max_bits` (spec section 4) in Rust (`Option<u64>`), C++ and Dart; golden
   manifest gets `max_bits` lines.
+- Status (branch wt/bounds): done. Rust `BoundedAString<Y, M>`, `BoundedBinary<Y, M>`,
+  `BoundedDynArray<T, Y, M>` and `max_bits()` for all types (derive macros for messages,
+  enums, oneofs); C++ `BoundedAString/BoundedBinary/BoundedDynArray` (one block in
+  bitis_lib.h); Dart `maxLength` parameters, `MaxBits`, generated `bitisMaxBits`; Python
+  checked setters (`ValueError`). Golden messages `BoundsItem`/`Bounds` and `max_bits`
+  lines; the C++ golden test skips `max_bits` until every C++ type has `max_bits()`.
 
 ### Python (bindings generated via pyo3)
 - `.pyi` stub fixed (types of optionals/strings, `serialize()` result),
@@ -132,7 +138,15 @@ member functions keep their names and meaning. Everything else stays additive.
 
 ### CRC-32 helper (requested by fe-agent and fw-agent)
 - CRC-32/ISO-HDLC (reflected poly 0xEDB88320, init and xorout 0xFFFFFFFF, same as
-  ESP32 ROM `esp_rom_crc32_le` with the usual pre/post inversion and zlib.crc32),
+  zlib.crc32 and the ESP32 ROM call `esp_rom_crc32_le(0, buf, len)` — the ROM
+  function inverts on entry and exit itself; continue with `esp_rom_crc32_le(c, ...)`),
   check value `crc32("123456789") = 0xCBF43926`.
 - API in every runtime: one-shot `crc32(bytes) -> u32` and an incremental
   `Crc32` (update / finish). Not part of the wire format, no envelope message.
+- Implemented: Rust `bitis_lib::crc32` / `Crc32` (256-entry const table), C++
+  `cpp_lib/bitis_crc32.h` with the runtime's prefix: `bitis_crc32()` / `BitisCrc32`
+  (avoids zlib's global `crc32`; 16-entry nibble table, 64 bytes, by default,
+  `BITIS_CRC32_TABLE256` for 1 KiB), Dart `crc32` / `Crc32` (`value` and `finish()`),
+  Python `crc32` / `Crc32` in every generated module. ESP32: `esp_rom_crc32_le(0, buf, len)`
+  gives the same value (it inverts on entry/exit itself; not `~esp_rom_crc32_le(~0, ...)`).
+  Vectors: `golden/vectors/crc32.txt` (generated with Python `zlib.crc32`).

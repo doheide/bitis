@@ -2,6 +2,7 @@
 // ignore_for_file: lines_longer_than_80_chars
 
 import 'package:bitis_codegen_test/all_types.dart' as all_types;
+import 'package:bitis_codegen_test/bounds.dart' as bounds;
 import 'package:bitis_codegen_test/cara.dart' as cara;
 import 'package:bitis_codegen_test/stress.dart' as stress;
 import 'package:bitis_codegen_test/test_schema.dart' as test_schema;
@@ -17,6 +18,7 @@ final messages = <String, Map<String, MessageOps>>{
       all_types.Inner.fromBytes,
       all_types.Inner.fromBytesExact,
       all_types.Inner.bitisMinBits,
+      all_types.Inner.bitisMaxBits,
       (m) => (m as all_types.Inner).toJson(),
     ),
     'Empty': MessageOps(
@@ -25,6 +27,7 @@ final messages = <String, Map<String, MessageOps>>{
       all_types.Empty.fromBytes,
       all_types.Empty.fromBytesExact,
       all_types.Empty.bitisMinBits,
+      all_types.Empty.bitisMaxBits,
       (m) => (m as all_types.Empty).toJson(),
     ),
     'AllTypes': MessageOps(
@@ -33,7 +36,37 @@ final messages = <String, Map<String, MessageOps>>{
       all_types.AllTypes.fromBytes,
       all_types.AllTypes.fromBytesExact,
       all_types.AllTypes.bitisMinBits,
+      all_types.AllTypes.bitisMaxBits,
       (m) => (m as all_types.AllTypes).toJson(),
+    ),
+  },
+  'bounds': {
+    'Item': MessageOps(
+      bounds.Item.new,
+      bounds.Item.fromJson,
+      bounds.Item.fromBytes,
+      bounds.Item.fromBytesExact,
+      bounds.Item.bitisMinBits,
+      bounds.Item.bitisMaxBits,
+      (m) => (m as bounds.Item).toJson(),
+    ),
+    'Bounded': MessageOps(
+      bounds.Bounded.new,
+      bounds.Bounded.fromJson,
+      bounds.Bounded.fromBytes,
+      bounds.Bounded.fromBytesExact,
+      bounds.Bounded.bitisMinBits,
+      bounds.Bounded.bitisMaxBits,
+      (m) => (m as bounds.Bounded).toJson(),
+    ),
+    'Unbounded': MessageOps(
+      bounds.Unbounded.new,
+      bounds.Unbounded.fromJson,
+      bounds.Unbounded.fromBytes,
+      bounds.Unbounded.fromBytesExact,
+      bounds.Unbounded.bitisMinBits,
+      bounds.Unbounded.bitisMaxBits,
+      (m) => (m as bounds.Unbounded).toJson(),
     ),
   },
   'cara': {
@@ -43,6 +76,7 @@ final messages = <String, Map<String, MessageOps>>{
       cara.STD_Msg_Time.fromBytes,
       cara.STD_Msg_Time.fromBytesExact,
       cara.STD_Msg_Time.bitisMinBits,
+      cara.STD_Msg_Time.bitisMaxBits,
       (m) => (m as cara.STD_Msg_Time).toJson(),
     ),
     'STD_Msg_BaseParameters': MessageOps(
@@ -51,6 +85,7 @@ final messages = <String, Map<String, MessageOps>>{
       cara.STD_Msg_BaseParameters.fromBytes,
       cara.STD_Msg_BaseParameters.fromBytesExact,
       cara.STD_Msg_BaseParameters.bitisMinBits,
+      cara.STD_Msg_BaseParameters.bitisMaxBits,
       (m) => (m as cara.STD_Msg_BaseParameters).toJson(),
     ),
     'STD_Msg_FunctionalityParameters': MessageOps(
@@ -59,6 +94,7 @@ final messages = <String, Map<String, MessageOps>>{
       cara.STD_Msg_FunctionalityParameters.fromBytes,
       cara.STD_Msg_FunctionalityParameters.fromBytesExact,
       cara.STD_Msg_FunctionalityParameters.bitisMinBits,
+      cara.STD_Msg_FunctionalityParameters.bitisMaxBits,
       (m) => (m as cara.STD_Msg_FunctionalityParameters).toJson(),
     ),
     'STD_Msg_IP_OnlineOnlyForSending': MessageOps(
@@ -67,6 +103,7 @@ final messages = <String, Map<String, MessageOps>>{
       cara.STD_Msg_IP_OnlineOnlyForSending.fromBytes,
       cara.STD_Msg_IP_OnlineOnlyForSending.fromBytesExact,
       cara.STD_Msg_IP_OnlineOnlyForSending.bitisMinBits,
+      cara.STD_Msg_IP_OnlineOnlyForSending.bitisMaxBits,
       (m) => (m as cara.STD_Msg_IP_OnlineOnlyForSending).toJson(),
     ),
     'STD_Msg_IP_StayOnlineIndefinetly': MessageOps(
@@ -75,6 +112,7 @@ final messages = <String, Map<String, MessageOps>>{
       cara.STD_Msg_IP_StayOnlineIndefinetly.fromBytes,
       cara.STD_Msg_IP_StayOnlineIndefinetly.fromBytesExact,
       cara.STD_Msg_IP_StayOnlineIndefinetly.bitisMinBits,
+      cara.STD_Msg_IP_StayOnlineIndefinetly.bitisMaxBits,
       (m) => (m as cara.STD_Msg_IP_StayOnlineIndefinetly).toJson(),
     ),
     'STD_Msg_MinOnlineTime': MessageOps(
@@ -83,6 +121,7 @@ final messages = <String, Map<String, MessageOps>>{
       cara.STD_Msg_MinOnlineTime.fromBytes,
       cara.STD_Msg_MinOnlineTime.fromBytesExact,
       cara.STD_Msg_MinOnlineTime.bitisMinBits,
+      cara.STD_Msg_MinOnlineTime.bitisMaxBits,
       (m) => (m as cara.STD_Msg_MinOnlineTime).toJson(),
     ),
     'STD_Msg_InteractionParameters': MessageOps(
@@ -91,6 +130,7 @@ final messages = <String, Map<String, MessageOps>>{
       cara.STD_Msg_InteractionParameters.fromBytes,
       cara.STD_Msg_InteractionParameters.fromBytesExact,
       cara.STD_Msg_InteractionParameters.bitisMinBits,
+      cara.STD_Msg_InteractionParameters.bitisMaxBits,
       (m) => (m as cara.STD_Msg_InteractionParameters).toJson(),
     ),
     'STD_Msg_TempMinOnlineTime': MessageOps(
@@ -99,6 +139,7 @@ final messages = <String, Map<String, MessageOps>>{
       cara.STD_Msg_TempMinOnlineTime.fromBytes,
       cara.STD_Msg_TempMinOnlineTime.fromBytesExact,
       cara.STD_Msg_TempMinOnlineTime.bitisMinBits,
+      cara.STD_Msg_TempMinOnlineTime.bitisMaxBits,
       (m) => (m as cara.STD_Msg_TempMinOnlineTime).toJson(),
     ),
     'STD_Msg_DrawAttention': MessageOps(
@@ -107,6 +148,7 @@ final messages = <String, Map<String, MessageOps>>{
       cara.STD_Msg_DrawAttention.fromBytes,
       cara.STD_Msg_DrawAttention.fromBytesExact,
       cara.STD_Msg_DrawAttention.bitisMinBits,
+      cara.STD_Msg_DrawAttention.bitisMaxBits,
       (m) => (m as cara.STD_Msg_DrawAttention).toJson(),
     ),
     'DTS_Error': MessageOps(
@@ -115,6 +157,7 @@ final messages = <String, Map<String, MessageOps>>{
       cara.DTS_Error.fromBytes,
       cara.DTS_Error.fromBytesExact,
       cara.DTS_Error.bitisMinBits,
+      cara.DTS_Error.bitisMaxBits,
       (m) => (m as cara.DTS_Error).toJson(),
     ),
     'DTS_Msg_DeviceState': MessageOps(
@@ -123,6 +166,7 @@ final messages = <String, Map<String, MessageOps>>{
       cara.DTS_Msg_DeviceState.fromBytes,
       cara.DTS_Msg_DeviceState.fromBytesExact,
       cara.DTS_Msg_DeviceState.bitisMinBits,
+      cara.DTS_Msg_DeviceState.bitisMaxBits,
       (m) => (m as cara.DTS_Msg_DeviceState).toJson(),
     ),
     'DTS_Msg_ClientPosStart': MessageOps(
@@ -131,6 +175,7 @@ final messages = <String, Map<String, MessageOps>>{
       cara.DTS_Msg_ClientPosStart.fromBytes,
       cara.DTS_Msg_ClientPosStart.fromBytesExact,
       cara.DTS_Msg_ClientPosStart.bitisMinBits,
+      cara.DTS_Msg_ClientPosStart.bitisMaxBits,
       (m) => (m as cara.DTS_Msg_ClientPosStart).toJson(),
     ),
     'DTS_Msg_ClientPosEnd': MessageOps(
@@ -139,6 +184,7 @@ final messages = <String, Map<String, MessageOps>>{
       cara.DTS_Msg_ClientPosEnd.fromBytes,
       cara.DTS_Msg_ClientPosEnd.fromBytesExact,
       cara.DTS_Msg_ClientPosEnd.bitisMinBits,
+      cara.DTS_Msg_ClientPosEnd.bitisMaxBits,
       (m) => (m as cara.DTS_Msg_ClientPosEnd).toJson(),
     ),
     'DTS_Msg_WLanInfo_Entry': MessageOps(
@@ -147,6 +193,7 @@ final messages = <String, Map<String, MessageOps>>{
       cara.DTS_Msg_WLanInfo_Entry.fromBytes,
       cara.DTS_Msg_WLanInfo_Entry.fromBytesExact,
       cara.DTS_Msg_WLanInfo_Entry.bitisMinBits,
+      cara.DTS_Msg_WLanInfo_Entry.bitisMaxBits,
       (m) => (m as cara.DTS_Msg_WLanInfo_Entry).toJson(),
     ),
     'DTS_Msg_WLanInfos': MessageOps(
@@ -155,6 +202,7 @@ final messages = <String, Map<String, MessageOps>>{
       cara.DTS_Msg_WLanInfos.fromBytes,
       cara.DTS_Msg_WLanInfos.fromBytesExact,
       cara.DTS_Msg_WLanInfos.bitisMinBits,
+      cara.DTS_Msg_WLanInfos.bitisMaxBits,
       (m) => (m as cara.DTS_Msg_WLanInfos).toJson(),
     ),
     'DTS_Msg_GNSSPosition': MessageOps(
@@ -163,6 +211,7 @@ final messages = <String, Map<String, MessageOps>>{
       cara.DTS_Msg_GNSSPosition.fromBytes,
       cara.DTS_Msg_GNSSPosition.fromBytesExact,
       cara.DTS_Msg_GNSSPosition.bitisMinBits,
+      cara.DTS_Msg_GNSSPosition.bitisMaxBits,
       (m) => (m as cara.DTS_Msg_GNSSPosition).toJson(),
     ),
     'DTS_Msg_Ping': MessageOps(
@@ -171,6 +220,7 @@ final messages = <String, Map<String, MessageOps>>{
       cara.DTS_Msg_Ping.fromBytes,
       cara.DTS_Msg_Ping.fromBytesExact,
       cara.DTS_Msg_Ping.bitisMinBits,
+      cara.DTS_Msg_Ping.bitisMaxBits,
       (m) => (m as cara.DTS_Msg_Ping).toJson(),
     ),
     'DTS_Msg_StateTimeAnchor': MessageOps(
@@ -179,6 +229,7 @@ final messages = <String, Map<String, MessageOps>>{
       cara.DTS_Msg_StateTimeAnchor.fromBytes,
       cara.DTS_Msg_StateTimeAnchor.fromBytesExact,
       cara.DTS_Msg_StateTimeAnchor.bitisMinBits,
+      cara.DTS_Msg_StateTimeAnchor.bitisMaxBits,
       (m) => (m as cara.DTS_Msg_StateTimeAnchor).toJson(),
     ),
     'DTS_Msg_NotPlugedIn': MessageOps(
@@ -187,6 +238,7 @@ final messages = <String, Map<String, MessageOps>>{
       cara.DTS_Msg_NotPlugedIn.fromBytes,
       cara.DTS_Msg_NotPlugedIn.fromBytesExact,
       cara.DTS_Msg_NotPlugedIn.bitisMinBits,
+      cara.DTS_Msg_NotPlugedIn.bitisMaxBits,
       (m) => (m as cara.DTS_Msg_NotPlugedIn).toJson(),
     ),
     'DTS_Msg_PlugedIn': MessageOps(
@@ -195,6 +247,7 @@ final messages = <String, Map<String, MessageOps>>{
       cara.DTS_Msg_PlugedIn.fromBytes,
       cara.DTS_Msg_PlugedIn.fromBytesExact,
       cara.DTS_Msg_PlugedIn.bitisMinBits,
+      cara.DTS_Msg_PlugedIn.bitisMaxBits,
       (m) => (m as cara.DTS_Msg_PlugedIn).toJson(),
     ),
     'DTS_Msg_BatteryState': MessageOps(
@@ -203,6 +256,7 @@ final messages = <String, Map<String, MessageOps>>{
       cara.DTS_Msg_BatteryState.fromBytes,
       cara.DTS_Msg_BatteryState.fromBytesExact,
       cara.DTS_Msg_BatteryState.bitisMinBits,
+      cara.DTS_Msg_BatteryState.bitisMaxBits,
       (m) => (m as cara.DTS_Msg_BatteryState).toJson(),
     ),
     'DTS_Msg_CircuitryState': MessageOps(
@@ -211,6 +265,7 @@ final messages = <String, Map<String, MessageOps>>{
       cara.DTS_Msg_CircuitryState.fromBytes,
       cara.DTS_Msg_CircuitryState.fromBytesExact,
       cara.DTS_Msg_CircuitryState.bitisMinBits,
+      cara.DTS_Msg_CircuitryState.bitisMaxBits,
       (m) => (m as cara.DTS_Msg_CircuitryState).toJson(),
     ),
     'DTS_Msg_GNSSState': MessageOps(
@@ -219,6 +274,7 @@ final messages = <String, Map<String, MessageOps>>{
       cara.DTS_Msg_GNSSState.fromBytes,
       cara.DTS_Msg_GNSSState.fromBytesExact,
       cara.DTS_Msg_GNSSState.bitisMinBits,
+      cara.DTS_Msg_GNSSState.bitisMaxBits,
       (m) => (m as cara.DTS_Msg_GNSSState).toJson(),
     ),
     'DTS_Msg_Acknowledge': MessageOps(
@@ -227,6 +283,7 @@ final messages = <String, Map<String, MessageOps>>{
       cara.DTS_Msg_Acknowledge.fromBytes,
       cara.DTS_Msg_Acknowledge.fromBytesExact,
       cara.DTS_Msg_Acknowledge.bitisMinBits,
+      cara.DTS_Msg_Acknowledge.bitisMaxBits,
       (m) => (m as cara.DTS_Msg_Acknowledge).toJson(),
     ),
     'DTS_Msg_StateInformation': MessageOps(
@@ -235,6 +292,7 @@ final messages = <String, Map<String, MessageOps>>{
       cara.DTS_Msg_StateInformation.fromBytes,
       cara.DTS_Msg_StateInformation.fromBytesExact,
       cara.DTS_Msg_StateInformation.bitisMinBits,
+      cara.DTS_Msg_StateInformation.bitisMaxBits,
       (m) => (m as cara.DTS_Msg_StateInformation).toJson(),
     ),
     'DTS_DeviceAuthHandshake': MessageOps(
@@ -243,6 +301,7 @@ final messages = <String, Map<String, MessageOps>>{
       cara.DTS_DeviceAuthHandshake.fromBytes,
       cara.DTS_DeviceAuthHandshake.fromBytesExact,
       cara.DTS_DeviceAuthHandshake.bitisMinBits,
+      cara.DTS_DeviceAuthHandshake.bitisMaxBits,
       (m) => (m as cara.DTS_DeviceAuthHandshake).toJson(),
     ),
     'DTS_DeviceSendChallengeResponse': MessageOps(
@@ -251,6 +310,7 @@ final messages = <String, Map<String, MessageOps>>{
       cara.DTS_DeviceSendChallengeResponse.fromBytes,
       cara.DTS_DeviceSendChallengeResponse.fromBytesExact,
       cara.DTS_DeviceSendChallengeResponse.bitisMinBits,
+      cara.DTS_DeviceSendChallengeResponse.bitisMaxBits,
       (m) => (m as cara.DTS_DeviceSendChallengeResponse).toJson(),
     ),
     'STD_ResponseHandshakeOk': MessageOps(
@@ -259,6 +319,7 @@ final messages = <String, Map<String, MessageOps>>{
       cara.STD_ResponseHandshakeOk.fromBytes,
       cara.STD_ResponseHandshakeOk.fromBytesExact,
       cara.STD_ResponseHandshakeOk.bitisMinBits,
+      cara.STD_ResponseHandshakeOk.bitisMaxBits,
       (m) => (m as cara.STD_ResponseHandshakeOk).toJson(),
     ),
     'STD_ResponseGreeting': MessageOps(
@@ -267,6 +328,7 @@ final messages = <String, Map<String, MessageOps>>{
       cara.STD_ResponseGreeting.fromBytes,
       cara.STD_ResponseGreeting.fromBytesExact,
       cara.STD_ResponseGreeting.bitisMinBits,
+      cara.STD_ResponseGreeting.bitisMaxBits,
       (m) => (m as cara.STD_ResponseGreeting).toJson(),
     ),
     'STD_HandshakeResponse': MessageOps(
@@ -275,6 +337,7 @@ final messages = <String, Map<String, MessageOps>>{
       cara.STD_HandshakeResponse.fromBytes,
       cara.STD_HandshakeResponse.fromBytesExact,
       cara.STD_HandshakeResponse.bitisMinBits,
+      cara.STD_HandshakeResponse.bitisMaxBits,
       (m) => (m as cara.STD_HandshakeResponse).toJson(),
     ),
     'XTX_Msg_Header': MessageOps(
@@ -283,6 +346,7 @@ final messages = <String, Map<String, MessageOps>>{
       cara.XTX_Msg_Header.fromBytes,
       cara.XTX_Msg_Header.fromBytesExact,
       cara.XTX_Msg_Header.bitisMinBits,
+      cara.XTX_Msg_Header.bitisMaxBits,
       (m) => (m as cara.XTX_Msg_Header).toJson(),
     ),
     'DTS_MsgWrapper': MessageOps(
@@ -291,6 +355,7 @@ final messages = <String, Map<String, MessageOps>>{
       cara.DTS_MsgWrapper.fromBytes,
       cara.DTS_MsgWrapper.fromBytesExact,
       cara.DTS_MsgWrapper.bitisMinBits,
+      cara.DTS_MsgWrapper.bitisMaxBits,
       (m) => (m as cara.DTS_MsgWrapper).toJson(),
     ),
     'DTS_Msg': MessageOps(
@@ -299,6 +364,7 @@ final messages = <String, Map<String, MessageOps>>{
       cara.DTS_Msg.fromBytes,
       cara.DTS_Msg.fromBytesExact,
       cara.DTS_Msg.bitisMinBits,
+      cara.DTS_Msg.bitisMaxBits,
       (m) => (m as cara.DTS_Msg).toJson(),
     ),
     'STD_MsgWrapper': MessageOps(
@@ -307,6 +373,7 @@ final messages = <String, Map<String, MessageOps>>{
       cara.STD_MsgWrapper.fromBytes,
       cara.STD_MsgWrapper.fromBytesExact,
       cara.STD_MsgWrapper.bitisMinBits,
+      cara.STD_MsgWrapper.bitisMaxBits,
       (m) => (m as cara.STD_MsgWrapper).toJson(),
     ),
     'STD_Msg': MessageOps(
@@ -315,6 +382,7 @@ final messages = <String, Map<String, MessageOps>>{
       cara.STD_Msg.fromBytes,
       cara.STD_Msg.fromBytesExact,
       cara.STD_Msg.bitisMinBits,
+      cara.STD_Msg.bitisMaxBits,
       (m) => (m as cara.STD_Msg).toJson(),
     ),
     'STS_Msg_OnlineStateChanged_Online': MessageOps(
@@ -323,6 +391,7 @@ final messages = <String, Map<String, MessageOps>>{
       cara.STS_Msg_OnlineStateChanged_Online.fromBytes,
       cara.STS_Msg_OnlineStateChanged_Online.fromBytesExact,
       cara.STS_Msg_OnlineStateChanged_Online.bitisMinBits,
+      cara.STS_Msg_OnlineStateChanged_Online.bitisMaxBits,
       (m) => (m as cara.STS_Msg_OnlineStateChanged_Online).toJson(),
     ),
     'STS_Msg_OnlineStateChanged_Offline': MessageOps(
@@ -331,6 +400,7 @@ final messages = <String, Map<String, MessageOps>>{
       cara.STS_Msg_OnlineStateChanged_Offline.fromBytes,
       cara.STS_Msg_OnlineStateChanged_Offline.fromBytesExact,
       cara.STS_Msg_OnlineStateChanged_Offline.bitisMinBits,
+      cara.STS_Msg_OnlineStateChanged_Offline.bitisMaxBits,
       (m) => (m as cara.STS_Msg_OnlineStateChanged_Offline).toJson(),
     ),
     'STS_Msg_WLANPosReceived': MessageOps(
@@ -339,6 +409,7 @@ final messages = <String, Map<String, MessageOps>>{
       cara.STS_Msg_WLANPosReceived.fromBytes,
       cara.STS_Msg_WLANPosReceived.fromBytesExact,
       cara.STS_Msg_WLANPosReceived.bitisMinBits,
+      cara.STS_Msg_WLANPosReceived.bitisMaxBits,
       (m) => (m as cara.STS_Msg_WLANPosReceived).toJson(),
     ),
     'STS_Msg_PosGenData': MessageOps(
@@ -347,6 +418,7 @@ final messages = <String, Map<String, MessageOps>>{
       cara.STS_Msg_PosGenData.fromBytes,
       cara.STS_Msg_PosGenData.fromBytesExact,
       cara.STS_Msg_PosGenData.bitisMinBits,
+      cara.STS_Msg_PosGenData.bitisMaxBits,
       (m) => (m as cara.STS_Msg_PosGenData).toJson(),
     ),
     'STS_Msg_GeoPosReady': MessageOps(
@@ -355,6 +427,7 @@ final messages = <String, Map<String, MessageOps>>{
       cara.STS_Msg_GeoPosReady.fromBytes,
       cara.STS_Msg_GeoPosReady.fromBytesExact,
       cara.STS_Msg_GeoPosReady.bitisMinBits,
+      cara.STS_Msg_GeoPosReady.bitisMaxBits,
       (m) => (m as cara.STS_Msg_GeoPosReady).toJson(),
     ),
     'STS_MsgWrapper': MessageOps(
@@ -363,6 +436,7 @@ final messages = <String, Map<String, MessageOps>>{
       cara.STS_MsgWrapper.fromBytes,
       cara.STS_MsgWrapper.fromBytesExact,
       cara.STS_MsgWrapper.bitisMinBits,
+      cara.STS_MsgWrapper.bitisMaxBits,
       (m) => (m as cara.STS_MsgWrapper).toJson(),
     ),
     'STS_Msg': MessageOps(
@@ -371,6 +445,7 @@ final messages = <String, Map<String, MessageOps>>{
       cara.STS_Msg.fromBytes,
       cara.STS_Msg.fromBytesExact,
       cara.STS_Msg.bitisMinBits,
+      cara.STS_Msg.bitisMaxBits,
       (m) => (m as cara.STS_Msg).toJson(),
     ),
   },
@@ -381,6 +456,7 @@ final messages = <String, Map<String, MessageOps>>{
       stress.Empty.fromBytes,
       stress.Empty.fromBytesExact,
       stress.Empty.bitisMinBits,
+      stress.Empty.bitisMaxBits,
       (m) => (m as stress.Empty).toJson(),
     ),
     'lower_msg': MessageOps(
@@ -389,6 +465,7 @@ final messages = <String, Map<String, MessageOps>>{
       stress.lower_msg.fromBytes,
       stress.lower_msg.fromBytesExact,
       stress.lower_msg.bitisMinBits,
+      stress.lower_msg.bitisMaxBits,
       (m) => (m as stress.lower_msg).toJson(),
     ),
     'Shadowing': MessageOps(
@@ -397,6 +474,7 @@ final messages = <String, Map<String, MessageOps>>{
       stress.Shadowing.fromBytes,
       stress.Shadowing.fromBytesExact,
       stress.Shadowing.bitisMinBits,
+      stress.Shadowing.bitisMaxBits,
       (m) => (m as stress.Shadowing).toJson(),
     ),
     'A_Message_With_A_Really_Really_Long_Name_That_Does_Not_Fit': MessageOps(
@@ -413,6 +491,9 @@ final messages = <String, Map<String, MessageOps>>{
       stress
           .A_Message_With_A_Really_Really_Long_Name_That_Does_Not_Fit
           .bitisMinBits,
+      stress
+          .A_Message_With_A_Really_Really_Long_Name_That_Does_Not_Fit
+          .bitisMaxBits,
       (m) =>
           (m as stress.A_Message_With_A_Really_Really_Long_Name_That_Does_Not_Fit)
               .toJson(),
@@ -423,6 +504,7 @@ final messages = <String, Map<String, MessageOps>>{
       stress.UsesNonConst.fromBytes,
       stress.UsesNonConst.fromBytesExact,
       stress.UsesNonConst.bitisMinBits,
+      stress.UsesNonConst.bitisMaxBits,
       (m) => (m as stress.UsesNonConst).toJson(),
     ),
   },
@@ -433,6 +515,7 @@ final messages = <String, Map<String, MessageOps>>{
       test_schema.Papa.fromBytes,
       test_schema.Papa.fromBytesExact,
       test_schema.Papa.bitisMinBits,
+      test_schema.Papa.bitisMaxBits,
       (m) => (m as test_schema.Papa).toJson(),
     ),
     'Pipi': MessageOps(
@@ -441,6 +524,7 @@ final messages = <String, Map<String, MessageOps>>{
       test_schema.Pipi.fromBytes,
       test_schema.Pipi.fromBytesExact,
       test_schema.Pipi.bitisMinBits,
+      test_schema.Pipi.bitisMaxBits,
       (m) => (m as test_schema.Pipi).toJson(),
     ),
     'Lala': MessageOps(
@@ -449,6 +533,7 @@ final messages = <String, Map<String, MessageOps>>{
       test_schema.Lala.fromBytes,
       test_schema.Lala.fromBytesExact,
       test_schema.Lala.bitisMinBits,
+      test_schema.Lala.bitisMaxBits,
       (m) => (m as test_schema.Lala).toJson(),
     ),
     'Lali': MessageOps(
@@ -457,6 +542,7 @@ final messages = <String, Map<String, MessageOps>>{
       test_schema.Lali.fromBytes,
       test_schema.Lali.fromBytesExact,
       test_schema.Lali.bitisMinBits,
+      test_schema.Lali.bitisMaxBits,
       (m) => (m as test_schema.Lali).toJson(),
     ),
   },

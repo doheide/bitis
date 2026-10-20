@@ -19,6 +19,9 @@ void main() {
           final msg = ops.create();
           final enc = bitisEncodeWithSize(msg);
           expect(enc.totalBits, greaterThanOrEqualTo(ops.minBits));
+          if (ops.maxBits case final max?) {
+            expect(enc.totalBits, lessThanOrEqualTo(max));
+          }
           expect(enc.bytes.length, (enc.totalBits + 7) ~/ 8);
 
           // byte round trip, equality and hash code

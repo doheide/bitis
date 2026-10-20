@@ -288,5 +288,60 @@ void main() {
       expect(() => Ints(valU7: 128).toBytes(), _outOfRange);
       expect(() => Texts(text: 'ä').toBytes(), _outOfRange);
     });
+
+    test('maximum lengths (spec 2.16)', () {
+      final m = Bounds(
+        name: '12345678',
+        blob: Uint8List.fromList([0x00, 0x80, 0xff, 0x7f]),
+        tags: const ['ab', 'cd', 'ef'],
+        note: 'note!',
+        items: const [
+          BoundsItem(val: 15, label: 'xyz'),
+          BoundsItem(val: 9, label: '~~~'),
+        ],
+      );
+      expect(_enc(m), hex(caseBytes('bounds_max')));
+      expect(bitisEncodeWithSize(m).totalBits, Bounds.bitisMaxBits);
+      expect(_enc(Bounds()), hex(caseBytes('bounds_default')));
+      // one element / byte / character more than M
+      expect(() => m.copyWith(name: '123456789').toBytes(), _outOfRange);
+      expect(
+        () => m.copyWith(blob: Uint8List.fromList([1, 2, 3, 4, 5])).toBytes(),
+        _outOfRange,
+      );
+      expect(
+        () => m.copyWith(tags: const ['ab', 'cd', 'ef', 'gh']).toBytes(),
+        _outOfRange,
+      );
+      expect(() => m.copyWith(tags: const ['abc']).toBytes(), _outOfRange);
+      expect(() => m.copyWith(note: '123456').toBytes(), _outOfRange);
+      expect(
+        () =>
+            m
+                .copyWith(
+                  items: const [BoundsItem(), BoundsItem(), BoundsItem()],
+                )
+                .toBytes(),
+        _outOfRange,
+      );
+      expect(
+        () => m.copyWith(items: const [BoundsItem(label: 'abcd')]).toBytes(),
+        _outOfRange,
+      );
+    });
+  });
+
+  group('decoded bounded values', () {
+    test('Bounds', () {
+      var m = decodeCase('bounds_max', Bounds.bitisRead);
+      expect(m.name, '12345678');
+      expect(m.blob, [0x00, 0x80, 0xff, 0x7f]);
+      expect(m.tags, ['ab', 'cd', 'ef']);
+      expect(m.note, 'note!');
+      expect(m.items.map((i) => (i.val, i.label)), [(15, 'xyz'), (9, '~~~')]);
+      m = decodeCase('bounds_mixed', Bounds.bitisRead);
+      expect((m.name, m.note, m.items.length), ('x', null, 1));
+      expect(m.tags, ['']);
+    });
   });
 }
