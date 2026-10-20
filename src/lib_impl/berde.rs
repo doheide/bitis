@@ -896,6 +896,13 @@ impl<const N: u8> std::fmt::Display for Binary< N> {
 impl<const N: u8> Default for Binary<N> {
     fn default() -> Self { Self{val: Vec::new()} }
 }
+impl<const N: u8> ValFromInto<Vec<u8>> for Binary<N> {
+    fn val_into(&self) -> Vec<u8> { self.val.clone() }
+    fn val_from(val: &Vec<u8>) -> Self { Self{ val: val.clone() } }
+}
+impl<const N: u8> From<Vec<u8>> for Binary<N> {
+    fn from(val: Vec<u8>) -> Self { Self{ val } }
+}
 
 // *****
 /// `astr_dY` (spec 2.8): ASCII string. Decoding rejects bytes >= 0x80 (`InvalidValue`).
