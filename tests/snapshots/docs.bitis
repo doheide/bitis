@@ -1,0 +1,28 @@
+//| Enum doc with special chars: <html> & "quotes" \ 'single'
+//| second line
+enum Kind(2) {
+  //| first value
+  *KindA,
+  // plain comment
+  //| second value
+  KindB,
+  //| dangling doc before the closing brace
+}
+
+//| Message doc
+msg Documented {
+  //| attribute doc
+  // plain comment between doc and attribute
+  uint_4 value;
+  //| multi
+  //| line attribute doc
+  Kind kind;
+  //| oneof doc
+  oneof sel(2) {
+    //| element doc
+    *bool flag;
+    //| second element doc
+    uint_3 num;
+  }
+  //| dangling doc before the closing brace
+}
