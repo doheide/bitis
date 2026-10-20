@@ -17,10 +17,10 @@ const String bitisVersion = '0.10.5';
 
 /// Schema hash as 16 lower case hex digits: the first 8 bytes of SHA-256 over
 /// the canonical schema (bitis docs/WIRE_FORMAT.md, section 5).
-const String bitisSchemaHashHex = 'cd80ce13857000bf';
+const String bitisSchemaHashHex = 'b637cfeeccc2d168';
 
 /// Schema hash as 64-bit value (bit pattern of [bitisSchemaHashHex]).
-final Int64 bitisSchemaHash = Int64.fromInts(0xcd80ce13, 0x857000bf);
+final Int64 bitisSchemaHash = Int64.fromInts(0xb637cfee, 0xccc2d168);
 
 /// Enum `Color`.
 enum Color {
@@ -114,6 +114,10 @@ final class Empty implements BitisMessage {
   /// docs/WIRE_FORMAT.md section 4).
   static const int bitisMinBits = 0;
 
+  /// Upper bound of the encoded size in bits (`max_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4); `null` if unbounded (or above 2^53 - 1).
+  static const int bitisMaxBits = 0;
+
   /// Reads a [Empty] from [r].
   static Empty bitisRead(BitReader r) => const Empty();
 
@@ -169,6 +173,10 @@ final class Ints implements BitisMessage {
   /// Lower bound of the encoded size in bits (`min_bits`, bitis
   /// docs/WIRE_FORMAT.md section 4).
   static const int bitisMinBits = 360;
+
+  /// Upper bound of the encoded size in bits (`max_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4); `null` if unbounded (or above 2^53 - 1).
+  static const int bitisMaxBits = 360;
 
   /// Reads a [Ints] from [r].
   static Ints bitisRead(BitReader r) {
@@ -395,6 +403,10 @@ final class DynInts implements BitisMessage {
   /// docs/WIRE_FORMAT.md section 4).
   static const int bitisMinBits = 8;
 
+  /// Upper bound of the encoded size in bits (`max_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4); `null` if unbounded (or above 2^53 - 1).
+  static const int bitisMaxBits = 284;
+
   /// Reads a [DynInts] from [r].
   static DynInts bitisRead(BitReader r) {
     return DynInts(
@@ -529,6 +541,10 @@ final class Floats implements BitisMessage {
   /// docs/WIRE_FORMAT.md section 4).
   static const int bitisMinBits = 96;
 
+  /// Upper bound of the encoded size in bits (`max_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4); `null` if unbounded (or above 2^53 - 1).
+  static const int bitisMaxBits = 96;
+
   /// Reads a [Floats] from [r].
   static Floats bitisRead(BitReader r) =>
       Floats(valF32: r.readFloat32(), valF64: r.readFloat64());
@@ -601,6 +617,10 @@ final class FixedPoints implements BitisMessage {
   /// Lower bound of the encoded size in bits (`min_bits`, bitis
   /// docs/WIRE_FORMAT.md section 4).
   static const int bitisMinBits = 134;
+
+  /// Upper bound of the encoded size in bits (`max_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4); `null` if unbounded (or above 2^53 - 1).
+  static const int bitisMaxBits = 134;
 
   /// Reads a [FixedPoints] from [r].
   static FixedPoints bitisRead(BitReader r) {
@@ -738,6 +758,10 @@ final class Texts implements BitisMessage {
   /// docs/WIRE_FORMAT.md section 4).
   static const int bitisMinBits = 2;
 
+  /// Upper bound of the encoded size in bits (`max_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4); `null` if unbounded (or above 2^53 - 1).
+  static const int? bitisMaxBits = null;
+
   /// Reads a [Texts] from [r].
   static Texts bitisRead(BitReader r) =>
       Texts(text: r.readAStr(4), data: r.readBinary(4));
@@ -807,6 +831,10 @@ final class Leaf implements BitisMessage {
   /// docs/WIRE_FORMAT.md section 4).
   static const int bitisMinBits = 9;
 
+  /// Upper bound of the encoded size in bits (`max_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4); `null` if unbounded (or above 2^53 - 1).
+  static const int? bitisMaxBits = null;
+
   /// Reads a [Leaf] from [r].
   static Leaf bitisRead(BitReader r) =>
       Leaf(val: r.readInt(7), tag: r.readAStr(4));
@@ -870,6 +898,10 @@ final class Mid implements BitisMessage {
   /// Lower bound of the encoded size in bits (`min_bits`, bitis
   /// docs/WIRE_FORMAT.md section 4).
   static const int bitisMinBits = 17;
+
+  /// Upper bound of the encoded size in bits (`max_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4); `null` if unbounded (or above 2^53 - 1).
+  static const int? bitisMaxBits = null;
 
   /// Reads a [Mid] from [r].
   static Mid bitisRead(BitReader r) {
@@ -959,6 +991,10 @@ final class Nested implements BitisMessage {
   /// docs/WIRE_FORMAT.md section 4).
   static const int bitisMinBits = 18;
 
+  /// Upper bound of the encoded size in bits (`max_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4); `null` if unbounded (or above 2^53 - 1).
+  static const int? bitisMaxBits = null;
+
   /// Reads a [Nested] from [r].
   static Nested bitisRead(BitReader r) =>
       Nested(mid: Mid.bitisRead(r), after: r.readBool());
@@ -1033,6 +1069,10 @@ final class Containers implements BitisMessage {
   /// Lower bound of the encoded size in bits (`min_bits`, bitis
   /// docs/WIRE_FORMAT.md section 4).
   static const int bitisMinBits = 50;
+
+  /// Upper bound of the encoded size in bits (`max_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4); `null` if unbounded (or above 2^53 - 1).
+  static const int? bitisMaxBits = null;
 
   /// Reads a [Containers] from [r].
   static Containers bitisRead(BitReader r) {
@@ -1246,6 +1286,10 @@ final class Enums implements BitisMessage {
   /// docs/WIRE_FORMAT.md section 4).
   static const int bitisMinBits = 3;
 
+  /// Upper bound of the encoded size in bits (`max_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4); `null` if unbounded (or above 2^53 - 1).
+  static const int? bitisMaxBits = null;
+
   /// Reads a [Enums] from [r].
   static Enums bitisRead(BitReader r) {
     return Enums(
@@ -1331,6 +1375,10 @@ final class IntList implements BitisMessage {
   /// docs/WIRE_FORMAT.md section 4).
   static const int bitisMinBits = 1;
 
+  /// Upper bound of the encoded size in bits (`max_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4); `null` if unbounded (or above 2^53 - 1).
+  static const int? bitisMaxBits = null;
+
   /// Reads a [IntList] from [r].
   static IntList bitisRead(BitReader r) =>
       IntList(items: r.readDynArray(3, 8, (r) => r.readInt(7)));
@@ -1390,6 +1438,10 @@ final class Choice implements BitisMessage {
   /// Lower bound of the encoded size in bits (`min_bits`, bitis
   /// docs/WIRE_FORMAT.md section 4).
   static const int bitisMinBits = 2;
+
+  /// Upper bound of the encoded size in bits (`max_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4); `null` if unbounded (or above 2^53 - 1).
+  static const int? bitisMaxBits = null;
 
   /// Reads a [Choice] from [r].
   static Choice bitisRead(BitReader r) =>
@@ -1694,6 +1746,229 @@ final class OO_Choice_Value_Big extends OO_Choice_Value {
   String toString() => 'OO_Choice_Value_Big($value)';
 }
 
+/// Message `BoundsItem`.
+final class BoundsItem implements BitisMessage {
+  /// Creates a [BoundsItem]; omitted attributes get their default values.
+  const BoundsItem({this.val = 0, this.label});
+
+  /// Lower bound of the encoded size in bits (`min_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4).
+  static const int bitisMinBits = 5;
+
+  /// Upper bound of the encoded size in bits (`max_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4); `null` if unbounded (or above 2^53 - 1).
+  static const int bitisMaxBits = 33;
+
+  /// Reads a [BoundsItem] from [r].
+  static BoundsItem bitisRead(BitReader r) {
+    return BoundsItem(
+      val: r.readUint(4),
+      label: r.readOptional((r) => r.readAStr(2, maxLength: 3)),
+    );
+  }
+
+  /// Decodes a [BoundsItem] from the start of [data] (trailing bytes are
+  /// ignored). Throws [BitisDecodeException] on invalid input.
+  static BoundsItem fromBytes(List<int> data) =>
+      bitisDecode(data, bitisRead).value;
+
+  /// Like [fromBytes], but [data] must not contain trailing bytes.
+  static BoundsItem fromBytesExact(List<int> data) =>
+      bitisDecodeExact(data, bitisRead);
+
+  /// Parses the JSON representation (see [toJson]).
+  factory BoundsItem.fromJson(Map<String, dynamic> json) {
+    return BoundsItem(
+      val: BitisJson.intFromJson(json['val']),
+      label: BitisJson.optionalFromJson(json['label'], BitisJson.astrFromJson),
+    );
+  }
+
+  /// `uint_4 val`
+  final int val;
+
+  /// `optional astr_d2[3] label`
+  final String? label;
+
+  @override
+  void bitisWrite(BitWriter w) {
+    w.writeUint(val, 4);
+    w.writeOptional(label, (w, v) => w.writeAStr(v, 2, maxLength: 3));
+  }
+
+  /// Encodes this message.
+  Uint8List toBytes() => bitisEncode(this);
+
+  /// JSON representation; the keys are the attribute names of the schema.
+  Map<String, Object?> toJson() => {
+    'val': val,
+    if (label case final v?) 'label': v,
+  };
+
+  /// Copy with the given attributes replaced. Optional attributes are cleared
+  /// by passing `null`.
+  BoundsItem copyWith({int? val, Object? label = bitisKeep}) {
+    return BoundsItem(
+      val: val ?? this.val,
+      label: bitisKeepOr(label, this.label),
+    );
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is BoundsItem && val == other.val && label == other.label;
+
+  @override
+  int get hashCode => Object.hashAll([val, label]);
+
+  @override
+  String toString() => 'BoundsItem(val: $val, label: $label)';
+}
+
+/// Message `Bounds`.
+final class Bounds implements BitisMessage {
+  /// Creates a [Bounds]; omitted attributes get their default values.
+  Bounds({
+    this.name = '',
+    Uint8List? blob,
+    this.tags = const [],
+    this.note,
+    this.items = const [],
+  }) : blob = blob ?? Uint8List(0);
+
+  /// Lower bound of the encoded size in bits (`min_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4).
+  static const int bitisMinBits = 5;
+
+  /// Upper bound of the encoded size in bits (`max_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4); `null` if unbounded (or above 2^53 - 1).
+  static const int bitisMaxBits = 289;
+
+  /// Reads a [Bounds] from [r].
+  static Bounds bitisRead(BitReader r) {
+    return Bounds(
+      name: r.readAStr(4, maxLength: 8),
+      blob: r.readBinary(3, maxLength: 4),
+      tags: r.readDynArray(
+        2,
+        1,
+        (r) => r.readAStr(2, maxLength: 2),
+        maxLength: 3,
+      ),
+      note: r.readOptional((r) => r.readAStr(4, maxLength: 5)),
+      items: r.readDynArray(3, 5, BoundsItem.bitisRead, maxLength: 2),
+    );
+  }
+
+  /// Decodes a [Bounds] from the start of [data] (trailing bytes are
+  /// ignored). Throws [BitisDecodeException] on invalid input.
+  static Bounds fromBytes(List<int> data) => bitisDecode(data, bitisRead).value;
+
+  /// Like [fromBytes], but [data] must not contain trailing bytes.
+  static Bounds fromBytesExact(List<int> data) =>
+      bitisDecodeExact(data, bitisRead);
+
+  /// Parses the JSON representation (see [toJson]).
+  factory Bounds.fromJson(Map<String, dynamic> json) {
+    return Bounds(
+      name: BitisJson.astrFromJson(json['name']),
+      blob: BitisJson.binaryFromJson(json['blob']),
+      tags: BitisJson.listFromJsonWith(json['tags'], BitisJson.astrFromJson),
+      note: BitisJson.optionalFromJson(json['note'], BitisJson.astrFromJson),
+      items: BitisJson.listFromJsonWith(
+        json['items'],
+        (v) => BoundsItem.fromJson(BitisJson.objectFromJson(v)),
+      ),
+    );
+  }
+
+  /// `astr_d4[8] name`
+  final String name;
+
+  /// `binary_d3[4] blob`
+  final Uint8List blob;
+
+  /// `repeated_dyn_2[3] astr_d2[2] tags`
+  final List<String> tags;
+
+  /// `optional astr_d4[5] note`
+  final String? note;
+
+  /// `repeated_dyn_3[2] BoundsItem items`
+  final List<BoundsItem> items;
+
+  @override
+  void bitisWrite(BitWriter w) {
+    w.writeAStr(name, 4, maxLength: 8);
+    w.writeBinary(blob, 3, maxLength: 4);
+    w.writeDynArray(
+      tags,
+      2,
+      (w, v) => w.writeAStr(v, 2, maxLength: 2),
+      maxLength: 3,
+    );
+    w.writeOptional(note, (w, v) => w.writeAStr(v, 4, maxLength: 5));
+    w.writeDynArray(items, 3, (w, v) => v.bitisWrite(w), maxLength: 2);
+  }
+
+  /// Encodes this message.
+  Uint8List toBytes() => bitisEncode(this);
+
+  /// JSON representation; the keys are the attribute names of the schema.
+  Map<String, Object?> toJson() => {
+    'name': name,
+    'blob': BitisJson.binaryToJson(blob),
+    'tags': tags,
+    if (note case final v?) 'note': v,
+    'items': BitisJson.listToJson(items, (v) => v.toJson()),
+  };
+
+  /// Copy with the given attributes replaced. Optional attributes are cleared
+  /// by passing `null`.
+  Bounds copyWith({
+    String? name,
+    Uint8List? blob,
+    List<String>? tags,
+    Object? note = bitisKeep,
+    List<BoundsItem>? items,
+  }) {
+    return Bounds(
+      name: name ?? this.name,
+      blob: blob ?? this.blob,
+      tags: tags ?? this.tags,
+      note: bitisKeepOr(note, this.note),
+      items: items ?? this.items,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is Bounds &&
+      name == other.name &&
+      BitisEq.listEquals<int>(blob, other.blob) &&
+      BitisEq.listEquals(tags, other.tags) &&
+      note == other.note &&
+      BitisEq.listEquals(items, other.items);
+
+  @override
+  int get hashCode => Object.hashAll([
+    name,
+    Object.hashAll(blob),
+    BitisEq.listHash(tags),
+    note,
+    BitisEq.listHash(items),
+  ]);
+
+  @override
+  String toString() =>
+      'Bounds('
+      'name: $name, '
+      'blob: $blob, '
+      'tags: $tags, '
+      'note: $note, '
+      'items: $items)';
+}
+
 /// Message `Everything`.
 final class Everything implements BitisMessage {
   /// Creates a [Everything]; omitted attributes get their default values.
@@ -1716,6 +1991,10 @@ final class Everything implements BitisMessage {
   /// Lower bound of the encoded size in bits (`min_bits`, bitis
   /// docs/WIRE_FORMAT.md section 4).
   static const int bitisMinBits = 676;
+
+  /// Upper bound of the encoded size in bits (`max_bits`, bitis
+  /// docs/WIRE_FORMAT.md section 4); `null` if unbounded (or above 2^53 - 1).
+  static const int? bitisMaxBits = null;
 
   /// Reads a [Everything] from [r].
   static Everything bitisRead(BitReader r) {

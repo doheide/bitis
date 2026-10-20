@@ -23,7 +23,7 @@ golden/
   dart/                     Dart test package (path dependency on dart/bitis)
     tool/embed_manifest.dart  writes test/manifest.g.dart from vectors/manifest.txt
     test/manifest.g.dart      the manifest as a Dart string (GENERATED, for the web)
-    test/manifest.dart        parser, dispatch over the 14 message types
+    test/manifest.dart        parser, dispatch over the 16 message types
     test/golden_test.dart     the per-record checks + JSON round trip
     test/spot_checks_test.dart decoded values and encoder spot checks
   run_all.sh                runs all golden tests
@@ -47,7 +47,8 @@ tests/golden.rs             Rust test (cargo test --test golden)
 | **IntList** | repeated_dyn of int_7 (the "repeated" oneof variant) |
 | **Choice** | oneof(2) with bool / double / astr / message / repeated (IntList) / empty message / int_32d7 variants, followed by a bool |
 | **Empty** | empty message (0 bits) |
-| **Everything** | all of the above in one message |
+| **Everything** | all of the above in one message (except Bounds, see below) |
+| **BoundsItem** / **Bounds** | maximum lengths `[M]` (spec 2.16): `astr_d4[8]`, `binary_d3[4]`, `repeated_dyn_2[3] astr_d2[2]` (bounded list of bounded strings), `optional astr_d4[5]`, `repeated_dyn_3[2] BoundsItem` with an `optional astr_d2[3]` inside; kept out of Everything so that the existing vectors did not change |
 
 ## Manifest format
 
@@ -60,6 +61,7 @@ valid    <case> <MsgType> <total_bits> <hex>
 noncanon <case> <MsgType> <total_bits> <input_hex> <canonical_hex>
 invalid  <case> <MsgType> <error> <default|exact> <hex>
 min_bits <MsgType> <min_bits>
+max_bits <MsgType> <max_bits|unbounded>
 ```
 
 `<case>` matches `[a-z0-9_]+` and is unique; `<MsgType>` is the message name from the
@@ -75,6 +77,7 @@ What every runtime has to check:
 | `noncanon` | decoding `input_hex` (default and exact) succeeds and consumes `total_bits`; re-encoding gives `canonical_hex` |
 | `invalid` | decoding `hex` with the given decoder (`default`: `try_deserialize`, `exact`: `try_deserialize_exact`) fails with `error` |
 | `min_bits` | `min_bits()` of the message type (spec section 4) |
+| `max_bits` | `max_bits()` of the message type (spec section 4), `unbounded` if there is no upper bound (Rust `None`, C++ `BITIS_UNBOUNDED`, Dart `null`); every `valid` encoding is at most `max_bits` bits. The C++ test skips these lines for now (the C++ `max_bits()` of the existing types is added separately) |
 
 Notes on the vectors:
 
@@ -88,12 +91,21 @@ Notes on the vectors:
 - Negative zero (sign bit 1, magnitude 0) is decode-only (`noncanon_*_negzero`).
 - Decoders accept non-minimal dynamic integers (continuation bit 1 followed by zero chunks)
   for values, counts, enum and oneof indices, and ignore padding bits (`noncanon_*`).
+- Maximum lengths (spec 2.16): `bounds_max` has every bounded field at exactly `M` and
+  reaches `max_bits` exactly; a count of `M + 1` is `InvalidValue` (`bounds_*_count_*`,
+  also for an element of a bounded list and inside an optional or a list element), and
+  so is a count `> M` whose data is missing (`bounds_*_short`): the bound is checked
+  directly after the count, before the count check of spec section 3. A count of `M`
+  with missing data is `UnexpectedEnd` (`bounds_name_count_8_short`). The encoders reject
+  values longer than `M` (Rust `try_serialize`, Dart `toBytes`: `ValueOutOfRange`; the
+  C++ containers cannot hold them) and the legacy Rust `serialize` writes the first `M`
+  elements (spot checks).
 - First error wins: an error is reported where it is detected, before the (missing) rest
   of the input (`enum_invalid_then_end`, `int16_invalid_then_end`); the count check of
   astr/binary/repeated_dyn comes before reading the elements (`astr_non_ascii_truncated`
   is `UnexpectedEnd`).
 
-Cases (51 valid, 10 non-canonical, 65 invalid, 14 min_bits): defaults; min/max and 2^k
+Cases (55 valid, 10 non-canonical, 85 invalid, 16 min_bits, 16 max_bits): defaults; min/max and 2^k
 values of every integer width; i64/i32/i16 range limits (the base type minimum is invalid);
 dyn int chunk boundaries (incl. uint_64d64 single chunk and the final 1 bit chunk of
 uint_64d7); ±0.0, ±inf, NaN, subnormals, extremes; fixed point min/max/underflow/overflow/
@@ -103,7 +115,7 @@ nesting; everything set; truncations of many vectors (incl. empty input); huge c
 (must fail without allocating); unknown enum/oneof indices (incl. 2^32-1, inside arrays,
 optionals and nested messages); out-of-range magnitudes of int_16/int_32/int_64,
 int_16d5/int_64d8/int_32d7; non-ASCII bytes (top level, nested, in arrays); trailing data
-in exact mode.
+in exact mode; maximum lengths (at `M`, `M + 1`, `M + 1` with missing data, truncations).
 
 ## Running
 
