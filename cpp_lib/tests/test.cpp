@@ -154,7 +154,7 @@ namespace test_serializer {
         // auto data = FixedArray<ValType, 5>({ValType(7), ValType(7), ValType(7), ValType(7), ValType(7)});
         printf("org data: "); data.print(-1); printf("\n");
         data.serialize(ser);
-        auto r = ser.finalize();
+        ser.finalize();
         printf("serialized data: "); print_u8vec_as_hex(ser.data_cache); printf("\n");
 
         // ***
@@ -316,7 +316,7 @@ namespace test_msg {
             return message_helper::msg_deserialize<MsgA>(des);
         }
 
-        void print(int16_t indent=0) {
+        void print(int16_t indent=0) const {
             printf("MsgA{ ");
             if (indent>=0) printf("\n");
             message_helper::msg_print(this, (indent>=0) ? (2 + indent) : indent, msg_attr);
@@ -338,7 +338,7 @@ namespace test_msg {
         std::size_t serialize(BitisSerializer &ser) const {
             return message_helper::msg_serialize(this, ser);
         }
-        void print(const int16_t indent=0) {
+        void print(const int16_t indent=0) const {
             printf("MsgB{ ");
             if (indent>=0) printf("\n");
             message_helper::msg_print(this, (indent>=0) ? indent + 2 : indent, msg_attr);
@@ -433,7 +433,7 @@ namespace test_msg {
             return message_helper::msg_deserialize<MsgD>(des);
         }
 
-        void print(int16_t indent=0) {
+        void print(int16_t indent=0) const {
             printf("MsgA{ ");
             if (indent>=0) printf("\n");
             message_helper::msg_print(this, (indent>=0) ? (2 + indent) : indent, msg_attr);
@@ -482,7 +482,7 @@ namespace test_oneof {
         static bitis_helper::BitiaDeserializerHelper<MsgInner> deserialize(BitisDeserializer &des) {
             return message_helper::msg_deserialize<MsgInner>(des);
         }
-        void print(const int16_t indent=0) {
+        void print(const int16_t indent=0) const {
             printf("MsgInner{ ");
             if (indent>=0) printf("\n");
             message_helper::msg_print(this, (indent>=0) ? indent + 2 : indent, msg_attr);
@@ -538,13 +538,13 @@ namespace test_oneof {
             return false;
         }
 
-        std::size_t serialize(BitisSerializer &ser) {
+        std::size_t serialize(BitisSerializer &ser) const {
             return oneof_helper::oneof_serialize(this, ser);
         }
         static bitis_helper::BitiaDeserializerHelper<OO_ParamTestWithOo_Action> deserialize(BitisDeserializer &des) {
             return oneof_helper::oneof_deserialize<OO_ParamTestWithOo_Action>(des);
         }
-        void print(const int16_t indent=0) {
+        void print(const int16_t indent=0) const {
             printf("Oneof = ");
             oneof_helper::oneof_print(this, (indent>=0) ? indent + 2 : indent);
         }
@@ -575,7 +575,7 @@ namespace test_oneof {
         static bitis_helper::BitiaDeserializerHelper<MsgC> deserialize(BitisDeserializer &des) {
             return message_helper::msg_deserialize<MsgC>(des);
         }
-        void print(int16_t indent=0) {
+        void print(int16_t indent=0) const {
             print_indent(indent); printf("MsgC{ ");
             if (indent>=0) printf("\n");
             message_helper::msg_print(this, indent + 2, msg_attr);
