@@ -79,8 +79,8 @@ based traits, crate split) will be coordinated with the backend/firmware agents.
   Rust, C++ and Dart tests must all pass against the same files.
   Format, regeneration and how each runtime runs them: golden/README.md
   (`golden/run_all.sh` runs the Rust tests, the C++ tests plain and with
-  ASan/UBSan, and the Dart tests on the VM and in Chrome with dart2js and
-  dart2wasm; Python is reported as SKIP).
+  ASan/UBSan, the Python tests if a venv with maturin is available, and the
+  Dart tests on the VM and in Chrome with dart2js and dart2wasm).
 - Dart: package `golden/dart/` tests the runtime with the generated
   `golden/gen/dart/golden.dart` (up-to-date check in tests/golden.rs); the
   manifest is embedded as `test/manifest.g.dart` (`tool/embed_manifest.dart`,
@@ -135,6 +135,34 @@ member functions keep their names and meaning. Everything else stays additive.
   exception types `DecodeError` / `EncodeError` (subclasses of `ValueError`,
   attribute `kind` = spec error name), wheel version = bitis version, abi3.
 - Python golden tests (maturin in a venv).
+
+Done (branch wt/python):
+- pyo3 0.29: the generated code uses the current pyo3 API (`Python::attach`,
+  `#[pyclass(from_py_object)]`, no `PyObject`), it did not compile with the
+  pyo3 0.29 that `maturin init` selects. The compiler sets in the Cargo.toml of
+  the maturin project: `package.version` = bitis version, `pyo3 = { version =
+  "0.29", features = ["abi3-py38"] }` (other features and an existing `abi3*`
+  feature are kept), `strum_macros = "0.27"` if missing, `bitis` = compiler
+  version unless `--prevent-update-bitis-lib-in-crate` (src/lib_impl/python.rs).
+  Wheel: `<name>-<bitis version>-cp38-abi3-<platform>.whl`, CPython >= 3.8.
+- Module exceptions `DecodeError` / `EncodeError` (`ValueError` subclasses,
+  attribute `kind`, message `"<kind>: <description>"`); Rust helpers
+  `decode_error(kind, detail)` / `encode_error(kind, detail)` in pyrust.rs;
+  bounded setters / constructors raise `EncodeError`.
+- Per message (additive): `try_serialize()` (same tuple as `serialize()`,
+  raises `EncodeError` incl. for non-ASCII strings), `try_deserialize(data) ->
+  (msg, total_bits, total_bytes)`, `try_deserialize_exact(data)`, `min_bits()`,
+  `max_bits()`. `deserialize()` raises `DecodeError` instead of `Exception`.
+  These names are reserved as attribute names.
+- Enums `eq, eq_int, hash` (decoded values compare equal and are hashable);
+  oneof selector enums hashable.
+- `.pyi`: enum / oneof / selector classes, real attribute names and types
+  (`int | None`, `str`, `bytes`, `list[T]`), fixed point Overflow/Underflow
+  read-back values as comments, `__new__` signatures, `@final`; checked by
+  `mypy --strict` and `mypy.stubtest` in the golden tests.
+- Fix: binary element inside a oneof did not compile (Display).
+- golden/python (build.sh, test_golden.py), run_all.sh python step; build.sh
+  also cargo-checks the Python bindings of every codegen snapshot.
 
 ### CRC-32 helper (requested by fe-agent and fw-agent)
 - CRC-32/ISO-HDLC (reflected poly 0xEDB88320, init and xorout 0xFFFFFFFF, same as
