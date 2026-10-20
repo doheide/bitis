@@ -54,3 +54,21 @@ endif()
 
 gtest_discover_tests(bitis_testing)
 gtest_discover_tests(bitis_golden)
+
+# CRC-32 helper bitis_crc32.h: gtests against golden/vectors/crc32.txt (nibble table and
+# BITIS_CRC32_TABLE256) are part of bitis_golden, so golden/run_all.sh runs them (also with
+# ASan/UBSan); the strict header checks are built together with bitis_golden.
+target_sources(bitis_golden PRIVATE test_crc32.cpp test_crc32_table256.cpp)
+target_compile_definitions(bitis_golden PRIVATE BITIS_GOLDEN_CRC32="${BITIS_GOLDEN_DIR}/vectors/crc32.txt")
+foreach(variant nibble16 table256)
+    add_executable(bitis_crc32_check_${variant} crc32_header_check.cpp)
+    target_include_directories(bitis_crc32_check_${variant} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
+    if (variant STREQUAL "table256")
+        target_compile_definitions(bitis_crc32_check_${variant} PRIVATE BITIS_CRC32_TABLE256)
+    endif()
+    if (CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+        target_compile_options(bitis_crc32_check_${variant} PRIVATE -Wall -Wextra -Wpedantic -Werror -fno-exceptions -fno-rtti)
+    endif()
+    add_test(NAME bitis_crc32_check_${variant} COMMAND bitis_crc32_check_${variant})
+    add_dependencies(bitis_golden bitis_crc32_check_${variant})
+endforeach()
