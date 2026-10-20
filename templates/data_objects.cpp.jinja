@@ -2,24 +2,31 @@
 
 #include "{{bitis_header_lib_file_name}}"
 #include <optional>
+#include <cstdint>
 
-//#define EXPECTED_BITIS_VERSION "{{bitis_version}}"
-//#if EXPECTED_BITIS_VERSION != BITIS_CPP_LIB_VERSION
-//#error "Unexpected bitis library version"
-//#endif
+// ****** schema stamp *****
+// Compiler version and schema hash (first 8 bytes of SHA-256 over the canonical schema, see bitis
+// docs/WIRE_FORMAT.md). Always available as bitis_schema_{{stamp_name}}::BITIS_VERSION / ::BITIS_SCHEMA_HASH;
+// the unqualified names refer to the first generated header included in a translation unit.
+namespace bitis_schema_{{stamp_name}} {
+    constexpr const char* BITIS_VERSION = "{{bitis_version}}";
+    constexpr uint64_t BITIS_SCHEMA_HASH = 0x{{schema_hash}}ULL;
+}
+#ifndef BITIS_SCHEMA_STAMP_DEFINED
+#define BITIS_SCHEMA_STAMP_DEFINED
+constexpr const char* BITIS_VERSION = bitis_schema_{{stamp_name}}::BITIS_VERSION;
+constexpr uint64_t BITIS_SCHEMA_HASH = bitis_schema_{{stamp_name}}::BITIS_SCHEMA_HASH;
+#endif
 
 {%+ for objo_name in object_order %}
 
 // ****** {{ objo_name }} *****
 {# ***************************************************************** -#}
 {#- Enums ***************************************************************** -#}
-{%+ for ce in d.enums ~%}{% if *objo_name == ce.name %}
-{%- if let Some(comment_impl) = ce.comment -%}
-///{{comment_impl}}
-{%- endif -%}
-namespace {{ ce.name }}Enum {
+{%+ for ce in d.enums ~%}{% if *objo_name == ce.name -%}
+{% if let Some(c) = ce.comment %}{{ c|cpp_doc("") }}{% endif %}namespace {{ ce.name }}Enum {
 {%- for cv in ce.values +%}
-    ENUM_INSTANCE({{ cv|pascal_case }});
+{% if let Some(c) = ce.value_comment(loop.index0) %}{{ c|cpp_doc("    ") }}{% endif %}    ENUM_INSTANCE({{ cv|pascal_case }});
 {%- endfor %}
 }
 {% set def_enum="!!DEFAULT_UNDEFINED!!" %}
@@ -103,10 +110,7 @@ struct {{ coo.name }}  {
 {#- *****************************************************************#}
 {#- Messages *****************************************************************#}
 {% for cm in d.msgs ~%}{%- if *objo_name == cm.name -%}
-{%- if let Some(comment_impl) = cm.comment -%}
-///{{comment_impl}}
-{%- endif -%}
-struct {{cm.name}} {
+{% if let Some(c) = cm.comment %}{{ c|cpp_doc("") }}{% endif %}struct {{cm.name}} {
 {%- for ca in cm.attributes %}
     typedef {% include "data_object_attr_type.cpp.jinja" %} {{ca.base.name|pascal_case}}_T;
 {%- endfor %}
